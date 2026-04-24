@@ -1,65 +1,140 @@
-import Image from "next/image";
+import Link from 'next/link'
 
-export default function Home() {
+const plans = [
+  { name: 'Free', storage: '5GB', price: '฿0' },
+  { name: 'Starter', storage: '20GB', price: '฿199/mo' },
+  { name: 'Pro', storage: '50GB', price: '฿399/mo' },
+  { name: 'Studio', storage: '200GB', price: '฿499/mo' },
+  { name: 'Business', storage: '500GB', price: '฿699/mo' },
+]
+
+export default function HomePage() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <main className="min-h-screen bg-[#f6f7fb] text-slate-900">
+      <section className="px-5 py-6">
+        <div className="mx-auto flex max-w-5xl items-center justify-between">
+          <div className="text-2xl font-bold">Racky</div>
+
+          <div className="flex items-center gap-3">
+            <Link
+              href="/login"
+              className="rounded-full bg-white px-5 py-2 text-sm font-medium shadow-sm ring-1 ring-black/5"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              Login
+            </Link>
+
+            <Link
+              href="/signup"
+              className="rounded-full bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow-sm"
             >
-              Learning
-            </a>{" "}
-            center.
+              Get Started
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="px-5 pb-16 pt-10">
+        <div className="mx-auto max-w-5xl">
+          <div className="rounded-[40px] bg-white p-8 shadow-sm ring-1 ring-black/5 md:p-14">
+            <p className="text-xs uppercase tracking-[0.3em] text-blue-600">
+              Photo Sharing Platform
+            </p>
+
+            <h1 className="mt-5 max-w-3xl text-5xl font-bold leading-tight md:text-7xl">
+              Share event photos beautifully and instantly.
+            </h1>
+
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-500">
+              Racky helps photographers create albums, upload photos, generate
+              QR codes, and share galleries with clients in real time.
+            </p>
+
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link
+                href="/signup"
+                className="rounded-full bg-blue-600 px-7 py-4 font-medium text-white shadow-sm"
+              >
+                Start Free
+              </Link>
+
+              <Link
+                href="/pricing"
+                className="rounded-full bg-slate-100 px-7 py-4 font-medium text-slate-700"
+              >
+                View Pricing
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="px-5 pb-16">
+        <div className="mx-auto grid max-w-5xl gap-4 md:grid-cols-3">
+          {[
+            ['Instant Upload', 'Upload JPG photos and organize them by album.'],
+            ['Share with QR', 'Generate public gallery links and QR codes.'],
+            ['Live Gallery', 'Clients can view new photos and trending images.'],
+          ].map(([title, desc]) => (
+            <div
+              key={title}
+              className="rounded-[32px] bg-white p-6 shadow-sm ring-1 ring-black/5"
+            >
+              <h2 className="text-xl font-bold">{title}</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-500">{desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="px-5 pb-16">
+        <div className="mx-auto max-w-5xl">
+          <h2 className="text-3xl font-bold">Pricing</h2>
+          <p className="mt-2 text-slate-500">
+            Flexible storage plans for photographers and studios.
           </p>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-5">
+            {plans.map((plan) => (
+              <div
+                key={plan.name}
+                className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-black/5"
+              >
+                <h3 className="font-bold">{plan.name}</h3>
+                <p className="mt-2 text-sm text-slate-500">{plan.storage}</p>
+                <p className="mt-4 text-2xl font-bold">{plan.price}</p>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </section>
+
+      <section className="px-5 pb-20">
+        <div className="mx-auto max-w-5xl rounded-[36px] bg-slate-900 p-8 text-white md:p-12">
+          <h2 className="text-3xl font-bold">
+            Built for photographers, studios, and event teams.
+          </h2>
+          <p className="mt-4 max-w-2xl text-white/70">
+            Racky is designed for wedding, event, school, and studio photo
+            delivery workflows.
+          </p>
+
+          <div className="mt-8">
+            <Link
+              href="/signup"
+              className="rounded-full bg-white px-7 py-4 font-medium text-slate-900"
+            >
+              Create Account
+            </Link>
+          </div>
         </div>
-      </main>
-    </div>
-  );
+      </section>
+
+      <footer className="border-t border-slate-200 bg-white px-5 py-8">
+        <div className="mx-auto flex max-w-5xl flex-col gap-2 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
+          <p>© 2026 Racky. Photo sharing platform.</p>
+          <p>Support: khunruj27@gmail.com</p>
+        </div>
+      </footer>
+    </main>
+  )
 }

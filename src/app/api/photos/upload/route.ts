@@ -54,10 +54,13 @@ export async function POST(req: NextRequest) {
     }
 
     const baseName = file.name.replace(/\.[^/.]+$/, '')
-    const fileName = `${Date.now()}-${baseName}.jpg`
+    const safeBaseName = baseName.replace(/[^a-zA-Z0-9-_]/g, '-')
+    const fileName = `${Date.now()}-${safeBaseName}.jpg`
 
     const arrayBuffer = await file.arrayBuffer()
-    let buffer = Buffer.from(arrayBuffer)
+
+    // ✅ Fix Vercel TypeScript build error
+    let buffer: Buffer = Buffer.from(new Uint8Array(arrayBuffer))
 
     if (!isCover && size !== 'original') {
       const sharpModule = await import('sharp')

@@ -67,13 +67,13 @@ export async function POST(req: Request) {
           : null
 
       if (stripeSubscriptionId) {
-        const subscription = await stripe.subscriptions.retrieve(
+        const subscription: any = await stripe.subscriptions.retrieve(
           stripeSubscriptionId
         )
 
-        const periodEnd = new Date(
-          subscription.current_period_end * 1000
-        ).toISOString()
+        const periodEnd = subscription.current_period_end
+          ? new Date(subscription.current_period_end * 1000).toISOString()
+          : null
 
         await supabase
           .from('subscriptions')
@@ -105,7 +105,7 @@ export async function POST(req: Request) {
     }
 
     if (event.type === 'customer.subscription.deleted') {
-      const subscription = event.data.object as Stripe.Subscription
+      const subscription = event.data.object as any
 
       await supabase
         .from('subscriptions')

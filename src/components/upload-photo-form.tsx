@@ -12,6 +12,19 @@ type Props = {
   categories?: Category[]
 }
 
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`
+
+  const kb = bytes / 1024
+  if (kb < 1024) return `${kb.toFixed(1)} KB`
+
+  const mb = kb / 1024
+  if (mb < 1024) return `${mb.toFixed(1)} MB`
+
+  const gb = mb / 1024
+  return `${gb.toFixed(2)} GB`
+}
+
 export default function UploadPhotoForm({
   albumId,
   categories = [],
@@ -21,13 +34,39 @@ export default function UploadPhotoForm({
   const [categoryId, setCategoryId] = useState<string>('')
   const [uploading, setUploading] = useState(false)
   const [completedCount, setCompletedCount] = useState(0)
+  const [currentFileName, setCurrentFileName] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
+
+  const totalSelectedBytes = useMemo(() => {
+    return files.reduce((sum, file) => sum + file.size, 0)
+  }, [files])
 
   const progress = useMemo(() => {
     if (!files.length) return 0
     return Math.round((completedCount / files.length) * 100)
   }, [completedCount, files.length])
+
+  async function checkStorageBeforeUpload() {
+    const res = await fetch('/api/storage/check', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        uploadSizeBytes: totalSelectedBytes,
+      }),
+    })
+
+    const data = await res.json().catch(() => null)
+
+    if (!res.ok) {
+      const message = data?.error || 'Storage limit check failed'
+      throw new Error(message)
+    }
+
+    return data
+  }
 
   async function handleUpload() {
     setErrorMsg('')
@@ -54,9 +93,13 @@ export default function UploadPhotoForm({
     try {
       setUploading(true)
       setCompletedCount(0)
+      setCurrentFileName('Checking storage...')
+
+      await checkStorageBeforeUpload()
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
+        setCurrentFileName(file.name)
 
         const formData = new FormData()
         formData.append('file', file)
@@ -75,7 +118,14 @@ export default function UploadPhotoForm({
         const data = await res.json().catch(() => null)
 
         if (!res.ok) {
-          throw new Error(data?.error || `Upload failed for ${file.name}`)
+          const message = data?.error || `Upload failed for ${file.name}`
+          setErrorMsg(message)
+
+          if (message.includes('Storage full')) {
+            window.location.href = '/pricing'
+          }
+
+          return
         }
 
         setCompletedCount(i + 1)
@@ -84,11 +134,21 @@ export default function UploadPhotoForm({
       setSuccessMsg(`Upload complete: ${files.length} file(s) uploaded`)
       setFiles([])
       setCategoryId('')
+      setCurrentFileName('')
+
       window.location.reload()
     } catch (error) {
-      setErrorMsg(
+      const message =
         error instanceof Error ? error.message : 'Upload failed'
-      )
+
+      setErrorMsg(message)
+      setCurrentFileName('')
+
+      if (message.includes('Storage full')) {
+        setTimeout(() => {
+          window.location.href = '/pricing'
+        }, 900)
+      }
     } finally {
       setUploading(false)
     }
@@ -97,7 +157,9 @@ export default function UploadPhotoForm({
   return (
     <div className="space-y-4 rounded-3xl bg-white p-4 shadow-sm">
       <div>
-        <h3 className="text-base font-semibold text-slate-900">Upload Photos</h3>
+        <h3 className="text-base font-semibold text-slate-900">
+          Upload Photos
+        </h3>
         <p className="mt-1 text-sm text-slate-500">
           Upload JPG files and assign a category before sending
         </p>
@@ -110,6 +172,7 @@ export default function UploadPhotoForm({
         onChange={(e) => {
           setFiles(Array.from(e.target.files || []))
           setCompletedCount(0)
+          setCurrentFileName('')
           setErrorMsg('')
           setSuccessMsg('')
         }}
@@ -136,16 +199,19 @@ export default function UploadPhotoForm({
         disabled={uploading}
       >
         <option value="">No Category</option>
-        {categories.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
+        {categories.map((category) => (
+          <option key={category.id} value={category.id}>
+            {category.name}
           </option>
         ))}
       </select>
 
       {files.length > 0 ? (
         <div className="rounded-2xl bg-slate-50 p-3 text-sm text-slate-600">
-          Selected {files.length} file(s)
+          <div>Selected {files.length} file(s)</div>
+          <div className="mt-1 text-xs text-slate-400">
+            Total size: {formatBytes(totalSelectedBytes)}
+          </div>
         </div>
       ) : null}
 
@@ -160,6 +226,12 @@ export default function UploadPhotoForm({
             <span>{progress}%</span>
           </div>
 
+          {currentFileName ? (
+            <p className="truncate text-xs text-slate-400">
+              Current: {currentFileName}
+            </p>
+          ) : null}
+
           <div className="h-3 w-full overflow-hidden rounded-full bg-slate-200">
             <div
               className="h-full rounded-full bg-blue-600 transition-all duration-300"
@@ -169,9 +241,7 @@ export default function UploadPhotoForm({
         </div>
       ) : null}
 
-      {errorMsg ? (
-        <p className="text-sm text-red-500">{errorMsg}</p>
-      ) : null}
+      {errorMsg ? <p className="text-sm text-red-500">{errorMsg}</p> : null}
 
       {successMsg ? (
         <p className="text-sm text-green-600">{successMsg}</p>

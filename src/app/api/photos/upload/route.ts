@@ -1,6 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 
+const FREE_LIMIT_BYTES = 5 * 1024 * 1024 * 1024
+
+async function getStorageUsageAndLimit(userId: string) {
+  const supabase = await createServerSupabaseClient()
+
+  const { data: storageRows = [], error: storageError } = await supabase
+    .from('photos')
+    .select('file_size_bytes')
+    .eq('owner_id', userId)
+
+  if (storageError) {
+    throw new Error(storageError.message)
+  }
+
+  const usedBytes = storageRows.reduce(
+    (sum, row) => sum + Number(row.file_size_bytes || 0),
+    0
+  )
+
+  const { data: currentSubscription } = await supabase
+    .from('subscriptions')
+    .select(`
+      id,
+      status,
+      plan:plans(storage_limit_bytes)
+    `)
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const plan = Array.isArray(currentSubscription?.plan)
+    ? currentSubscription?.plan[0]
+    : currentSubscription?.plan
+
+  const limitBytes = Number(plan?.storage_limit_bytes || FREE_LIMIT_BYTES)
+
+  return {
+    usedBytes,
+    limitBytes,
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
@@ -58,8 +102,6 @@ export async function POST(req: NextRequest) {
     const fileName = `${Date.now()}-${safeBaseName}.jpg`
 
     const arrayBuffer = await file.arrayBuffer()
-
-    // ✅ Fix Vercel TypeScript build error
     let buffer: Buffer = Buffer.from(new Uint8Array(arrayBuffer))
 
     if (!isCover && size !== 'original') {
@@ -79,6 +121,22 @@ export async function POST(req: NextRequest) {
     }
 
     const fileSizeBytes = buffer.length
+
+    if (!isCover) {
+      const { usedBytes, limitBytes } = await getStorageUsageAndLimit(user.id)
+
+      if (usedBytes + fileSizeBytes > limitBytes) {
+        return NextResponse.json(
+          {
+            error: 'Storage full. Please upgrade your plan.',
+            usedBytes,
+            limitBytes,
+            fileSizeBytes,
+          },
+          { status: 400 }
+        )
+      }
+    }
 
     const storagePath = isCover
       ? `${user.id}/${albumId}/cover/${fileName}`

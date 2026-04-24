@@ -17,13 +17,13 @@ export default async function AlbumsPage() {
     redirect('/login')
   }
 
-  const { data: albums = [] } = await supabase
+  const { data: albums } = await supabase
     .from('albums')
     .select('*')
     .eq('owner_id', user.id)
     .order('created_at', { ascending: false })
 
-  const { data: storageRows = [] } = await supabase
+  const { data: storageRows } = await supabase
     .from('photos')
     .select('file_size_bytes')
     .eq('owner_id', user.id)
@@ -31,13 +31,7 @@ export default async function AlbumsPage() {
   const { data: currentSubscription } = await supabase
     .from('subscriptions')
     .select(`
-      id,
-      user_id,
-      plan_id,
-      status,
-      stripe_customer_id,
-      stripe_subscription_id,
-      created_at,
+      *,
       plan:plans(*)
     `)
     .eq('user_id', user.id)
@@ -46,18 +40,13 @@ export default async function AlbumsPage() {
     .limit(1)
     .maybeSingle()
 
-  const totalBytes = storageRows.reduce(
-    (sum, row) => sum + Number(row.file_size_bytes || 0),
-    0
-  )
+  const totalBytes =
+    storageRows?.reduce((sum, row) => sum + Number(row.file_size_bytes || 0), 0) || 0
 
   const storageLimitBytes =
-    currentSubscription?.plan?.storage_limit_bytes ||
-    5 * 1024 * 1024 * 1024
+    currentSubscription?.plan?.storage_limit_bytes || 5 * 1024 * 1024 * 1024
 
-  const usagePercent = clampPercent(
-    storageLimitBytes > 0 ? (totalBytes / storageLimitBytes) * 100 : 0
-  )
+  const usagePercent = clampPercent((totalBytes / storageLimitBytes) * 100)
 
   let barColor = 'bg-blue-600'
   let textColor = 'text-blue-600'
@@ -73,9 +62,8 @@ export default async function AlbumsPage() {
     bgColor = 'bg-yellow-50'
   }
 
-  const albumCount = albums.length
+  const albumCount = albums?.length || 0
   const currentPlanName = currentSubscription?.plan?.name || 'Free'
-  const hasBillingPortal = Boolean(currentSubscription?.stripe_customer_id)
 
   return (
     <main className="min-h-screen bg-slate-50 pb-24">
@@ -118,7 +106,7 @@ export default async function AlbumsPage() {
             <div className="mt-4">
               <div className="h-3 w-full overflow-hidden rounded-full bg-slate-200">
                 <div
-                  className={`h-full rounded-full ${barColor} transition-all duration-700`}
+                  className={`h-full rounded-full ${barColor} transition-all duration-700 ease-out`}
                   style={{ width: `${usagePercent}%` }}
                 />
               </div>
@@ -132,7 +120,10 @@ export default async function AlbumsPage() {
                 </span>
               </div>
 
+               {/* Actions */}
+
               <div className="mt-4 flex gap-2">
+
                 <Link
                   href="/pricing"
                   className="rounded-full bg-blue-600 px-4 py-2 text-sm text-white"
@@ -140,14 +131,15 @@ export default async function AlbumsPage() {
                   Upgrade Plan
                 </Link>
 
-                {hasBillingPortal ? <ManageBillingButton /> : null}
+                <ManageBillingButton />
+
               </div>
             </div>
           </div>
 
           <CreateAlbumForm />
 
-          {albums.map((album) => (
+          {albums?.map((album) => (
             <Link
               key={album.id}
               href={`/albums/${album.id}`}
@@ -158,7 +150,6 @@ export default async function AlbumsPage() {
                   {album.cover_url ? (
                     <img
                       src={album.cover_url}
-                      alt={album.title || 'Album cover'}
                       className="h-full w-full object-cover"
                     />
                   ) : (
@@ -169,9 +160,7 @@ export default async function AlbumsPage() {
                 </div>
 
                 <div className="flex-1">
-                  <h2 className="text-xl font-bold">
-                    {album.title || 'Untitled album'}
-                  </h2>
+                  <h2 className="text-xl font-bold">{album.title}</h2>
                   <p className="text-sm text-slate-500">
                     {album.description || 'No description'}
                   </p>

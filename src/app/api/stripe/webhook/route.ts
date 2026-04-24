@@ -29,65 +29,51 @@ export async function POST(req: Request) {
   const supabase = await createServerSupabaseClient()
 
   try {
-    switch (event.type) {
-      case 'checkout.session.completed': {
-        const session = event.data.object as Stripe.Checkout.Session
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object as Stripe.Checkout.Session
 
-        if (session.mode === 'subscription') {
-          const userId = session.metadata?.user_id
-          const planId = session.metadata?.plan_id
-          const stripeCustomerId =
-            typeof session.customer === 'string' ? session.customer : null
-          const stripeSubscriptionId =
-            typeof session.subscription === 'string' ? session.subscription : null
+      const userId = session.metadata?.user_id
+      const planId = session.metadata?.plan_id
+      const stripeCustomerId =
+        typeof session.customer === 'string' ? session.customer : null
+      const stripeSubscriptionId =
+        typeof session.subscription === 'string' ? session.subscription : null
 
-          if (userId && planId) {
-            await supabase
-              .from('subscriptions')
-              .update({ status: 'canceled' })
-              .eq('user_id', userId)
-              .eq('status', 'active')
+      if (userId && planId && stripeSubscriptionId) {
+        await supabase
+          .from('subscriptions')
+          .update({ status: 'canceled' })
+          .eq('user_id', userId)
+          .eq('status', 'active')
 
-            await supabase.from('subscriptions').insert({
-              user_id: userId,
-              plan_id: planId,
-              status: 'active',
-              stripe_customer_id: stripeCustomerId,
-              stripe_subscription_id: stripeSubscriptionId,
-            })
-          }
-        }
-        break
+        await supabase.from('subscriptions').insert({
+          user_id: userId,
+          plan_id: planId,
+          status: 'active',
+          stripe_customer_id: stripeCustomerId,
+          stripe_subscription_id: stripeSubscriptionId,
+        })
       }
+    }
 
-      case 'invoice.paid': {
-        const invoice = event.data.object as Stripe.Invoice
-        const stripeSubscriptionId =
-          typeof invoice.subscription === 'string' ? invoice.subscription : null
+    if (event.type === 'invoice.paid') {
+      const invoice = event.data.object as any
 
-        if (stripeSubscriptionId) {
-          const subscription = await stripe.subscriptions.retrieve(
-            stripeSubscriptionId
-          )
+      const stripeSubscriptionId =
+        typeof invoice.subscription === 'string'
+          ? invoice.subscription
+          : typeof invoice.parent?.subscription_details?.subscription === 'string'
+          ? invoice.parent.subscription_details.subscription
+          : null
 
-          const periodEnd = new Date(subscription.current_period_end * 1000).toISOString()
+      if (stripeSubscriptionId) {
+        const subscription = await stripe.subscriptions.retrieve(
+          stripeSubscriptionId
+        )
 
-          await supabase
-            .from('subscriptions')
-            .update({
-              status: subscription.status,
-              current_period_end: periodEnd,
-            })
-            .eq('stripe_subscription_id', stripeSubscriptionId)
-        }
-        break
-      }
-
-      case 'customer.subscription.updated':
-      case 'customer.subscription.created': {
-        const subscription = event.data.object as Stripe.Subscription
-        const stripeSubscriptionId = subscription.id
-        const periodEnd = new Date(subscription.current_period_end * 1000).toISOString()
+        const periodEnd = new Date(
+          subscription.current_period_end * 1000
+        ).toISOString()
 
         await supabase
           .from('subscriptions')
@@ -96,25 +82,35 @@ export async function POST(req: Request) {
             current_period_end: periodEnd,
           })
           .eq('stripe_subscription_id', stripeSubscriptionId)
-
-        break
       }
+    }
 
-      case 'customer.subscription.deleted': {
-        const subscription = event.data.object as Stripe.Subscription
+    if (
+      event.type === 'customer.subscription.created' ||
+      event.type === 'customer.subscription.updated'
+    ) {
+      const subscription = event.data.object as any
 
-        await supabase
-          .from('subscriptions')
-          .update({
-            status: 'canceled',
-          })
-          .eq('stripe_subscription_id', subscription.id)
+      const periodEnd = subscription.current_period_end
+        ? new Date(subscription.current_period_end * 1000).toISOString()
+        : null
 
-        break
-      }
+      await supabase
+        .from('subscriptions')
+        .update({
+          status: subscription.status,
+          current_period_end: periodEnd,
+        })
+        .eq('stripe_subscription_id', subscription.id)
+    }
 
-      default:
-        break
+    if (event.type === 'customer.subscription.deleted') {
+      const subscription = event.data.object as Stripe.Subscription
+
+      await supabase
+        .from('subscriptions')
+        .update({ status: 'canceled' })
+        .eq('stripe_subscription_id', subscription.id)
     }
 
     return new Response('ok', { status: 200 })

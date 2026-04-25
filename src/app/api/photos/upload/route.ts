@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { getUserStoragePlan } from '@/lib/get-user-storage-plan'
 
-const FREE_LIMIT_BYTES = 3 * 1024 * 1024 * 1024
+export const runtime = 'nodejs'
 
 async function getStorageUsageAndLimit(userId: string) {
   const supabase = await createServerSupabaseClient()
 
-  const { data: storageRows = [], error: storageError } = await supabase
+  const { data: storageRowsData, error: storageError } = await supabase
     .from('photos')
     .select('file_size_bytes')
     .eq('owner_id', userId)
@@ -15,35 +16,17 @@ async function getStorageUsageAndLimit(userId: string) {
     throw new Error(storageError.message)
   }
 
-  const storageRowsSafe = storageRows ?? []
+  const storageRows = storageRowsData ?? []
 
-const usedBytes = storageRowsSafe.reduce(
-  (sum, row) => sum + Number(row.file_size_bytes || 0),
-  0
-)
+  const usedBytes = storageRows.reduce((sum, row) => {
+    return sum + Number(row.file_size_bytes || 0)
+  }, 0)
 
-  const { data: currentSubscription } = await supabase
-    .from('subscriptions')
-    .select(`
-      id,
-      status,
-      plan:plans(storage_limit_bytes)
-    `)
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  const plan = Array.isArray(currentSubscription?.plan)
-    ? currentSubscription?.plan[0]
-    : currentSubscription?.plan
-
-  const limitBytes = Number(plan?.storage_limit_bytes || FREE_LIMIT_BYTES)
+  const { storageLimitBytes } = await getUserStoragePlan(userId)
 
   return {
     usedBytes,
-    limitBytes,
+    limitBytes: Number(storageLimitBytes || 3 * 1024 * 1024 * 1024),
   }
 }
 
@@ -75,11 +58,13 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const fileNameLower = file.name.toLowerCase()
+
     const isImage =
       file.type.startsWith('image/') ||
-      file.name.toLowerCase().endsWith('.jpg') ||
-      file.name.toLowerCase().endsWith('.jpeg') ||
-      file.name.toLowerCase().endsWith('.png')
+      fileNameLower.endsWith('.jpg') ||
+      fileNameLower.endsWith('.jpeg') ||
+      fileNameLower.endsWith('.png')
 
     if (!isImage) {
       return NextResponse.json(
@@ -101,16 +86,17 @@ export async function POST(req: NextRequest) {
 
     const baseName = file.name.replace(/\.[^/.]+$/, '')
     const safeBaseName = baseName.replace(/[^a-zA-Z0-9-_]/g, '-')
-    const fileName = `${Date.now()}-${safeBaseName}.jpg`
+    const fileName = `${Date.now()}-${safeBaseName || 'photo'}.jpg`
 
     const arrayBuffer = await file.arrayBuffer()
-    let buffer: Buffer = Buffer.from(new Uint8Array(arrayBuffer))
+    let buffer = Buffer.from(new Uint8Array(arrayBuffer))
 
     if (!isCover && size !== 'original') {
       const sharpModule = await import('sharp')
       const sharp = sharpModule.default
 
       let width = 2000
+
       if (size === 'hd') width = 3000
       if (size === 'uhd') width = 4000
       if (size === 'sd') width = 2000
@@ -119,6 +105,14 @@ export async function POST(req: NextRequest) {
         .rotate()
         .resize({ width, withoutEnlargement: true })
         .jpeg({ quality: 85 })
+        .toBuffer()
+    } else {
+      const sharpModule = await import('sharp')
+      const sharp = sharpModule.default
+
+      buffer = await sharp(buffer)
+        .rotate()
+        .jpeg({ quality: 90 })
         .toBuffer()
     }
 

@@ -15,10 +15,12 @@ async function getStorageUsageAndLimit(userId: string) {
     throw new Error(storageError.message)
   }
 
-  const usedBytes = storageRows.reduce(
-    (sum, row) => sum + Number(row.file_size_bytes || 0),
-    0
-  )
+  const storageRowsSafe = storageRows ?? []
+
+const usedBytes = storageRowsSafe.reduce(
+  (sum, row) => sum + Number(row.file_size_bytes || 0),
+  0
+)
 
   const { data: currentSubscription } = await supabase
     .from('subscriptions')

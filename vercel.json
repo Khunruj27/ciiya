@@ -1,2 +1,8 @@
 {
+  "crons": [
+    {
+      "path": "/api/worker/process-photos?limit=10&secret=j8skdj23kjsdf98sdf9sdf98sdf9sdf==",
+      "schedule": "*/5 * * * *"
+    }
+  ]
 }

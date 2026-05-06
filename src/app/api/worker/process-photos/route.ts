@@ -31,14 +31,18 @@ function getSupabaseAdmin() {
 }
 
 async function updateProgress(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   photoId: string,
   progress: number,
   status?: string
 ) {
-  const payload: any = { processing_progress: progress }
+  const payload: Record<string, unknown> = {
+    processing_progress: progress,
+  }
 
-  if (status) payload.processing_status = status
+  if (status) {
+    payload.processing_status = status
+  }
 
   await supabase.from('photos').update(payload).eq('id', photoId)
 }
@@ -76,7 +80,7 @@ function pickXmp(text: string, key: string) {
 }
 
 async function parsePresetFromStorage(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   presetPath: string | null
 ): Promise<XmpPreset | null> {
   if (!presetPath) return null
@@ -129,14 +133,11 @@ function getPreviewWidth(sizeValue: unknown): number | null {
 }
 
 async function safeUpdatePhoto(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   photoId: string,
-  payload: any
+  payload: Record<string, unknown>
 ) {
-  await (supabase as any)
-  .from('photos')
-  .update(payload as any)
-  .eq('id', photoId)
+  await supabase.from('photos').update(payload).eq('id', photoId)
 }
 
 async function processOneJob(job: any) {
@@ -296,6 +297,8 @@ async function processOneJob(job: any) {
       thumbnail_path: thumbPath,
       thumbnail_url: tUrl.publicUrl,
       file_size_bytes: previewBuffer.length,
+      processing_status: 'done',
+      processing_progress: 100,
     })
 
     await supabase
@@ -327,13 +330,10 @@ async function processOneJob(job: any) {
       })
       .eq('id', job.id)
 
-    await supabase
-      .from('photos')
-      .update({
-        processing_status: 'failed',
-        processing_progress: 0,
-      })
-      .eq('id', job.photo_id)
+    await safeUpdatePhoto(supabase, job.photo_id, {
+      processing_status: 'failed',
+      processing_progress: 0,
+    })
 
     return {
       jobId: job.id,

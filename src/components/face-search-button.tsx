@@ -1,8 +1,7 @@
 'use client'
-import AppIcon from '@/components/app-icon'
 
 type Props = {
-  onClick: () => void
+  onClick?: () => void
 }
 
 export default function FaceSearchButton({ onClick }: Props) {
@@ -10,9 +9,18 @@ export default function FaceSearchButton({ onClick }: Props) {
     <button
       type="button"
       onClick={onClick}
-      className="fixed bottom-24 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#2F6BFF] px-5 py-3 text-sm font-bold text-white shadow-xl"
+      className="
+        fixed bottom-24 right-5 z-50
+        flex items-center gap-2
+        rounded-full
+        bg-black px-5 py-3
+        text-sm font-medium text-white
+        shadow-xl
+        transition hover:scale-105
+      "
     >
-     <AppIcon name="authentication" size={20} className="opacity-100" /> ค้นหาใบหน้า
+      <span>🔍</span>
+      <span>Face Search</span>
     </button>
   )
 }

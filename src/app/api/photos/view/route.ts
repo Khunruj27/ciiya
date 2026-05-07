@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
@@ -15,7 +18,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 🔍 ดึงข้อมูลรูป
     const { data: photo, error: fetchError } = await supabase
       .from('photos')
       .select('id, view_count, created_at')
@@ -29,10 +31,19 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 🔢 เพิ่ม view
-    const nextView = (photo.view_count || 0) + 1
+    const { error: rpcError } = await supabase.rpc('increment_photo_views', {
+      photo_id: photoId,
+    })
 
-    // ⏱ คำนวณอายุรูป (ชั่วโมง)
+    if (rpcError) {
+      return NextResponse.json(
+        { error: rpcError.message },
+        { status: 500 }
+      )
+    }
+
+    const nextView = Number(photo.view_count || 0) + 1
+
     let ageHours = 0
 
     if (photo.created_at) {
@@ -40,24 +51,19 @@ export async function POST(req: NextRequest) {
         (Date.now() - new Date(photo.created_at).getTime()) / 3600000
     }
 
-    // 🔥 boost รูปใหม่ (ภายใน 24 ชั่วโมง)
     const recencyBoost = Math.max(0, 24 - ageHours)
-
-    // 🧠 สูตร trending
     const trendingScore = nextView + recencyBoost
 
-    // 💾 update DB
-    const { error: updateError } = await supabase
+    const { error: trendingError } = await supabase
       .from('photos')
       .update({
-        view_count: nextView,
         trending_score: trendingScore,
       })
-      .eq('id', photo.id)
+      .eq('id', photoId)
 
-    if (updateError) {
+    if (trendingError) {
       return NextResponse.json(
-        { error: updateError.message },
+        { error: trendingError.message },
         { status: 500 }
       )
     }

@@ -11,6 +11,7 @@ import AlbumRealtimeRefresher from '@/components/album-realtime-refresher'
 import AppIcon from '@/components/app-icon'
 import FaceReindexButton from '@/components/face-reindex-button'
 import FaceClusterButton from '@/components/face-cluster-button'
+import RunWorkerButton from '@/components/run-worker-button'
 
 type PageProps = {
   params: Promise<{ id: string }>
@@ -112,6 +113,7 @@ export default async function AlbumDetailPage({ params }: PageProps) {
 
              <FaceReindexButton albumId={album.id} photos={photos} />
              <FaceClusterButton albumId={album.id} />
+             <RunWorkerButton />
 
               <EditAlbumForm
                 albumId={album.id}

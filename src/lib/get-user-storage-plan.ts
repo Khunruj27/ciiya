@@ -26,10 +26,38 @@ export async function getUserStoragePlan(userId: string) {
     ? currentSubscription.plan[0]
     : currentSubscription?.plan
 
+  const { data: photos, error: photosError } = await supabase
+    .from('photos')
+    .select(`
+      original_size_bytes,
+      preview_size_bytes,
+      thumbnail_size_bytes,
+      file_size_bytes
+    `)
+    .eq('owner_id', userId)
+
+  if (photosError) {
+    throw new Error(photosError.message)
+  }
+
+  const usedBytes = (photos ?? []).reduce((sum, photo) => {
+    const separatedTotal =
+      Number(photo.original_size_bytes || 0) +
+      Number(photo.preview_size_bytes || 0) +
+      Number(photo.thumbnail_size_bytes || 0)
+
+    return sum + (separatedTotal || Number(photo.file_size_bytes || 0))
+  }, 0)
+
   if (subscribedPlan?.storage_limit_bytes) {
     return {
       planName: subscribedPlan.name || 'Current Plan',
       storageLimitBytes: Number(subscribedPlan.storage_limit_bytes),
+      usedBytes,
+      remainingBytes: Math.max(
+        Number(subscribedPlan.storage_limit_bytes) - usedBytes,
+        0
+      ),
     }
   }
 
@@ -42,10 +70,14 @@ export async function getUserStoragePlan(userId: string) {
     .limit(1)
     .maybeSingle()
 
+  const storageLimitBytes = Number(
+    freePlan?.storage_limit_bytes || DEFAULT_FREE_STORAGE_BYTES
+  )
+
   return {
     planName: freePlan?.name || 'Free 5GB',
-    storageLimitBytes: Number(
-      freePlan?.storage_limit_bytes || DEFAULT_FREE_STORAGE_BYTES
-    ),
+    storageLimitBytes,
+    usedBytes,
+    remainingBytes: Math.max(storageLimitBytes - usedBytes, 0),
   }
 }

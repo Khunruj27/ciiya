@@ -13,6 +13,8 @@ type XmpPreset = {
   blackAndWhite: boolean
 }
 
+type OutputSize = 'sd' | 'hd' | 'uhd' | 'thumbnail'
+
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -26,6 +28,7 @@ function getSupabaseAdmin() {
   return createClient(url, key, {
     auth: {
       persistSession: false,
+      autoRefreshToken: false,
     },
   })
 }
@@ -40,26 +43,33 @@ async function updateProgress(
     processing_progress: progress,
   }
 
-  if (status) {
-    payload.processing_status = status
-  }
+  if (status) payload.processing_status = status
 
   await supabase.from('photos').update(payload).eq('id', photoId)
 }
 
 function isAuthorizedWorker(req: NextRequest) {
   const workerSecret = process.env.WORKER_SECRET
-  if (!workerSecret) return true
 
-  const header = req.headers.get('x-worker-secret')
-  const query = req.nextUrl.searchParams.get('secret')
+  if (process.env.NODE_ENV === 'production' && !workerSecret) {
+    return false
+  }
 
-  return header === workerSecret || query === workerSecret
+  if (!workerSecret) {
+    return true
+  }
+
+  const authHeader = req.headers.get('authorization')
+  const cronSecret = req.headers.get('x-worker-secret')
+
+  return authHeader === `Bearer ${workerSecret}` || cronSecret === workerSecret
 }
 
 function num(value: string | null, fallback = 0) {
   if (!value) return fallback
+
   const parsed = Number(value.replace('+', '').trim())
+
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
@@ -114,22 +124,62 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value))
 }
 
-function makeOutputPath(originalPath: string, folder: 'preview' | 'thumbnail') {
+function makeOutputPath(originalPath: string, folder: OutputSize) {
   const parts = originalPath.split('/')
   const name = parts[parts.length - 1]?.replace(/\.[^/.]+$/, '') || 'photo'
 
   return `${parts[0]}/${parts[1]}/${folder}/${name}.jpg`
 }
 
-function getPreviewWidth(sizeValue: unknown): number | null {
-  const size = String(sizeValue || 'original').toLowerCase()
+function applyPresetToImage(img: any, preset: XmpPreset | null) {
+  if (!preset) return img
 
-  if (size === 'sd') return 2000
-  if (size === 'hd') return 3000
-  if (size === 'uhd') return 4000
-  if (size === 'original') return null
+  const brightness = clamp(1 + preset.exposure / 5, 0.65, 1.6)
 
-  return 1500
+  const saturation = preset.blackAndWhite
+    ? 0
+    : clamp(1 + (preset.saturation + preset.vibrance) / 140, 0.5, 1.9)
+
+  const contrast = clamp(1 + preset.contrast / 150, 0.75, 1.55)
+
+  let next = img
+
+  if (preset.blackAndWhite) {
+    next = next.grayscale()
+  }
+
+  next = next.modulate({ brightness, saturation }).linear(contrast, 0)
+
+  if (preset.clarity > 0) next = next.sharpen()
+
+  if (preset.clarity < 0) {
+    next = next.blur(clamp(Math.abs(preset.clarity) / 90, 0.3, 1.1))
+  }
+
+  return next
+}
+
+async function generateResizeBuffer(
+  sharp: any,
+  buffer: Buffer,
+  width: number,
+  preset: XmpPreset | null,
+  quality = 86
+) {
+  let img = sharp(buffer).rotate().resize({
+    width,
+    fit: 'inside',
+    withoutEnlargement: true,
+  })
+
+  img = applyPresetToImage(img, preset)
+
+  return img
+    .jpeg({
+      quality,
+      mozjpeg: true,
+    })
+    .toBuffer()
 }
 
 async function safeUpdatePhoto(
@@ -138,6 +188,133 @@ async function safeUpdatePhoto(
   payload: Record<string, unknown>
 ) {
   await supabase.from('photos').update(payload).eq('id', photoId)
+}
+
+async function safeUpdatePhotoWithFallback(
+  supabase: any,
+  photoId: string,
+  payload: Record<string, unknown>,
+  fallbackPayload: Record<string, unknown>
+) {
+  const { error } = await supabase
+    .from('photos')
+    .update(payload)
+    .eq('id', photoId)
+
+  if (error) {
+    console.error('Update photo with multi-size columns failed:', error.message)
+
+    const { error: fallbackError } = await supabase
+      .from('photos')
+      .update(fallbackPayload)
+      .eq('id', photoId)
+
+    if (fallbackError) {
+      console.error('Fallback update photo failed:', fallbackError.message)
+    }
+  }
+}
+
+async function logWorkerError(
+  supabase: any,
+  job: any,
+  message: string,
+  meta: Record<string, unknown> = {}
+) {
+  const { error } = await supabase.from('worker_logs').insert({
+    job_id: job?.id || null,
+    photo_id: job?.photo_id || null,
+    owner_id: job?.owner_id || null,
+    album_id: job?.album_id || null,
+    level: 'error',
+    message,
+    meta,
+  })
+
+  if (error) {
+    console.error('Worker log insert error:', error.message)
+  }
+}
+
+async function recoverStaleJobs(supabase: any) {
+  const staleMinutes = 10
+
+  const staleSince = new Date(
+    Date.now() - staleMinutes * 60 * 1000
+  ).toISOString()
+
+  const { error } = await supabase
+    .from('photo_jobs')
+    .update({
+      status: 'pending',
+      error: 'Recovered stale processing job',
+      retry_count: 0,
+    })
+    .eq('status', 'processing')
+    .lt('started_at', staleSince)
+
+  if (error) {
+    console.error('Recover stale jobs error:', error.message)
+  }
+}
+
+async function cleanupOldWorkerLogs(supabase: any) {
+  const keepDays = 30
+
+  const olderThan = new Date(
+    Date.now() - keepDays * 24 * 60 * 60 * 1000
+  ).toISOString()
+
+  const { error } = await supabase
+    .from('worker_logs')
+    .delete()
+    .lt('created_at', olderThan)
+
+  if (error) {
+    console.error('Cleanup worker logs error:', error.message)
+  }
+}
+
+function getSelectedOutput(
+  selectedSize: string,
+  originalPath: string,
+  originalUrl: string,
+  sdPath: string,
+  sdUrl: string,
+  hdPath: string,
+  hdUrl: string,
+  uhdPath: string,
+  uhdUrl: string
+) {
+  if (selectedSize === 'sd') {
+    return {
+      path: sdPath,
+      url: sdUrl,
+      label: 'sd',
+    }
+  }
+
+  if (selectedSize === 'uhd') {
+    return {
+      path: uhdPath,
+      url: uhdUrl,
+      label: 'uhd',
+    }
+  }
+
+  if (selectedSize === 'original') {
+    return {
+      path: originalPath,
+      url: originalUrl,
+      label: 'original',
+    }
+  }
+
+  return {
+    path: hdPath,
+    url: hdUrl,
+    label: 'hd',
+  }
 }
 
 async function processOneJob(job: any) {
@@ -156,11 +333,13 @@ async function processOneJob(job: any) {
     .maybeSingle()
 
   if (claimError) {
+    await logWorkerError(supabase, job, claimError.message, {
+      stage: 'claim_job',
+    })
+
     return {
       jobId: job.id,
-      photoId: job.photo_id,
       success: false,
-      skipped: true,
       error: claimError.message,
     }
   }
@@ -168,92 +347,53 @@ async function processOneJob(job: any) {
   if (!claimedJob) {
     return {
       jobId: job.id,
-      photoId: job.photo_id,
-      success: true,
       skipped: true,
-      message: 'Job already claimed',
     }
   }
 
   try {
     await updateProgress(supabase, job.photo_id, 10, 'processing')
 
-    const { data: blob } = await supabase.storage
+    const { data: blob, error: downloadError } = await supabase.storage
       .from('albums')
       .download(job.original_path)
 
-    if (!blob) throw new Error('file not found')
+    if (downloadError || !blob) {
+      throw new Error(
+        downloadError?.message || `Original file not found: ${job.original_path}`
+      )
+    }
 
     const buffer = Buffer.from(await blob.arrayBuffer())
-
-    await updateProgress(supabase, job.photo_id, 30, 'processing')
+    const originalSizeBytes = buffer.length
 
     const sharp = (await import('sharp')).default
-
-    const size = String(job.size || 'original').toLowerCase()
-    const previewWidth = getPreviewWidth(size)
 
     const preset = await parsePresetFromStorage(
       supabase,
       job.preset_path || null
     )
 
-    let img = sharp(buffer).rotate()
+    await updateProgress(supabase, job.photo_id, 25, 'processing')
 
-    if (previewWidth) {
-      img = img.resize({
-        width: previewWidth,
-        fit: 'inside',
-        withoutEnlargement: true,
-      })
-    }
+    const sdBuffer = await generateResizeBuffer(sharp, buffer, 2000, preset, 86)
 
-    if (preset) {
-      const brightness = clamp(1 + preset.exposure / 5, 0.65, 1.6)
+    await updateProgress(supabase, job.photo_id, 40, 'processing')
 
-      const saturation = preset.blackAndWhite
-        ? 0
-        : clamp(1 + (preset.saturation + preset.vibrance) / 140, 0.5, 1.9)
+    const hdBuffer = await generateResizeBuffer(sharp, buffer, 3000, preset, 86)
 
-      const contrast = clamp(1 + preset.contrast / 150, 0.75, 1.55)
+    await updateProgress(supabase, job.photo_id, 55, 'processing')
 
-      if (preset.blackAndWhite) {
-        img = img.grayscale()
-      }
+    const uhdBuffer = await generateResizeBuffer(sharp, buffer, 4000, preset, 86)
 
-      img = img
-        .modulate({
-          brightness,
-          saturation,
-        })
-        .linear(contrast, 0)
-
-      if (preset.clarity > 0) {
-        img = img.sharpen()
-      }
-
-      if (preset.clarity < 0) {
-        img = img.blur(clamp(Math.abs(preset.clarity) / 90, 0.3, 1.1))
-      }
-    }
-
-    const previewBuffer = await img
-      .jpeg({
-        quality: size === 'original' ? 88 : 86,
-        mozjpeg: true,
-      })
-      .toBuffer()
-
-    await updateProgress(supabase, job.photo_id, 60, 'processing')
+    await updateProgress(supabase, job.photo_id, 70, 'processing')
 
     let thumbImg = sharp(buffer).rotate().resize(480, 480, {
       fit: 'cover',
       withoutEnlargement: true,
     })
 
-    if (preset?.blackAndWhite) {
-      thumbImg = thumbImg.grayscale()
-    }
+    thumbImg = applyPresetToImage(thumbImg, preset)
 
     const thumbBuffer = await thumbImg
       .jpeg({
@@ -262,44 +402,144 @@ async function processOneJob(job: any) {
       })
       .toBuffer()
 
-    await updateProgress(supabase, job.photo_id, 75, 'processing')
-
-    const previewPath = makeOutputPath(job.original_path, 'preview')
+    const sdPath = makeOutputPath(job.original_path, 'sd')
+    const hdPath = makeOutputPath(job.original_path, 'hd')
+    const uhdPath = makeOutputPath(job.original_path, 'uhd')
     const thumbPath = makeOutputPath(job.original_path, 'thumbnail')
 
-    await supabase.storage.from('albums').upload(previewPath, previewBuffer, {
-      contentType: 'image/jpeg',
-      cacheControl: '31536000',
-      upsert: true,
-    })
+    await updateProgress(supabase, job.photo_id, 80, 'processing')
 
-    await supabase.storage.from('albums').upload(thumbPath, thumbBuffer, {
-      contentType: 'image/jpeg',
-      cacheControl: '31536000',
-      upsert: true,
-    })
+    const [sdUpload, hdUpload, uhdUpload, thumbUpload] = await Promise.all([
+      supabase.storage.from('albums').upload(sdPath, sdBuffer, {
+        contentType: 'image/jpeg',
+        cacheControl: '31536000',
+        upsert: true,
+      }),
 
-    await updateProgress(supabase, job.photo_id, 90, 'processing')
+      supabase.storage.from('albums').upload(hdPath, hdBuffer, {
+        contentType: 'image/jpeg',
+        cacheControl: '31536000',
+        upsert: true,
+      }),
 
-    const { data: pUrl } = supabase.storage
+      supabase.storage.from('albums').upload(uhdPath, uhdBuffer, {
+        contentType: 'image/jpeg',
+        cacheControl: '31536000',
+        upsert: true,
+      }),
+
+      supabase.storage.from('albums').upload(thumbPath, thumbBuffer, {
+        contentType: 'image/jpeg',
+        cacheControl: '31536000',
+        upsert: true,
+      }),
+    ])
+
+    if (sdUpload.error) throw new Error(sdUpload.error.message)
+    if (hdUpload.error) throw new Error(hdUpload.error.message)
+    if (uhdUpload.error) throw new Error(uhdUpload.error.message)
+    if (thumbUpload.error) throw new Error(thumbUpload.error.message)
+
+    const { data: originalUrlData } = supabase.storage
       .from('albums')
-      .getPublicUrl(previewPath)
+      .getPublicUrl(job.original_path)
 
-    const { data: tUrl } = supabase.storage
+    const { data: sdUrlData } = supabase.storage
+      .from('albums')
+      .getPublicUrl(sdPath)
+
+    const { data: hdUrlData } = supabase.storage
+      .from('albums')
+      .getPublicUrl(hdPath)
+
+    const { data: uhdUrlData } = supabase.storage
+      .from('albums')
+      .getPublicUrl(uhdPath)
+
+    const { data: thumbUrlData } = supabase.storage
       .from('albums')
       .getPublicUrl(thumbPath)
 
-    await safeUpdatePhoto(supabase, job.photo_id, {
-      public_url: pUrl.publicUrl,
-      storage_path: previewPath,
-      preview_path: previewPath,
-      preview_url: pUrl.publicUrl,
+    const selectedSize = String(job.size || 'hd').toLowerCase()
+
+    const selected = getSelectedOutput(
+      selectedSize,
+      job.original_path,
+      originalUrlData.publicUrl,
+      sdPath,
+      sdUrlData.publicUrl,
+      hdPath,
+      hdUrlData.publicUrl,
+      uhdPath,
+      uhdUrlData.publicUrl
+    )
+
+    const processedBytes =
+      sdBuffer.length + hdBuffer.length + uhdBuffer.length + thumbBuffer.length
+
+    const fullPayload = {
+      public_url: selected.url,
+      storage_path: selected.path,
+
+      preview_path: selected.path,
+      preview_url: selected.url,
+
       thumbnail_path: thumbPath,
-      thumbnail_url: tUrl.publicUrl,
-      file_size_bytes: previewBuffer.length,
+      thumbnail_url: thumbUrlData.publicUrl,
+
+      sd_path: sdPath,
+      hd_path: hdPath,
+      uhd_path: uhdPath,
+
+      sd_url: sdUrlData.publicUrl,
+      hd_url: hdUrlData.publicUrl,
+      uhd_url: uhdUrlData.publicUrl,
+
+      selected_size: selected.label,
+
+      original_size_bytes: originalSizeBytes,
+      preview_size_bytes: processedBytes,
+      thumbnail_size_bytes: thumbBuffer.length,
+      file_size_bytes: originalSizeBytes + processedBytes,
+
       processing_status: 'done',
       processing_progress: 100,
-    })
+    }
+
+    const selectedProcessedBytes =
+      selected.label === 'sd'
+        ? sdBuffer.length
+        : selected.label === 'uhd'
+          ? uhdBuffer.length
+          : selected.label === 'original'
+            ? 0
+            : hdBuffer.length
+
+    const fallbackPayload = {
+      public_url: selected.url,
+      storage_path: selected.path,
+
+      preview_path: selected.path,
+      preview_url: selected.url,
+
+      thumbnail_path: thumbPath,
+      thumbnail_url: thumbUrlData.publicUrl,
+
+      original_size_bytes: originalSizeBytes,
+      preview_size_bytes: selectedProcessedBytes,
+      thumbnail_size_bytes: thumbBuffer.length,
+      file_size_bytes: originalSizeBytes + selectedProcessedBytes + thumbBuffer.length,
+
+      processing_status: 'done',
+      processing_progress: 100,
+    }
+
+    await safeUpdatePhotoWithFallback(
+      supabase,
+      job.photo_id,
+      fullPayload,
+      fallbackPayload
+    )
 
     await supabase
       .from('photo_jobs')
@@ -314,32 +554,49 @@ async function processOneJob(job: any) {
       jobId: job.id,
       photoId: job.photo_id,
       success: true,
-      size,
-      previewWidth,
-      presetApplied: Boolean(preset),
+      selectedSize: selected.label,
+      selectedPath: selected.path,
+      sdBytes: sdBuffer.length,
+      hdBytes: hdBuffer.length,
+      uhdBytes: uhdBuffer.length,
+      thumbnailBytes: thumbBuffer.length,
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Process failed'
 
+    await logWorkerError(supabase, job, message, {
+      stage: 'process_job',
+      originalPath: job.original_path,
+      size: job.size,
+      retryCount: Number(job.retry_count || 0),
+      willRetry: Number(job.retry_count || 0) < 3,
+    })
+
+    const retryCount = Number(job.retry_count || 0)
+    const maxRetries = 3
+    const shouldRetry = retryCount < maxRetries
+
     await supabase
       .from('photo_jobs')
       .update({
-        status: 'failed',
+        status: shouldRetry ? 'pending' : 'failed',
+        retry_count: retryCount + 1,
         error: message,
         finished_at: new Date().toISOString(),
+        started_at: null,
       })
       .eq('id', job.id)
 
     await safeUpdatePhoto(supabase, job.photo_id, {
-      processing_status: 'failed',
+      processing_status: shouldRetry ? 'pending' : 'failed',
       processing_progress: 0,
     })
 
     return {
       jobId: job.id,
-      photoId: job.photo_id,
       success: false,
       error: message,
+      retryCount: retryCount + 1,
     }
   }
 }
@@ -367,21 +624,26 @@ async function handleWorker(req: NextRequest) {
 
   const supabase = getSupabaseAdmin()
 
+  await recoverStaleJobs(supabase)
+  await cleanupOldWorkerLogs(supabase)
+
   const rawLimit = Number(req.nextUrl.searchParams.get('limit') || 3)
   const limit = Math.min(Math.max(rawLimit, 1), 10)
 
   const rawConcurrency = Number(
     req.nextUrl.searchParams.get('concurrency') ||
       process.env.WORKER_CONCURRENCY ||
-      3
+      1
   )
 
-  const concurrency = Math.min(Math.max(rawConcurrency, 1), 3)
+  const concurrency = Math.min(Math.max(rawConcurrency, 1), 2)
 
   const { data: jobs, error } = await supabase
     .from('photo_jobs')
     .select('*')
     .eq('status', 'pending')
+    .is('cancelled_at', null)
+    .order('priority', { ascending: true })
     .order('created_at', { ascending: true })
     .limit(limit)
 
@@ -389,33 +651,27 @@ async function handleWorker(req: NextRequest) {
     return NextResponse.json(
       {
         error: error.message,
-        hint: 'Please create photo_jobs table first.',
       },
       { status: 500 }
     )
   }
 
-  if (!jobs || jobs.length === 0) {
+  if (!jobs?.length) {
     return NextResponse.json({
       success: true,
       processed: 0,
-      concurrency,
       message: 'No pending jobs',
     })
   }
 
-  setTimeout(() => {
-    runInBatches(jobs, concurrency, processOneJob).catch((error) => {
-      console.error('Background worker error:', error)
-    })
-  }, 0)
+  const results = await runInBatches(jobs, concurrency, processOneJob)
 
   return NextResponse.json({
     success: true,
-    started: jobs.length,
+    processed: jobs.length,
     concurrency,
-    background: true,
-    message: 'Worker started',
+    results,
+    message: 'Worker completed successfully',
   })
 }
 

@@ -9,107 +9,134 @@ function getSupabaseAdmin() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!url || !key) {
-    throw new Error('Missing Supabase admin env')
+    throw new Error(
+      'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY'
+    )
   }
 
   return createClient(url, key, {
     auth: {
       persistSession: false,
+      autoRefreshToken: false,
     },
   })
 }
 
-function isAuthorizedWorker(req: NextRequest) {
+function isAuthorized(req: NextRequest) {
   const workerSecret = process.env.WORKER_SECRET
 
-  if (!workerSecret) return true
+  if (!workerSecret) {
+    return process.env.NODE_ENV !== 'production'
+  }
 
-  const header = req.headers.get('x-worker-secret')
-  const query = req.nextUrl.searchParams.get('secret')
+  const authHeader = req.headers.get('authorization')
+  const cronSecret = req.headers.get('x-worker-secret')
 
-  return header === workerSecret || query === workerSecret
-}
-
-function hoursAgo(hours: number) {
-  return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
+  return (
+    authHeader === `Bearer ${workerSecret}` ||
+    cronSecret === workerSecret
+  )
 }
 
 export async function GET(req: NextRequest) {
   try {
-    if (!isAuthorizedWorker(req)) {
-      return NextResponse.json({ error: 'Unauthorized cleanup' }, { status: 401 })
+    if (!isAuthorized(req)) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
     }
 
     const supabase = getSupabaseAdmin()
 
-    // 1) processing ค้างเกิน 30 นาที → failed
-    const { data: stuckJobs, error: stuckError } = await supabase
-      .from('photo_jobs')
-      .update({
-        status: 'failed',
-        error: 'Cleanup: processing timeout',
-        finished_at: new Date().toISOString(),
-      })
-      .eq('status', 'processing')
-      .lt('started_at', hoursAgo(0.5))
-      .select('id, photo_id')
+    const cleanupBefore = new Date(
+      Date.now() - 24 * 60 * 60 * 1000
+    ).toISOString()
 
-    if (stuckError) {
-      return NextResponse.json({ error: stuckError.message }, { status: 500 })
+    const { data: failedPhotos, error } = await supabase
+      .from('photos')
+      .select(`
+        id,
+        storage_path,
+        preview_path,
+        thumbnail_path,
+        processing_status
+      `)
+      .eq('processing_status', 'failed')
+      .lt('created_at', cleanupBefore)
+
+    if (error) {
+      throw new Error(error.message)
     }
 
-    const stuckPhotoIds = (stuckJobs ?? []).map((job) => job.photo_id)
+    let deletedFiles = 0
+    let deletedPhotos = 0
 
-    if (stuckPhotoIds.length > 0) {
+    for (const photo of failedPhotos || []) {
+      const paths = [
+        photo.storage_path,
+        photo.preview_path,
+        photo.thumbnail_path,
+      ].filter(Boolean)
+
+      if (paths.length > 0) {
+        const { error: storageError } =
+          await supabase.storage
+            .from('albums')
+            .remove(paths)
+
+        if (!storageError) {
+          deletedFiles += paths.length
+        }
+      }
+
+      await supabase
+        .from('photo_jobs')
+        .delete()
+        .eq('photo_id', photo.id)
+
       await supabase
         .from('photos')
-        .update({
-          processing_status: 'failed',
-          processing_progress: 0,
-        })
-        .in('id', stuckPhotoIds)
+        .delete()
+        .eq('id', photo.id)
+
+      deletedPhotos++
     }
 
-    // 2) ลบ job done เก่ากว่า 24 ชั่วโมง
-    const { data: deletedDone, error: doneError } = await supabase
-      .from('photo_jobs')
-      .delete()
-      .eq('status', 'done')
-      .lt('finished_at', hoursAgo(24))
-      .select('id')
+    const oldJobDate = new Date(
+      Date.now() - 7 * 24 * 60 * 60 * 1000
+    ).toISOString()
 
-    if (doneError) {
-      return NextResponse.json({ error: doneError.message }, { status: 500 })
-    }
-
-    // 3) ลบ job failed เก่ากว่า 72 ชั่วโมง
-    const { data: deletedFailed, error: failedError } = await supabase
+    await supabase
       .from('photo_jobs')
       .delete()
       .eq('status', 'failed')
-      .lt('finished_at', hoursAgo(72))
-      .select('id')
+      .lt('finished_at', oldJobDate)
 
-    if (failedError) {
-      return NextResponse.json({ error: failedError.message }, { status: 500 })
-    }
+    const oldLogsDate = new Date(
+      Date.now() - 30 * 24 * 60 * 60 * 1000
+    ).toISOString()
+
+    await supabase
+      .from('worker_logs')
+      .delete()
+      .lt('created_at', oldLogsDate)
 
     return NextResponse.json({
       success: true,
-      stuckMarkedFailed: stuckJobs?.length ?? 0,
-      deletedDoneJobs: deletedDone?.length ?? 0,
-      deletedFailedJobs: deletedFailed?.length ?? 0,
+      deletedPhotos,
+      deletedFiles,
+      message: 'Cleanup completed',
     })
   } catch (error) {
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : 'Cleanup failed',
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Cleanup failed',
       },
       { status: 500 }
     )
   }
-}
-
-export async function POST(req: NextRequest) {
-  return GET(req)
 }

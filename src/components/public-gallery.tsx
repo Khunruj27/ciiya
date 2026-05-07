@@ -13,10 +13,12 @@ type Photo = {
   preview_url?: string | null
   thumbnail_url?: string | null
   filename?: string | null
+  view_count?: number | null
 }
 
 type Props = {
   photos: Photo[]
+  totalCount?: number
   albumTitle?: string
   albumId?: string
 }
@@ -34,20 +36,16 @@ function getDistance(a: TouchPoint, b: TouchPoint) {
 
 function getRankLabel(index: number) {
   const rank = index + 1
-
   if (rank <= 3) return `TOP ${rank}`
   if (rank <= 10) return `#${rank}`
-
   return null
 }
 
 function getRankClass(index: number) {
   const rank = index + 1
-
   if (rank === 1) return 'bg-yellow-400 text-black'
   if (rank === 2) return 'bg-slate-300 text-black'
   if (rank === 3) return 'bg-orange-400 text-white'
-
   return 'bg-black/65 text-white'
 }
 
@@ -56,23 +54,41 @@ function getSafeGridCols(value: number) {
   return 3
 }
 
-export default function PublicGallery({ photos }: Props) {
+export default function PublicGallery({
+  photos: initialPhotos,
+  totalCount = initialPhotos.length,
+  albumId,
+}: Props) {
+  const [photos, setPhotos] = useState<Photo[]>(initialPhotos)
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const [tab, setTab] = useState<'live' | 'popular'>('live')
   const [scale, setScale] = useState(1)
   const [lastTap, setLastTap] = useState(0)
   const [gridCols, setGridCols] = useState(3)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(initialPhotos.length < totalCount)
 
   const viewerRef = useRef<HTMLDivElement>(null)
   const pinchStartDistance = useRef<number | null>(null)
   const startScale = useRef(1)
 
   const popularPhotos = useMemo(() => {
-    return [...photos].sort(() => Math.random() - 0.5)
+    return [...photos].sort((a, b) => {
+      const aViews = Number(a.view_count || 0)
+      const bViews = Number(b.view_count || 0)
+
+      if (bViews !== aViews) return bViews - aViews
+      return a.id.localeCompare(b.id)
+    })
   }, [photos])
 
   const displayPhotos = tab === 'live' ? photos : popularPhotos
   const activePhoto = activeIndex !== null ? displayPhotos[activeIndex] : null
+
+  useEffect(() => {
+    setPhotos(initialPhotos)
+    setHasMore(initialPhotos.length < totalCount)
+  }, [initialPhotos, totalCount])
 
   useEffect(() => {
     const savedCols = Number(localStorage.getItem('public-gallery-cols') || 3)
@@ -127,6 +143,42 @@ export default function PublicGallery({ photos }: Props) {
       document.body.style.overflow = ''
     }
   }, [activeIndex, displayPhotos.length])
+
+  async function loadMore() {
+    if (!albumId || loadingMore || !hasMore) return
+
+    try {
+      setLoadingMore(true)
+
+      const from = photos.length
+      const to = from + 49
+
+      const res = await fetch(
+        `/api/share/photos?albumId=${albumId}&from=${from}&to=${to}`,
+        {
+          cache: 'no-store',
+        }
+      )
+
+      const data = await res.json().catch(() => null)
+
+      if (!res.ok || !data?.success) return
+
+      const nextPhotos = data.photos || []
+
+      setPhotos((prev) => {
+        const existing = new Set(prev.map((photo) => photo.id))
+        const unique = nextPhotos.filter((photo: Photo) => !existing.has(photo.id))
+        return [...prev, ...unique]
+      })
+
+      if (nextPhotos.length < 50 || photos.length + nextPhotos.length >= totalCount) {
+        setHasMore(false)
+      }
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   function goPrev() {
     setActiveIndex((current) => {
@@ -218,23 +270,23 @@ export default function PublicGallery({ photos }: Props) {
           </div>
 
           <div className="flex shrink-0 items-center gap-1 rounded-full bg-slate-100 p-1">
-  {[2, 3, 4].map((cols) => (
-    <button
-      key={cols}
-      type="button"
-      onClick={() => setGridCols(cols)}
-      className={`flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 active:scale-90 ${
-        gridCols === cols
-          ? 'bg-[#2F6BFF] text-white shadow-sm'
-          : 'text-slate-500'
-      }`}
-    >
-      {cols === 2 && <Grid2Icon />}
-      {cols === 3 && <Grid3Icon />}
-      {cols === 4 && <Grid4Icon />}
-    </button>
-  ))}
-</div>
+            {[2, 3, 4].map((cols) => (
+              <button
+                key={cols}
+                type="button"
+                onClick={() => setGridCols(cols)}
+                className={`flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 active:scale-90 ${
+                  gridCols === cols
+                    ? 'bg-[#2F6BFF] text-white shadow-sm'
+                    : 'text-slate-500'
+                }`}
+              >
+                {cols === 2 && <Grid2Icon />}
+                {cols === 3 && <Grid3Icon />}
+                {cols === 4 && <Grid4Icon />}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -283,6 +335,19 @@ export default function PublicGallery({ photos }: Props) {
           )
         })}
       </div>
+
+      {hasMore ? (
+        <div className="flex justify-center py-8">
+          <button
+            type="button"
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="rounded-full bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-sm transition active:scale-95 disabled:opacity-50"
+          >
+            {loadingMore ? 'Loading...' : 'Load More'}
+          </button>
+        </div>
+      ) : null}
 
       {activeIndex !== null && activePhoto ? (
         <div className="fixed inset-0 z-50 bg-black text-white">

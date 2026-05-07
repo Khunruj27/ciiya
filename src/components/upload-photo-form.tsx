@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase-client'
 
 type Category = {
   id: string
@@ -40,6 +41,18 @@ function formatBytes(bytes: number) {
 
 function makeItemId(file: File) {
   return `${file.name}-${file.size}-${file.lastModified}-${crypto.randomUUID()}`
+}
+
+function getSafeFileName(fileName: string) {
+  const ext = fileName.split('.').pop()?.toLowerCase() || 'jpg'
+  const baseName = fileName.replace(/\.[^/.]+$/, '')
+
+  const safeBaseName = baseName
+    .replace(/[^a-zA-Z0-9-_]/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 80)
+
+  return `${Date.now()}-${crypto.randomUUID()}-${safeBaseName || 'photo'}.${ext}`
 }
 
 export default function UploadPhotoForm({
@@ -101,80 +114,74 @@ export default function UploadPhotoForm({
     )
   }
 
-  function uploadWithProgress(item: UploadItem) {
-    return new Promise<any>((resolve, reject) => {
-      const formData = new FormData()
+  async function uploadDirectToSupabase(item: UploadItem) {
+    const supabase = createClient()
 
-      formData.append('file', item.file)
-      formData.append('albumId', albumId)
-      formData.append('size', size)
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
 
-      if (categoryId) {
-        formData.append('categoryId', categoryId)
-      }
+    if (userError || !user) {
+      throw new Error('Unauthorized')
+    }
 
-      if (presetFile) {
-        formData.append('presetFile', presetFile)
-      }
-
-      const xhr = new XMLHttpRequest()
-
-      xhr.open('POST', '/api/photos/upload')
-
-      xhr.upload.onprogress = (event) => {
-        if (!event.lengthComputable) return
-
-        const percent = Math.round((event.loaded / event.total) * 100)
-
-        updateItem(item.id, {
-          progress: percent,
-          status: 'uploading',
-        })
-      }
-
-      xhr.onload = () => {
-        const data = (() => {
-          try {
-            return JSON.parse(xhr.responseText)
-          } catch {
-            return null
-          }
-        })()
-
-        if (xhr.status >= 200 && xhr.status < 300) {
-          updateItem(item.id, {
-            progress: 100,
-            status: 'queued',
-            error: undefined,
-          })
-
-          resolve(data)
-          return
-        }
-
-        const message = data?.error || `Upload failed for ${item.file.name}`
-
-        updateItem(item.id, {
-          status: 'error',
-          error: message,
-        })
-
-        reject(new Error(message))
-      }
-
-      xhr.onerror = () => {
-        const message = `Upload failed for ${item.file.name}`
-
-        updateItem(item.id, {
-          status: 'error',
-          error: message,
-        })
-
-        reject(new Error(message))
-      }
-
-      xhr.send(formData)
+    updateItem(item.id, {
+      progress: 10,
+      status: 'uploading',
     })
+
+    const safeFileName = getSafeFileName(item.file.name)
+    const storagePath = `${user.id}/${albumId}/original/${safeFileName}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('albums')
+      .upload(storagePath, item.file, {
+        contentType: item.file.type || 'image/jpeg',
+        upsert: false,
+      })
+
+    if (uploadError) {
+      throw new Error(uploadError.message)
+    }
+
+    updateItem(item.id, {
+      progress: 80,
+      status: 'uploading',
+    })
+
+    const finalizeRes = await fetch('/api/photos/finalize-upload', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        albumId,
+        storagePath,
+        fileName: item.file.name,
+        fileSizeBytes: item.file.size,
+        size,
+        categoryId: categoryId || null,
+      }),
+    })
+
+    const finalizeData = await finalizeRes.json().catch(() => null)
+
+    if (!finalizeRes.ok || !finalizeData?.success) {
+      await supabase.storage.from('albums').remove([storagePath])
+
+      throw new Error(
+        finalizeData?.error || finalizeData?.jobError || 'Finalize upload failed'
+      )
+    }
+
+    updateItem(item.id, {
+      progress: 100,
+      status: 'queued',
+      error: undefined,
+    })
+
+    return finalizeData
   }
 
   async function handleUpload() {
@@ -223,15 +230,23 @@ export default function UploadPhotoForm({
         })
 
         try {
-          const data = await uploadWithProgress(item)
+          const data = await uploadDirectToSupabase(item)
 
-          if (data?.error?.includes('Storage full')) {
+          if (
+            data?.error?.includes('Storage full') ||
+            data?.jobError?.includes('Storage full')
+          ) {
             window.location.href = '/pricing'
             return
           }
         } catch (error) {
           const message =
             error instanceof Error ? error.message : 'Upload failed'
+
+          updateItem(item.id, {
+            status: 'error',
+            error: message,
+          })
 
           setErrorMsg(message)
 

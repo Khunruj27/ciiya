@@ -2,30 +2,41 @@
 
 import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@supabase/supabase-js'
+import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 
 type Props = {
   albumId: string
 }
 
+type PhotoRealtimeRecord = {
+  id?: string
+  processing_progress?: number | null
+  processing_status?: string | null
+  updated_at?: string | null
+}
+
+type RealtimePayload = {
+  new: PhotoRealtimeRecord | null
+}
+
 export default function AlbumRealtimeRefresher({ albumId }: Props) {
   const router = useRouter()
   const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const lastPayloadRef = useRef<string>('')
 
   useEffect(() => {
     if (!albumId) return
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    const supabase = getSupabaseBrowserClient()
 
     const refreshSoftly = () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+      }
 
       timerRef.current = setTimeout(() => {
         router.refresh()
-      }, 700)
+      }, 500)
     }
 
     const channel = supabase
@@ -38,14 +49,35 @@ export default function AlbumRealtimeRefresher({ albumId }: Props) {
           table: 'photos',
           filter: `album_id=eq.${albumId}`,
         },
-        () => {
+        (payload: RealtimePayload) => {
+          const nextRecord = payload.new
+
+          if (!nextRecord) return
+
+          const stateKey = JSON.stringify({
+            id: nextRecord.id,
+            progress: nextRecord.processing_progress,
+            status: nextRecord.processing_status,
+            updatedAt: nextRecord.updated_at,
+          })
+
+          if (lastPayloadRef.current === stateKey) {
+            return
+          }
+
+          lastPayloadRef.current = stateKey
           refreshSoftly()
         }
       )
-      .subscribe()
+      .subscribe((status: string) => {
+        console.log(`[Realtime] album ${albumId}:`, status)
+      })
 
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+      }
+
       supabase.removeChannel(channel)
     }
   }, [albumId, router])

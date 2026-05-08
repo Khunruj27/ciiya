@@ -9,9 +9,6 @@ import UploadPhotoModal from '@/components/upload-photo-modal'
 import AlbumPhotoGridPreview from '@/components/album-photo-grid-preview'
 import AlbumRealtimeRefresher from '@/components/album-realtime-refresher'
 import AppIcon from '@/components/app-icon'
-import FaceReindexButton from '@/components/face-reindex-button'
-import FaceClusterButton from '@/components/face-cluster-button'
-import RunWorkerButton from '@/components/run-worker-button'
 
 type PageProps = {
   params: Promise<{ id: string }>
@@ -55,13 +52,17 @@ export default async function AlbumDetailPage({ params }: PageProps) {
   const { data: photosData, error: photosError } = await supabase
     .from('photos')
     .select(
-      `
-      *,
-      preview_url,
-      thumbnail_url,
-      processing_status
-    `
-    )
+  `
+  *,
+  preview_url,
+  thumbnail_url,
+  sd_url,
+  hd_url,
+  uhd_url,
+  processing_status,
+  processing_progress
+`
+)
     .eq('album_id', id)
     .eq('owner_id', user.id)
     .order('created_at', { ascending: false })
@@ -111,9 +112,6 @@ export default async function AlbumDetailPage({ params }: PageProps) {
 
             <div className="flex shrink-0 items-center gap-2">
 
-             <FaceReindexButton albumId={album.id} photos={photos} />
-             <FaceClusterButton albumId={album.id} />
-             <RunWorkerButton />
 
               <EditAlbumForm
                 albumId={album.id}

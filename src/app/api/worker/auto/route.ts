@@ -1,37 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: NextRequest) {
-  try {
-    const workerSecret = process.env.WORKER_SECRET
-
-    const res = await fetch(
-      `${req.nextUrl.origin}/api/worker/process-photos?limit=10`,
-      {
-        method: 'GET',
-        cache: 'no-store',
-        headers: workerSecret
-          ? {
-              'x-worker-secret': workerSecret,
-            }
-          : {},
-      }
-    )
-
-    const data = await res.json().catch(() => null)
-
-    return NextResponse.json({
-      success: res.ok,
-      worker: data,
-    })
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : 'Auto worker failed',
-      },
-      { status: 500 }
-    )
-  }
+export async function GET() {
+  return NextResponse.json({
+    success: true,
+    disabled: true,
+    message:
+      'Auto worker on web app is disabled. Photo processing is handled by Railway worker.',
+  })
 }

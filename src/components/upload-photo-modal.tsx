@@ -78,7 +78,7 @@ export default function UploadPhotoModal({ albumId, categories = [] }: Props) {
         onClick={() => setOpen(true)}
         className="flex h-[48px] min-w-[170px] items-center justify-center gap-2 rounded-[20px] bg-[#2F6BFF] px-10 text-[16px] font-semibold text-white shadow-md transition active:scale-95"
       >
-        Upload  <AppIcon name="image-" size={22} className="opacity-100" />
+        Upload 
       </button>
 
       {modal}

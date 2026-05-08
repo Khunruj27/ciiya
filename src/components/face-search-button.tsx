@@ -1,4 +1,5 @@
 'use client'
+import SelfieFaceSearch from '@/components/selfie-face-search'
 
 type Props = {
   onClick?: () => void

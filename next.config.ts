@@ -1,4 +1,4 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   images: {
@@ -9,6 +9,19 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-};
 
-export default nextConfig;
+  webpack: (config) => {
+    config.externals = [...(config.externals || []), 'canvas']
+
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings || []),
+      {
+        module: /@vladmandic\/face-api/,
+      },
+    ]
+
+    return config
+  },
+}
+
+export default nextConfig

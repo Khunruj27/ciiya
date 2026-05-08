@@ -45,9 +45,9 @@ export async function DELETE(req: NextRequest) {
         original_path,
         preview_path,
         thumbnail_path,
-        public_url,
-        preview_url,
-        thumbnail_url
+        sd_path,
+        hd_path,
+        uhd_path
       `
       )
       .eq('id', photoId)
@@ -58,7 +58,6 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Photo not found' }, { status: 404 })
     }
 
-    // reset cover_photo_id ถ้ารูปนี้ถูกตั้งเป็น cover
     const { data: albumsUsingCover } = await supabase
       .from('albums')
       .select('id')
@@ -70,7 +69,10 @@ export async function DELETE(req: NextRequest) {
 
       const { error: coverResetError } = await supabase
         .from('albums')
-        .update({ cover_photo_id: null })
+        .update({
+          cover_photo_id: null,
+          cover_url: null,
+        })
         .in('id', albumIds)
         .eq('owner_id', user.id)
 
@@ -82,20 +84,29 @@ export async function DELETE(req: NextRequest) {
       }
     }
 
-    // ลบ job ของรูปนี้ก่อน
+    await supabase
+      .from('worker_logs')
+      .delete()
+      .eq('photo_id', photoId)
+      .eq('owner_id', user.id)
+
     await supabase
       .from('photo_jobs')
       .delete()
       .eq('photo_id', photoId)
       .eq('owner_id', user.id)
 
-    // รวมทุก path ที่อาจมีไฟล์จริงใน storage
     const pathsToRemove = uniquePaths([
       photo.storage_path,
       photo.original_path,
       photo.preview_path,
       photo.thumbnail_path,
+      photo.sd_path,
+      photo.hd_path,
+      photo.uhd_path,
     ])
+
+    let storageErrorMessage: string | null = null
 
     if (pathsToRemove.length > 0) {
       const { error: storageError } = await supabase.storage
@@ -103,7 +114,8 @@ export async function DELETE(req: NextRequest) {
         .remove(pathsToRemove)
 
       if (storageError) {
-        return NextResponse.json({ error: storageError.message }, { status: 500 })
+        storageErrorMessage = storageError.message
+        console.error('Delete photo storage error:', storageError.message)
       }
     }
 
@@ -120,8 +132,11 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({
       success: true,
       deletedFiles: pathsToRemove.length,
+      storageWarning: storageErrorMessage,
     })
   } catch (error) {
+    console.error('Delete photo error:', error)
+
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : 'Delete failed',

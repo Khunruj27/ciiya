@@ -19,43 +19,6 @@ function getSupabaseAdmin() {
   })
 }
 
-async function triggerWorker(req: NextRequest) {
-  try {
-    const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      req.nextUrl.origin
-
-    const workerSecret = process.env.WORKER_SECRET || ''
-
-    const controller = new AbortController()
-
-    const timeout = setTimeout(() => {
-      controller.abort()
-    }, 8000)
-
-    const response = await fetch(
-      `${baseUrl}/api/worker/process-photos?limit=3&concurrency=1`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${workerSecret}`,
-        },
-        cache: 'no-store',
-        signal: controller.signal,
-      }
-    )
-
-    clearTimeout(timeout)
-
-    if (!response.ok) {
-      console.error('Trigger worker failed:', response.status)
-    }
-  } catch (error) {
-    console.error('Trigger worker after finalize failed:', error)
-  }
-}
-
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
@@ -172,10 +135,6 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    triggerWorker(req).catch((error) => {
-      console.error('Background trigger worker failed:', error)
-    })
-
     return NextResponse.json({
       success: true,
       photoId: insertedPhoto.id,
@@ -184,6 +143,8 @@ export async function POST(req: NextRequest) {
       processingStatus: 'pending',
     })
   } catch (error) {
+    console.error('Finalize upload error:', error)
+
     return NextResponse.json(
       {
         error:

@@ -20,6 +20,7 @@ function getSupabaseAdmin() {
   return createClient(url, key, {
     auth: {
       persistSession: false,
+      autoRefreshToken: false,
     },
   })
 }
@@ -45,10 +46,7 @@ function chunkArray<T>(items: T[], size: number) {
   return chunks
 }
 
-async function listAllStoragePaths(
-  supabase: any,
-  prefix: string
-) {
+async function listAllStoragePaths(supabase: any, prefix: string) {
   const allPaths: string[] = []
   let offset = 0
 
@@ -64,14 +62,18 @@ async function listAllStoragePaths(
         },
       })
 
-    if (error) throw new Error(error.message)
+    if (error) {
+      console.error('List storage paths error:', error.message)
+      break
+    }
+
     if (!files || files.length === 0) break
 
     allPaths.push(
-  ...files
-    .filter((file: any) => file.name)
-    .map((file: any) => `${prefix}/${file.name}`)
-)
+      ...files
+        .filter((file: any) => file.name)
+        .map((file: any) => `${prefix}/${file.name}`)
+    )
 
     if (files.length < LIST_LIMIT) break
 
@@ -104,7 +106,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // เช็ก ownership ด้วย user session ก่อน
     const { data: album, error: albumCheckError } = await supabase
       .from('albums')
       .select('id, owner_id')
@@ -116,7 +117,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Album not found' }, { status: 404 })
     }
 
-    // ดึง path รูปทั้งหมด
     const { data: photosData, error: photoError } = await supabase
       .from('photos')
       .select(
@@ -125,7 +125,10 @@ export async function POST(req: NextRequest) {
         storage_path,
         original_path,
         preview_path,
-        thumbnail_path
+        thumbnail_path,
+        sd_path,
+        hd_path,
+        uhd_path
       `
       )
       .eq('album_id', albumId)
@@ -144,16 +147,21 @@ export async function POST(req: NextRequest) {
         photo.original_path,
         photo.preview_path,
         photo.thumbnail_path,
+        photo.sd_path,
+        photo.hd_path,
+        photo.uhd_path,
       ])
     )
 
-    // list storage ทั้ง folder เผื่อมีไฟล์ตกค้างที่ DB ไม่ได้เก็บ path
     const folderPrefixes = [
       `${user.id}/${albumId}/cover`,
       `${user.id}/${albumId}/photos`,
       `${user.id}/${albumId}/original`,
       `${user.id}/${albumId}/preview`,
       `${user.id}/${albumId}/thumbnail`,
+      `${user.id}/${albumId}/sd`,
+      `${user.id}/${albumId}/hd`,
+      `${user.id}/${albumId}/uhd`,
       `${user.id}/${albumId}/presets`,
     ]
 
@@ -167,6 +175,7 @@ export async function POST(req: NextRequest) {
     const pathsToRemove = uniquePaths([...dbPaths, ...storagePaths])
 
     let deletedStorageFiles = 0
+    let storageWarning: string | null = null
 
     for (const chunk of chunkArray(pathsToRemove, REMOVE_CHUNK_SIZE)) {
       const { error: storageError } = await supabaseAdmin.storage
@@ -174,16 +183,26 @@ export async function POST(req: NextRequest) {
         .remove(chunk)
 
       if (storageError) {
-        return NextResponse.json(
-          { error: storageError.message },
-          { status: 500 }
-        )
+        storageWarning = storageError.message
+        console.error('Album storage delete warning:', storageError.message)
+      } else {
+        deletedStorageFiles += chunk.length
       }
-
-      deletedStorageFiles += chunk.length
     }
 
-    // สำคัญ: ลบ photo_jobs ด้วย service_role
+    if (photoIds.length > 0) {
+      await supabaseAdmin
+        .from('worker_logs')
+        .delete()
+        .in('photo_id', photoIds)
+    }
+
+    await supabaseAdmin
+      .from('worker_logs')
+      .delete()
+      .eq('album_id', albumId)
+      .eq('owner_id', user.id)
+
     const { error: deleteJobsByAlbumError } = await supabaseAdmin
       .from('photo_jobs')
       .delete()
@@ -197,7 +216,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // กันพลาด: ลบซ้ำด้วย photo_id ถ้ามี job บาง row album_id ไม่ตรง
     if (photoIds.length > 0) {
       const { error: deleteJobsByPhotoError } = await supabaseAdmin
         .from('photo_jobs')
@@ -240,8 +258,11 @@ export async function POST(req: NextRequest) {
       deletedStorageFiles,
       deletedPhotoRows: photos.length,
       deletedAlbumId: albumId,
+      storageWarning,
     })
   } catch (error) {
+    console.error('Delete album error:', error)
+
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : 'Delete failed',

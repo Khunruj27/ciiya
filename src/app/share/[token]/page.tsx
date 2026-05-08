@@ -1,10 +1,10 @@
-import PublicGallery from '@/components/public-gallery'
+import PublicGalleryInfinite from '@/components/public-gallery-infinite'
 import ShareViewTracker from '@/components/share-view-tracker'
 import PublicTopBar from '@/components/public-top-bar'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import PublicGalleryRealtime from '@/components/public-gallery-realtime'
 import ScrollToTopButton from '@/components/scroll-to-top-button'
-import FaceSearchButton from '@/components/face-search-button'
+import SelfieFaceSearch from '@/components/selfie-face-search'
 
 type PageProps = {
   params: Promise<{ token: string }>
@@ -16,7 +16,17 @@ export default async function SharePage({ params }: PageProps) {
 
   const { data: album, error: albumError } = await supabase
     .from('albums')
-    .select('*')
+    .select(
+      `
+      id,
+      title,
+      description,
+      cover_url,
+      share_token,
+      view_count,
+      created_at
+    `
+    )
     .eq('share_token', token)
     .single()
 
@@ -27,9 +37,11 @@ export default async function SharePage({ params }: PageProps) {
           <p className="text-xs uppercase tracking-[0.24em] text-slate-400">
             Ciiya Gallery
           </p>
+
           <h1 className="mt-3 text-2xl font-bold text-slate-900">
             Album not found
           </h1>
+
           <p className="mt-2 text-sm leading-6 text-slate-500">
             This shared album does not exist or is no longer available.
           </p>
@@ -38,18 +50,39 @@ export default async function SharePage({ params }: PageProps) {
     )
   }
 
-  const { data: photos, count, error: photosError } = await supabase
-    .from('photos')
-    .select('*', { count: 'exact' })
-    .eq('album_id', album.id)
-    .order('created_at', { ascending: false })
-    .range(0, 49)
+const PAGE_SIZE = 50
+
+const { data: photos, count, error: photosError } = await supabase
+  .from('photos')
+  .select(
+    `
+    id,
+    album_id,
+    filename,
+    public_url,
+    preview_url,
+    thumbnail_url,
+    created_at,
+    view_count,
+    processing_status
+    `,
+    { count: 'exact' }
+  )
+  .eq('album_id', album.id)
+  .eq('processing_status', 'done')
+  .order('created_at', { ascending: false })
+  .range(0, PAGE_SIZE - 1)
 
   if (photosError) {
     throw new Error(photosError.message)
   }
 
   const photoCount = count || 0
+  const visiblePhotos = photos ?? []
+  const initialCursor =
+  photos && photos.length > 0
+    ? photos[photos.length - 1].created_at
+    : null
 
   return (
     <main className="min-h-screen bg-[#f6f7fb]">
@@ -61,7 +94,9 @@ export default async function SharePage({ params }: PageProps) {
           {album.cover_url ? (
             <img
               src={album.cover_url}
-              alt={album.title}
+              alt={album.title || 'Album cover'}
+              loading="eager"
+              decoding="async"
               className="h-full w-full object-cover"
             />
           ) : (
@@ -90,7 +125,8 @@ export default async function SharePage({ params }: PageProps) {
           </div>
 
           <p className="mt-4 max-w-sm text-sm leading-6 text-white/85">
-            {album.description || 'A curated gallery of beautiful captured moments.'}
+            {album.description ||
+              'A curated gallery of beautiful captured moments.'}
           </p>
 
           <div className="mt-6 flex flex-wrap items-center gap-2">
@@ -109,19 +145,19 @@ export default async function SharePage({ params }: PageProps) {
         </div>
       </section>
 
-      <FaceSearchButton />
-
       <section className="px-4 pt-4">
         <div className="mx-auto max-w-md space-y-4">
           <PublicTopBar shareToken={token} count={photoCount} />
+          <SelfieFaceSearch albumId={album.id} />
 
-          {photos && photos.length > 0 ? (
-            <PublicGallery
-              photos={photos}
-              totalCount={photoCount}
-              albumTitle={album.title}
-              albumId={album.id}
-            />
+          {visiblePhotos.length > 0 ? (
+            <PublicGalleryInfinite
+            initialPhotos={photos || []}
+            totalCount={photoCount}
+            albumTitle={album.title}
+            albumId={album.id}
+           initialCursor={initialCursor}
+        />
           ) : (
             <div className="rounded-[32px] border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500 shadow-[0_10px_30px_rgba(15,23,42,0.08)]">
               No photos in this album yet.
@@ -129,7 +165,10 @@ export default async function SharePage({ params }: PageProps) {
           )}
 
           <div className="rounded-[32px] bg-white p-5 text-center shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-black/5">
-            <p className="text-sm font-semibold text-slate-900">Powered by Ciiya</p>
+            <p className="text-sm font-semibold text-slate-900">
+              Powered by Ciiya
+            </p>
+
             <p className="mt-1 text-xs text-slate-500">
               Photo sharing Flashform
             </p>

@@ -258,10 +258,6 @@ export async function GET(req: NextRequest) {
         reset,
         retry,
       },
-      meta: {
-        reset,
-        retry,
-      },
     })
 
     const summary = await getQueueSummary(supabase)

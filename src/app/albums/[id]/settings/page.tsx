@@ -41,12 +41,13 @@ export default async function AlbumSettingsPage({ params }: PageProps) {
         </Link>
 
         <AlbumSettingsForm
-          albumId={album.id}
-          initialTitle={album.title}
-          initialDescription={album.description}
-          initialAllowDownload={album.allow_download ?? true}
-          initialIsPasswordProtected={album.is_password_protected ?? false}
-        />
+  albumId={album.id}
+  initialTitle={album.title}
+  initialDescription={album.description}
+  initialAllowDownload={album.allow_download ?? true}
+  initialDownloadSize={album.download_size ?? 'hd'}
+  initialIsPasswordProtected={album.is_password_protected ?? false}
+/>
       </div>
     </main>
   )

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import AppIcon from '@/components/app-icon'
+import { useRouter } from 'next/navigation'
 
 type Props = {
   albumId: string
@@ -10,28 +11,25 @@ type Props = {
 export default function DeleteAlbumButton({ albumId }: Props) {
   const [deleting, setDeleting] = useState(false)
   const [progress, setProgress] = useState(0)
+  const router = useRouter()
 
   useEffect(() => {
-    if (!deleting) {
-      setProgress(0)
-      return
+  if (!deleting) return
+
+  let current = 8
+
+  const interval = setInterval(() => {
+    current += (92 - current) * 0.08
+
+    if (current > 92) {
+      current = 92
     }
 
-    let current = 0
+    setProgress(Math.round(current))
+  }, 120)
 
-    const interval = setInterval(() => {
-      current += Math.random() * 8
-
-      // วิ่งช้าลงเมื่อใกล้เต็ม
-      if (current >= 92) {
-        current = 92
-      }
-
-      setProgress(Math.floor(current))
-    }, 180)
-
-    return () => clearInterval(interval)
-  }, [deleting])
+  return () => clearInterval(interval)
+}, [deleting])
 
   async function handleDelete(e: React.MouseEvent) {
     e.preventDefault()
@@ -70,9 +68,13 @@ export default function DeleteAlbumButton({ albumId }: Props) {
       // จบสวย ๆ
       setProgress(100)
 
-      setTimeout(() => {
-        window.location.href = '/albums'
-      }, 450)
+setTimeout(() => {
+  router.refresh()
+}, 250)
+
+setTimeout(() => {
+  setDeleting(false)
+}, 400)
     } catch (error) {
       alert(
         error instanceof Error
@@ -106,17 +108,17 @@ export default function DeleteAlbumButton({ albumId }: Props) {
 
       {deleting ? (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/45 px-5 backdrop-blur-sm">
-          <div className="w-full max-w-[420px] rounded-[34px] bg-white p-8 text-center shadow-2xl">
+          <div className="w-full max-w-[380px] rounded-[30px] bg-white p-6 text-center shadow-2xl">
             {/* Spinner */}
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border-4 border-slate-200">
-              <div className="h-16 w-16 animate-spin rounded-full border-4 border-transparent border-t-[#2F6BFF]" />
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border-4 border-slate-200">
+             <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-[#DCE6FF] border-t-[#0257ff]" />
             </div>
 
-            <h2 className="mt-6 text-[34px] font-bold tracking-tight text-slate-950">
+            <h2 className="mt-6 text-[28px] sm:text-[32px] font-bold tracking-tight text-slate-950">
               Deleting album
             </h2>
 
-            <p className="mt-3 text-[17px] leading-8 text-slate-500">
+            <p className="mt-3 text-[15px] leading-7 leading-8 text-slate-500">
               Removing photos, storage files, and album data...
             </p>
 
@@ -127,9 +129,8 @@ export default function DeleteAlbumButton({ albumId }: Props) {
                 <span>{progress}%</span>
               </div>
 
-              <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className="h-full rounded-full bg-[#2F6BFF] transition-all duration-300 ease-out"
+              <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-full bg-[#0257ff] transition-[width] duration-500 ease-out"
                   style={{
                     width: `${progress}%`,
                   }}

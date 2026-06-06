@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 982.12 349.61">
+  <defs>
+    <style>
+      .cls-1 {
+        font-family: Nohemi-Bold, Nohemi;
+        font-size: 250.62px;
+        font-weight: 700;
+      }
+
+      .cls-2 {
+        letter-spacing: -.06em;
+      }
+
+      .cls-3 {
+        letter-spacing: -.02em;
+      }
+
+      .cls-4 {
+        letter-spacing: 0em;
+      }
+    </style>
+  </defs>
+  <text class="cls-1" transform="translate(14.72 251.84)"><tspan x="0" y="0">Pi</tspan><tspan class="cls-2" x="227.31" y="0">x</tspan><tspan class="cls-4" x="370.98" y="0">e</tspan><tspan x="517.35" y="0">a</tspan><tspan class="cls-3" x="667.09" y="0">s</tspan><tspan x="804.06" y="0">y</tspan></text>
+</svg>

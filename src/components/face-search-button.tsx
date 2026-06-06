@@ -1,5 +1,5 @@
 'use client'
-import SelfieFaceSearch from '@/components/selfie-face-search'
+import AppIcon from '@/components/app-icon'
 
 type Props = {
   onClick?: () => void
@@ -20,8 +20,8 @@ export default function FaceSearchButton({ onClick }: Props) {
         transition hover:scale-105
       "
     >
-      <span>🔍</span>
-      <span>Face Search</span>
+      <span><AppIcon name="face-id" size={22} className="opacity-90" /></span>
+      <span>Face Scan</span>
     </button>
   )
 }

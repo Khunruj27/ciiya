@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 export default function RetryFailedWorkerButton() {
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
 
@@ -22,7 +24,7 @@ export default function RetryFailedWorkerButton() {
       }
 
       setMessage(`กู้สำเร็จ ${data.retried ?? 0} jobs`)
-      window.location.reload()
+      router.refresh()
     } catch (error) {
       setMessage(
         error instanceof Error

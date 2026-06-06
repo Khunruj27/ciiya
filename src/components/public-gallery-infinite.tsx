@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PublicGallery from '@/components/public-gallery'
+import PublicGalleryRealtime from '@/components/public-gallery-realtime'
 
 type Photo = {
   id: string
@@ -13,6 +14,7 @@ type Photo = {
   created_at: string
   view_count?: number | null
   processing_status?: string | null
+  blur_data_url?: string | null
 }
 
 type Props = {
@@ -20,7 +22,22 @@ type Props = {
   totalCount: number
   albumTitle: string
   albumId: string
+  shareToken?: string
   initialCursor: string | null
+}
+
+function isReadyPhoto(photo: Photo) {
+  return (
+    photo.processing_status === 'done' &&
+    Boolean(photo.public_url) &&
+    Boolean(photo.preview_url) &&
+    Boolean(photo.thumbnail_url)
+  )
+}
+  
+function getTokenFromUrl() {
+  if (typeof window === 'undefined') return ''
+  return window.location.pathname.split('/share/')[1]?.split('/')[0] || ''
 }
 
 export default function PublicGalleryInfinite({
@@ -28,32 +45,80 @@ export default function PublicGalleryInfinite({
   totalCount,
   albumTitle,
   albumId,
+  shareToken,
   initialCursor,
 }: Props) {
-  const [photos, setPhotos] = useState(initialPhotos)
+  const [photos, setPhotos] = useState<Photo[]>(initialPhotos)
   const [cursor, setCursor] = useState(initialCursor)
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(Boolean(initialCursor))
+
   const loaderRef = useRef<HTMLDivElement | null>(null)
+  const isFetchingRef = useRef(false)
+  const loadingRef = useRef(false)
+  const mountedRef = useRef(false)
+  
 
   useEffect(() => {
-    setPhotos(initialPhotos)
-    setCursor(initialCursor)
-    setHasMore(Boolean(initialCursor))
-  }, [initialPhotos, initialCursor])
+  loadingRef.current = loading
+}, [loading])
 
-  async function loadMore() {
-    if (loading || !hasMore || !cursor) return
+  useEffect(() => {
+    mountedRef.current = true
+
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  const prependRealtimePhotos = useCallback((nextPhotos: Photo[]) => {
+    const readyPhotos = nextPhotos.filter(isReadyPhoto)
+    if (!readyPhotos.length) return
+
+    setPhotos((prev) => {
+      const existing = new Set(prev.map((photo) => photo.id))
+      const uniqueNew = readyPhotos.filter((photo) => !existing.has(photo.id))
+      return uniqueNew.length ? [...uniqueNew, ...prev] : prev
+    })
+  }, [])
+
+  const appendOlderPhotos = useCallback((nextPhotos: Photo[]) => {
+    const readyPhotos = nextPhotos.filter(isReadyPhoto)
+    if (!readyPhotos.length) return
+
+    setPhotos((prev) => {
+      const existing = new Set(prev.map((photo) => photo.id))
+      const uniqueOld = readyPhotos.filter((photo) => !existing.has(photo.id))
+      return uniqueOld.length ? [...prev, ...uniqueOld] : prev
+    })
+  }, [])
+
+  const loadMore = useCallback(async () => {
+    const resolvedShareToken = shareToken || getTokenFromUrl()
+
+    if (
+      isFetchingRef.current ||
+      loadingRef.current ||
+      !hasMore ||
+      !cursor ||
+      !resolvedShareToken
+    ) {
+      return
+    }
 
     try {
+      isFetchingRef.current = true
       setLoading(true)
 
-      const res = await fetch(
-        `/api/share/photos?albumId=${albumId}&cursor=${encodeURIComponent(
-          cursor
-        )}&limit=50`,
-        { cache: 'no-store' }
-      )
+      const params = new URLSearchParams({
+        token: resolvedShareToken,
+        cursor,
+        limit: '50',
+      })
+
+      const res = await fetch(`/api/share/photos?${params.toString()}`, {
+        cache: 'no-store',
+      })
 
       const data = await res.json()
 
@@ -61,26 +126,26 @@ export default function PublicGalleryInfinite({
         throw new Error(data?.error || 'Load more failed')
       }
 
-      const nextPhotos = data.photos || []
+      if (!mountedRef.current) return
 
-      setPhotos((prev) => {
-        const existing = new Set(prev.map((photo) => photo.id))
-        const unique = nextPhotos.filter(
-          (photo: Photo) => !existing.has(photo.id)
-        )
+      appendOlderPhotos(data.photos || [])
 
-        return [...prev, ...unique]
-      })
-
-      setCursor(data.nextCursor)
+      setCursor(data.nextCursor || null)
       setHasMore(Boolean(data.hasMore))
     } catch (error) {
-      console.error(error)
-      setHasMore(false)
+      console.error('[PublicGalleryInfinite]', error)
+
+      if (mountedRef.current) {
+        setHasMore(false)
+      }
     } finally {
-      setLoading(false)
+      isFetchingRef.current = false
+
+      if (mountedRef.current) {
+        setLoading(false)
+      }
     }
-  }
+  }, [appendOlderPhotos, cursor, hasMore, shareToken])
 
   useEffect(() => {
     const target = loaderRef.current
@@ -88,30 +153,56 @@ export default function PublicGalleryInfinite({
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting) {
+        const entry = entries[0]
+        if (entry?.isIntersecting) {
           loadMore()
         }
       },
       {
-        rootMargin: '700px',
+        rootMargin: '1200px',
+        threshold: 0,
       }
     )
 
     observer.observe(target)
 
-    return () => observer.disconnect()
-  }, [cursor, hasMore, loading])
+    return () => {
+      observer.disconnect()
+    }
+  }, [loadMore])
+
+  const visiblePhotos = useMemo(() => {
+    return photos.filter(isReadyPhoto)
+  }, [photos])
 
   return (
     <>
+      <PublicGalleryRealtime
+        albumId={albumId}
+        onPhotosDone={prependRealtimePhotos}
+      />
+
       <PublicGallery
-        photos={photos.filter((photo) => Boolean(photo.public_url))}
+        photos={visiblePhotos}
         totalCount={totalCount}
         albumTitle={albumTitle}
         albumId={albumId}
       />
 
-      <div ref={loaderRef} className="h-10" />
+      {hasMore ? (
+        <div className="flex flex-col items-center gap-4 py-10">
+          <div ref={loaderRef} className="h-10 w-full" />
+
+          <button
+            type="button"
+            onClick={loadMore}
+            disabled={loading}
+            className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow ring-1 ring-black/5 transition hover:bg-slate-50 disabled:opacity-50"
+          >
+            {loading ? 'Loading...' : 'Load more photos'}
+          </button>
+        </div>
+      ) : null}
     </>
   )
 }

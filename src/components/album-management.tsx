@@ -6,6 +6,7 @@ type Photo = {
   id: string
   public_url: string
   filename: string
+  blur_data_url?: string | null
 }
 
 type Props = {
@@ -15,7 +16,6 @@ type Props = {
 }
 
 export default function AlbumManagement({
-  albumId,
   albumTitle,
   photos,
 }: Props) {
@@ -84,6 +84,7 @@ export default function AlbumManagement({
           <div key={photo.id} className="bg-white">
             <img
               src={photo.public_url}
+              alt="Album cover preview"
               className="w-full aspect-square object-cover"
             />
 

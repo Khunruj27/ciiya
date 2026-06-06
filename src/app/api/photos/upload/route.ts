@@ -2,9 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { getUserStoragePlan } from '@/lib/get-user-storage-plan'
 import { createClient } from '@supabase/supabase-js'
+import crypto from 'crypto'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+const MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+const DEFAULT_LIMIT_BYTES = 20 * 1024 * 1024 * 1024
+const STORAGE_BUCKET = 'albums'
+
+type UploadSize = 'sd' | 'hd' | 'uhd' | 'original'
 
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -22,37 +29,26 @@ function getSupabaseAdmin() {
   })
 }
 
-async function getStorageUsageAndLimit(userId: string) {
-  const supabase = await createServerSupabaseClient()
+function getSafeUploadSize(value: string): UploadSize {
+  const safeValue = value.trim().toLowerCase()
 
-  const { data, error } = await supabase
-    .from('photos')
-    .select(`
-      original_size_bytes,
-      preview_size_bytes,
-      thumbnail_size_bytes
-    `)
-    .eq('owner_id', userId)
-
-  if (error) {
-    throw new Error(error.message)
+  if (
+    safeValue === 'sd' ||
+    safeValue === 'hd' ||
+    safeValue === 'uhd' ||
+    safeValue === 'original'
+  ) {
+    return safeValue
   }
 
-  const usedBytes = (data ?? []).reduce((sum, row) => {
-    return (
-      sum +
-      Number(row.original_size_bytes || 0) +
-      Number(row.preview_size_bytes || 0) +
-      Number(row.thumbnail_size_bytes || 0)
-    )
-  }, 0)
+  return 'original'
+}
 
-  const { storageLimitBytes } = await getUserStoragePlan(userId)
-
-  return {
-    usedBytes,
-    limitBytes: Number(storageLimitBytes || 5 * 1024 * 1024 * 1024),
-  }
+function getFileHash(buffer: Buffer) {
+  return crypto
+    .createHash('sha256')
+    .update(buffer)
+    .digest('hex')
 }
 
 function getSafeFileName(fileName: string) {
@@ -63,9 +59,12 @@ function getSafeFileName(fileName: string) {
   const safeBaseName = baseName
     .replace(/[^a-zA-Z0-9-_]/g, '-')
     .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
     .slice(0, 80)
 
-  return `${Date.now()}-${safeBaseName || 'photo'}.${ext}`
+  const randomPart = crypto.randomBytes(6).toString('hex')
+
+  return `${Date.now()}-${randomPart}-${safeBaseName || 'photo'}.${ext}`
 }
 
 function getSafePresetName(fileName: string) {
@@ -74,55 +73,102 @@ function getSafePresetName(fileName: string) {
   const safeBaseName = baseName
     .replace(/[^a-zA-Z0-9-_]/g, '-')
     .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
     .slice(0, 80)
 
-  return `${Date.now()}-${safeBaseName || 'preset'}.xmp`
+  const randomPart = crypto.randomBytes(6).toString('hex')
+
+  return `${Date.now()}-${randomPart}-${safeBaseName || 'preset'}.xmp`
 }
 
-async function triggerWorker(req: NextRequest) {
-  try {
-    const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      req.nextUrl.origin
+async function getStorageUsageAndLimit(userId: string) {
+  const supabase = await createServerSupabaseClient()
 
-    const workerSecret =
-      process.env.WORKER_SECRET || ''
+  const { data: usage } = await supabase
+    .from('user_storage_usage')
+    .select('used_bytes, storage_used_bytes, storage_limit_bytes')
+    .eq('user_id', userId)
+    .maybeSingle()
 
-    const controller = new AbortController()
+  let usedBytes = Number(
+    usage?.storage_used_bytes ??
+      usage?.used_bytes ??
+      0
+  )
 
-    const timeout = setTimeout(() => {
-      controller.abort()
-    }, 4000)
+  if (!usedBytes) {
+    const { data, error } = await supabase
+      .from('photos')
+      .select(`
+        original_size_bytes,
+        file_size_bytes,
+        preview_size_bytes,
+        thumbnail_size_bytes
+      `)
+      .or(`owner_id.eq.${userId},user_id.eq.${userId}`)
 
-    const response = await fetch(
-      `${baseUrl}/api/worker/process-photos?limit=3`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${workerSecret}`,
-        },
-        cache: 'no-store',
-        signal: controller.signal,
-      }
-    )
-
-    clearTimeout(timeout)
-
-    if (!response.ok) {
-      console.error(
-        'Worker trigger failed:',
-        response.status
-      )
+    if (error) {
+      throw new Error(error.message)
     }
-  } catch (error) {
-    console.error(
-      'Auto trigger worker failed:',
-      error
-    )
+
+    usedBytes = (data ?? []).reduce((sum, row) => {
+      return (
+        sum +
+        Number(row.original_size_bytes || row.file_size_bytes || 0) +
+        Number(row.preview_size_bytes || 0) +
+        Number(row.thumbnail_size_bytes || 0)
+      )
+    }, 0)
+  }
+
+  const { storageLimitBytes } = await getUserStoragePlan(userId)
+
+  const limitBytes = Number(
+    usage?.storage_limit_bytes ||
+      storageLimitBytes ||
+      DEFAULT_LIMIT_BYTES
+  )
+
+  return {
+    usedBytes,
+    limitBytes,
   }
 }
 
+async function findDuplicatePhoto(params: {
+  albumId: string
+  userId: string
+  fileHash: string
+}) {
+  const { albumId, userId, fileHash } = params
+
+  const supabase = await createServerSupabaseClient()
+
+  const { data, error } = await supabase
+    .from('photos')
+    .select(`
+      id,
+      public_url,
+      original_url,
+      preview_url,
+      thumbnail_url,
+      processing_status
+    `)
+    .eq('album_id', albumId)
+    .eq('file_hash', fileHash)
+    .or(`owner_id.eq.${userId},user_id.eq.${userId}`)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data
+}
+
 export async function POST(req: NextRequest) {
+  let uploadedStoragePath: string | null = null
+
   try {
     const supabase = await createServerSupabaseClient()
 
@@ -142,15 +188,11 @@ export async function POST(req: NextRequest) {
     const file = formData.get('file') as File | null
     const presetFile = formData.get('presetFile') as File | null
 
-    const albumId = String(
-      formData.get('albumId') || ''
-    ).trim()
+    const albumId = String(formData.get('albumId') || '').trim()
 
-    const size = String(
-      formData.get('size') || 'original'
+    const size = getSafeUploadSize(
+      String(formData.get('size') || 'original')
     )
-      .trim()
-      .toLowerCase()
 
     const categoryIdRaw = String(
       formData.get('categoryId') || ''
@@ -168,9 +210,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const maxUploadBytes = 100 * 1024 * 1024
-
-    if (file.size > maxUploadBytes) {
+    if (file.size > MAX_UPLOAD_BYTES) {
       return NextResponse.json(
         {
           error: 'File too large. Maximum 100MB allowed.',
@@ -201,13 +241,12 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { data: album, error: albumError } =
-      await supabase
-        .from('albums')
-        .select('id, owner_id, cover_url')
-        .eq('id', albumId)
-        .eq('owner_id', user.id)
-        .single()
+    const { data: album, error: albumError } = await supabase
+      .from('albums')
+      .select('id, owner_id, user_id, cover_url')
+      .eq('id', albumId)
+      .or(`owner_id.eq.${user.id},user_id.eq.${user.id}`)
+      .single()
 
     if (albumError || !album) {
       return NextResponse.json(
@@ -217,10 +256,32 @@ export async function POST(req: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
-
     const originalSizeBytes = buffer.length
+    const fileHash = getFileHash(buffer)
 
     if (!isCover) {
+      const duplicatePhoto = await findDuplicatePhoto({
+        albumId,
+        userId: user.id,
+        fileHash,
+      })
+
+      if (duplicatePhoto) {
+        return NextResponse.json({
+          success: true,
+          duplicate: true,
+          photoId: duplicatePhoto.id,
+          publicUrl:
+            duplicatePhoto.preview_url ||
+            duplicatePhoto.public_url ||
+            duplicatePhoto.original_url,
+          thumbnailUrl: duplicatePhoto.thumbnail_url,
+          processingStatus:
+            duplicatePhoto.processing_status || 'done',
+          message: 'Duplicate photo skipped.',
+        })
+      }
+
       const { usedBytes, limitBytes } =
         await getStorageUsageAndLimit(user.id)
 
@@ -240,8 +301,7 @@ export async function POST(req: NextRequest) {
       if (usedBytes + estimatedTotal > limitBytes) {
         return NextResponse.json(
           {
-            error:
-              'Storage full. Please upgrade your plan.',
+            error: 'Storage full. Please upgrade your plan.',
             usedBytes,
             limitBytes,
             estimatedUploadBytes: estimatedTotal,
@@ -257,8 +317,10 @@ export async function POST(req: NextRequest) {
       ? `${user.id}/${albumId}/cover/${fileName}`
       : `${user.id}/${albumId}/original/${fileName}`
 
+    uploadedStoragePath = storagePath
+
     const { error: uploadError } = await supabase.storage
-      .from('albums')
+      .from(STORAGE_BUCKET)
       .upload(storagePath, buffer, {
         contentType: file.type || 'image/jpeg',
         upsert: false,
@@ -272,7 +334,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { data: publicUrlData } = supabase.storage
-      .from('albums')
+      .from(STORAGE_BUCKET)
       .getPublicUrl(storagePath)
 
     const publicUrl = publicUrlData.publicUrl
@@ -282,9 +344,10 @@ export async function POST(req: NextRequest) {
         .from('albums')
         .update({
           cover_url: publicUrl,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', albumId)
-        .eq('owner_id', user.id)
+        .or(`owner_id.eq.${user.id},user_id.eq.${user.id}`)
 
       if (coverError) {
         return NextResponse.json(
@@ -310,19 +373,16 @@ export async function POST(req: NextRequest) {
         await presetFile.arrayBuffer()
       )
 
-      const presetName = getSafePresetName(
-        presetFile.name
-      )
+      const presetName = getSafePresetName(presetFile.name)
 
       presetPath = `${user.id}/${albumId}/presets/${presetName}`
 
-      const { error: presetError } =
-        await supabase.storage
-          .from('albums')
-          .upload(presetPath, presetBuffer, {
-            contentType: 'application/octet-stream',
-            upsert: true,
-          })
+      const { error: presetError } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .upload(presetPath, presetBuffer, {
+          contentType: 'application/octet-stream',
+          upsert: true,
+        })
 
       if (presetError) {
         presetUploadError = presetError.message
@@ -340,27 +400,77 @@ export async function POST(req: NextRequest) {
         .from('photos')
         .insert({
           album_id: albumId,
+
           owner_id: user.id,
+          user_id: user.id,
+
           filename: file.name,
+          file_name: file.name,
+
           storage_path: storagePath,
+          original_path: storagePath,
+
           public_url: publicUrl,
+          original_url: publicUrl,
+          image_url: publicUrl,
+
           category_id: categoryId,
 
-          file_size_bytes: originalSizeBytes,
+          file_hash: fileHash,
 
+          file_size_bytes: originalSizeBytes,
           original_size_bytes: originalSizeBytes,
           preview_size_bytes: 0,
           thumbnail_size_bytes: 0,
 
+          mime_type: file.type || 'image/jpeg',
+
           processing_status: 'pending',
           processing_progress: 0,
 
-          original_path: storagePath,
+          metadata: {
+            originalName: file.name,
+            uploadedVia: 'api/photos/upload',
+            requestedSize: size,
+          },
         })
-        .select('id, public_url')
+        .select('id, public_url, original_url')
         .single()
 
     if (insertError) {
+      await supabase.storage
+        .from(STORAGE_BUCKET)
+        .remove([storagePath])
+
+      uploadedStoragePath = null
+
+      if (
+        insertError.message
+          .toLowerCase()
+          .includes('duplicate') ||
+        insertError.code === '23505'
+      ) {
+        const duplicatePhoto = await findDuplicatePhoto({
+          albumId,
+          userId: user.id,
+          fileHash,
+        })
+
+        return NextResponse.json({
+          success: true,
+          duplicate: true,
+          photoId: duplicatePhoto?.id ?? null,
+          publicUrl:
+            duplicatePhoto?.preview_url ||
+            duplicatePhoto?.public_url ||
+            duplicatePhoto?.original_url ||
+            publicUrl,
+          processingStatus:
+            duplicatePhoto?.processing_status || 'pending',
+          message: 'Duplicate photo skipped.',
+        })
+      }
+
       return NextResponse.json(
         { error: insertError.message },
         { status: 500 }
@@ -372,9 +482,11 @@ export async function POST(req: NextRequest) {
         .from('albums')
         .update({
           cover_url: insertedPhoto.public_url,
+          cover_photo_id: insertedPhoto.id,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', albumId)
-        .eq('owner_id', user.id)
+        .or(`owner_id.eq.${user.id},user_id.eq.${user.id}`)
     }
 
     let jobQueued = false
@@ -384,24 +496,28 @@ export async function POST(req: NextRequest) {
       const supabaseAdmin = getSupabaseAdmin()
 
       if (!supabaseAdmin) {
-        jobError =
-          'Missing SUPABASE_SERVICE_ROLE_KEY'
-
+        jobError = 'Missing SUPABASE_SERVICE_ROLE_KEY'
         console.error(jobError)
       } else {
-        const { error: queueError } =
-          await supabaseAdmin
-            .from('photo_jobs')
-            .insert({
-              photo_id: insertedPhoto.id,
-              owner_id: user.id,
-              album_id: albumId,
-              original_path: storagePath,
-              size,
-              preset_path: presetPath,
-              status: 'pending',
-              priority: 100,
-            })
+        const { error: queueError } = await supabaseAdmin
+          .from('photo_jobs')
+          .insert({
+            photo_id: insertedPhoto.id,
+            owner_id: user.id,
+            album_id: albumId,
+            original_path: storagePath,
+            size,
+            preset_path: presetPath,
+            status: 'pending',
+            priority: 100,
+            progress: 0,
+            payload: {
+              fileHash,
+              originalName: file.name,
+              publicUrl,
+              requestedSize: size,
+            },
+          })
 
         if (queueError) {
           jobError = queueError.message
@@ -412,27 +528,25 @@ export async function POST(req: NextRequest) {
           )
         } else {
           jobQueued = true
-
-          console.log(
-            'Photo processing job queued:',
-            insertedPhoto.id
-          )
-
-          triggerWorker(req).catch((error) => {
-            console.error(
-              'Background worker trigger failed:',
-              error
-            )
-          })
         }
       }
     }
 
+    const supabaseAdmin = getSupabaseAdmin()
+
+    if (supabaseAdmin) {
+      await supabaseAdmin.rpc('recalculate_user_storage', {
+        user_uuid: user.id,
+      })
+    }
+
     return NextResponse.json({
       success: true,
+      duplicate: false,
       publicUrl,
       photoId: insertedPhoto?.id ?? null,
       originalSizeBytes,
+      fileHash,
       presetQueued: Boolean(presetPath),
       presetUploadError,
       processingStatus: jobQueued
@@ -440,12 +554,27 @@ export async function POST(req: NextRequest) {
         : 'original_uploaded',
       jobQueued,
       jobError,
+      message: jobQueued
+        ? 'Upload completed. Photo queued for Railway worker.'
+        : 'Upload completed. Photo saved without worker job.',
     })
   } catch (error) {
-    console.error(
-      'Fast upload route error:',
-      error
-    )
+    console.error('Stable upload route error:', error)
+
+    if (uploadedStoragePath) {
+      try {
+        const supabase = await createServerSupabaseClient()
+
+        await supabase.storage
+          .from(STORAGE_BUCKET)
+          .remove([uploadedStoragePath])
+      } catch (cleanupError) {
+        console.error(
+          'Upload cleanup failed:',
+          cleanupError
+        )
+      }
+    }
 
     return NextResponse.json(
       {

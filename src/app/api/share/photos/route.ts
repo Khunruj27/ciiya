@@ -7,45 +7,59 @@ export const dynamic = 'force-dynamic'
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 100
 
-const SUCCESS_CACHE_HEADERS = {
-  'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120',
-}
-
 export async function GET(req: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
 
-    const albumId = String(req.nextUrl.searchParams.get('albumId') || '').trim()
+    const token = String(req.nextUrl.searchParams.get('token') || '').trim()
     const cursor = req.nextUrl.searchParams.get('cursor')
-    const rawLimit = Number(
-      req.nextUrl.searchParams.get('limit') || DEFAULT_LIMIT
-    )
+    const rawLimit = Number(req.nextUrl.searchParams.get('limit') || DEFAULT_LIMIT)
     const limit = Math.min(Math.max(rawLimit, 1), MAX_LIMIT)
 
-    if (!albumId) {
+    if (!token) {
+      return NextResponse.json({ error: 'share token is required' }, { status: 400 })
+    }
+
+    const { data: album, error: albumError } = await supabase
+      .from('albums')
+      .select('id, status')
+      .eq('share_token', token)
+      .maybeSingle()
+
+    if (albumError || !album) {
       return NextResponse.json(
-        { error: 'albumId is required' },
-        { status: 400 }
+        { error: albumError?.message || 'Shared album not found' },
+        { status: 404 }
       )
+    }
+
+    if (
+      album.status &&
+      album.status !== 'active' &&
+      album.status !== 'published' &&
+      album.status !== 'public'
+    ) {
+      return NextResponse.json({ error: 'Shared album is not available' }, { status: 403 })
     }
 
     let query = supabase
       .from('photos')
-      .select(
-        `
+      .select(`
         id,
         album_id,
         filename,
         public_url,
         preview_url,
         thumbnail_url,
+        blur_data_url,
         created_at,
         view_count,
         processing_status
-        `
-      )
-      .eq('album_id', albumId)
+      `)
+      .eq('album_id', album.id)
       .eq('processing_status', 'done')
+      .not('preview_url', 'is', null)
+      .not('thumbnail_url', 'is', null)
       .order('created_at', { ascending: false })
       .limit(limit + 1)
 
@@ -61,29 +75,38 @@ export async function GET(req: NextRequest) {
 
     const rows = data ?? []
     const hasMore = rows.length > limit
-    const photos = hasMore ? rows.slice(0, limit) : rows
-
-    const nextCursor =
-      hasMore && photos.length > 0
-        ? photos[photos.length - 1].created_at
-        : null
+    const safePhotos = (hasMore ? rows.slice(0, limit) : rows).map((photo) => ({
+      id: photo.id,
+      album_id: photo.album_id,
+      filename: photo.filename,
+      public_url: photo.public_url,
+      preview_url: photo.preview_url,
+      thumbnail_url: photo.thumbnail_url,
+      blur_data_url: photo.blur_data_url,
+      created_at: photo.created_at,
+      view_count: photo.view_count,
+      processing_status: photo.processing_status,
+    }))
 
     return NextResponse.json(
       {
         success: true,
-        photos,
-        nextCursor,
+        photos: safePhotos,
         hasMore,
+        nextCursor:
+          hasMore && safePhotos.length > 0
+            ? safePhotos[safePhotos.length - 1].created_at
+            : null,
       },
       {
-        headers: SUCCESS_CACHE_HEADERS,
+        headers: {
+          'Cache-Control': 'no-store, max-age=0',
+        },
       }
     )
   } catch (error) {
     return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : 'Load photos failed',
-      },
+      { error: error instanceof Error ? error.message : 'Load photos failed' },
       { status: 500 }
     )
   }

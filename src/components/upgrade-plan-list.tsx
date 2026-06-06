@@ -71,7 +71,7 @@ export default function UpgradePlanList({
         throw new Error('Missing checkout URL')
       }
 
-      window.location.href = data.url
+      window.location.assign(data.url)
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Checkout error')
     } finally {
@@ -199,7 +199,7 @@ export default function UpgradePlanList({
                   }
                   className={`min-w-[86px] rounded-full px-3.5 py-2 text-[12px] font-semibold leading-none shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55 ${
                     isCurrent
-                      ? 'bg-slate-300 text-white'
+                      ? 'bg-slate-300 text-[#0A84FF]'
                       : cannotDowngrade
                       ? 'bg-slate-300 text-white'
                       : isPopular

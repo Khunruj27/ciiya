@@ -21,6 +21,30 @@ type RateLimitEntry = {
   resetAt: number
 }
 
+type PhotoRecord = {
+  id?: string | null
+  public_url?: string | null
+  original_url?: string | null
+  preview_url?: string | null
+  thumbnail_url?: string | null
+  image_url?: string | null
+  filename?: string | null
+  file_name?: string | null
+}
+
+type FaceRecord = {
+  id: string
+  photo_id: string
+  album_id: string
+  descriptor?: unknown
+  confidence?: number | null
+  box_x?: number | null
+  box_y?: number | null
+  box_width?: number | null
+  box_height?: number | null
+  photos?: PhotoRecord | PhotoRecord[] | null
+}
+
 const rateLimitStore = new Map<string, RateLimitEntry>()
 
 function getClientIp(req: NextRequest) {
@@ -41,7 +65,6 @@ function getClientIp(req: NextRequest) {
 function checkRateLimit(req: NextRequest) {
   const ip = getClientIp(req)
   const now = Date.now()
-
   const current = rateLimitStore.get(ip)
 
   if (!current || current.resetAt <= now) {
@@ -95,6 +118,14 @@ function cleanupRateLimitStore() {
       rateLimitStore.delete(ip)
     }
   }
+}
+
+function normalizeDescriptor(value: unknown): number[] {
+  if (!Array.isArray(value)) return []
+
+  return value
+    .map((item) => Number(item))
+    .filter((item) => Number.isFinite(item))
 }
 
 function distance(a: number[], b: number[]) {
@@ -153,12 +184,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
 
     const albumId = String(body.albumId || '').trim()
-    const descriptor = body.descriptor as number[]
+    const descriptor = normalizeDescriptor(body.descriptor)
 
     const rawLimit = Number(body.limit || DEFAULT_RESULT_LIMIT)
     const resultLimit = Math.min(Math.max(rawLimit, 1), MAX_RESULT_LIMIT)
 
-    if (!albumId || !Array.isArray(descriptor) || descriptor.length === 0) {
+    if (!albumId || descriptor.length === 0) {
       return NextResponse.json(
         { error: 'albumId and descriptor are required' },
         {
@@ -170,7 +201,7 @@ export async function POST(req: NextRequest) {
 
     const supabase = getSupabaseAdmin()
 
-    const { data: faces, error } = await supabase
+    const { data: facesData, error } = await supabase
       .from('photo_faces')
       .select(
         `
@@ -178,12 +209,20 @@ export async function POST(req: NextRequest) {
         photo_id,
         album_id,
         descriptor,
-        photos (
+        confidence,
+        box_x,
+        box_y,
+        box_width,
+        box_height,
+        photos:photo_id (
           id,
           public_url,
+          original_url,
           preview_url,
           thumbnail_url,
-          filename
+          image_url,
+          filename,
+          file_name
         )
       `
       )
@@ -202,13 +241,32 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const results = (faces || [])
-      .map((face: any) => {
-        const targetDescriptor = Array.isArray(face.descriptor)
-          ? face.descriptor
-          : []
+    const faces = (facesData || []) as FaceRecord[]
+    const seenPhotoIds = new Set<string>()
 
+    const results = faces
+      .map((face) => {
+        const targetDescriptor = normalizeDescriptor(face.descriptor)
         const score = distance(descriptor, targetDescriptor)
+
+        const photo = Array.isArray(face.photos)
+          ? face.photos[0]
+          : face.photos
+
+        const imageUrl =
+          photo?.preview_url ||
+          photo?.public_url ||
+          photo?.original_url ||
+          photo?.image_url ||
+          null
+
+        const thumbnailUrl =
+          photo?.thumbnail_url ||
+          photo?.preview_url ||
+          photo?.public_url ||
+          photo?.original_url ||
+          photo?.image_url ||
+          null
 
         return {
           faceId: face.id,
@@ -216,19 +274,41 @@ export async function POST(req: NextRequest) {
           albumId: face.album_id,
           score,
           confidence: confidenceFromScore(score),
-          photo: face.photos,
+          faceConfidence: Number(face.confidence || 0),
+          box: {
+            x: Number(face.box_x || 0),
+            y: Number(face.box_y || 0),
+            width: Number(face.box_width || 0),
+            height: Number(face.box_height || 0),
+          },
+          photo: {
+            id: photo?.id,
+            filename: photo?.filename || photo?.file_name || 'photo',
+            public_url: photo?.public_url || null,
+            original_url: photo?.original_url || null,
+            preview_url: photo?.preview_url || null,
+            thumbnail_url: photo?.thumbnail_url || null,
+            image_url: imageUrl,
+            thumbnailUrl,
+            imageUrl,
+          },
         }
       })
       .filter((item) => Number.isFinite(item.score))
       .filter((item) => item.score <= MATCH_THRESHOLD)
       .sort((a, b) => a.score - b.score)
+      .filter((item) => {
+        if (seenPhotoIds.has(item.photoId)) return false
+        seenPhotoIds.add(item.photoId)
+        return true
+      })
       .slice(0, resultLimit)
 
     return NextResponse.json(
       {
         success: true,
         count: results.length,
-        scanned: faces?.length || 0,
+        scanned: faces.length,
         threshold: MATCH_THRESHOLD,
         results,
       },

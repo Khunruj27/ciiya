@@ -24,3 +24,30 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ========================================
+   CIIYA V18 DESIGN TOKENS
+======================================== */
+
+:root {
+  --ciiya-bg: #faf7f4;
+  --ciiya-surface: #ffffff;
+
+  --ciiya-border: rgba(15, 23, 42, 0.06);
+
+  --ciiya-text: #111827;
+  --ciiya-text-muted: #6b7280;
+
+  --ciiya-pink: #f5d9ea;
+  --ciiya-green: #e8f5df;
+  --ciiya-blue: #e9f2fb;
+  --ciiya-cream: #f6eee6;
+
+  --ciiya-radius-sm: 16px;
+  --ciiya-radius-md: 24px;
+  --ciiya-radius-lg: 28px;
+  --ciiya-radius-xl: 32px;
+
+  --ciiya-shadow:
+    0 8px 24px rgba(15, 23, 42, 0.04);
+}

@@ -1,11 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 
 export const runtime = 'nodejs'
 
-const FREE_LIMIT_BYTES = 3 * 1024 * 1024 * 1024
+const FREE_LIMIT_BYTES = 5 * 1024 * 1024 * 1024
 
-export async function POST(req: NextRequest) {
+type StorageRow = {
+  file_size_bytes: number | null
+}
+
+export async function POST() {
   try {
     const supabase = await createServerSupabaseClient()
 
@@ -17,7 +21,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // 🔥 FIX: default = []
     const { data: storageRows = [], error: storageError } = await supabase
       .from('photos')
       .select('file_size_bytes')
@@ -27,9 +30,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: storageError.message }, { status: 500 })
     }
 
-    // 🔥 FIX: กัน null 100%
-    const usedBytes = (storageRows || []).reduce(
-      (sum, row: any) => sum + Number(row?.file_size_bytes || 0),
+    const usedBytes = (storageRows as StorageRow[]).reduce(
+      (sum, row) => sum + Number(row.file_size_bytes || 0),
       0
     )
 
@@ -47,7 +49,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
 
     const plan = Array.isArray(currentSubscription?.plan)
-      ? currentSubscription?.plan[0]
+      ? currentSubscription.plan[0]
       : currentSubscription?.plan
 
     const limitBytes = Number(plan?.storage_limit_bytes || FREE_LIMIT_BYTES)

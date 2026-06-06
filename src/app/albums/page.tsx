@@ -1,17 +1,15 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
-import LogoutButton from '@/components/logout-button'
-import { formatBytes, clampPercent } from '@/lib/format-bytes'
-import ManageBillingButton from '@/components/manage-billing-button'
 import DeleteAlbumButton from '@/components/delete-album-button'
 import CreateAlbumModal from '@/components/create-album-modal'
 import ProfileAvatarSettings from '@/components/profile-avatar-settings'
 import AppIcon from '@/components/app-icon'
-import IconButton from '@/components/icon-button'
-import AppBottomBar from '@/components/app-bottom-bar'
-import Image from "next/image";
+import Image from 'next/image'
+import AlbumsListClient from '@/components/albums-list-client'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export default async function AlbumsPage() {
   const supabase = await createServerSupabaseClient()
@@ -22,9 +20,6 @@ export default async function AlbumsPage() {
 
   if (!user) redirect('/login')
 
-  // ----------------------------
-  // DATA
-  // ----------------------------
   const { data: albumsData } = await supabase
     .from('albums')
     .select('*')
@@ -32,271 +27,184 @@ export default async function AlbumsPage() {
     .order('created_at', { ascending: false })
 
   const albums = albumsData ?? []
-
-  const { data: storageRowsData } = await supabase
-    .from('photos')
-    .select('file_size_bytes')
-    .eq('owner_id', user.id)
-
-  const storageRows = storageRowsData ?? []
-
-  const { data: currentSubscription } = await supabase
-    .from('subscriptions')
-    .select(`
-      id,
-      stripe_customer_id,
-      plan:plans(*)
-    `)
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .limit(1)
-    .maybeSingle()
-
-  const currentPlan = Array.isArray(currentSubscription?.plan)
-    ? currentSubscription?.plan[0]
-    : currentSubscription?.plan
-
-  const totalBytes = storageRows.reduce(
-    (sum, row) => sum + Number(row.file_size_bytes || 0),
-    0
-  )
-
-  const storageLimitBytes = Number(
-    currentPlan?.storage_limit_bytes || 5 * 1024 * 1024 * 1024
-  )
-
-  const usagePercent = clampPercent(
-    storageLimitBytes > 0 ? (totalBytes / storageLimitBytes) * 100 : 0
-  )
-
-  // ----------------------------
-  // COUNT PHOTOS
-  // ----------------------------
   const albumIds = albums.map((a) => a.id)
 
   const { data: photoRowsData } =
     albumIds.length > 0
-      ? await supabase
-          .from('photos')
-          .select('album_id')
-          .in('album_id', albumIds)
+      ? await supabase.from('photos').select('album_id').in('album_id', albumIds)
       : { data: [] }
 
   const photoRows = photoRowsData ?? []
 
-  const photoCountMap = photoRows.reduce<Record<string, number>>(
-    (acc, row) => {
-      const id = String(row.album_id)
-      acc[id] = (acc[id] || 0) + 1
-      return acc
-    },
-    {}
-  )
+  const photoCountMap = photoRows.reduce<Record<string, number>>((acc, row) => {
+    const id = String(row.album_id)
+    acc[id] = (acc[id] || 0) + 1
+    return acc
+  }, {})
 
-  const currentPlanName = currentPlan?.name || 'Free Plan 5GB'
-  const hasBillingPortal = Boolean(currentSubscription?.stripe_customer_id)
+  const totalPhotos = photoRows.length
 
-  const barColor =
-    usagePercent >= 90
-      ? 'bg-red-500'
-      : usagePercent >= 70
-      ? 'bg-yellow-500'
-      : 'bg-[#2F6BFF]'
-
-  // ----------------------------
-  // UI
-  // ----------------------------
   return (
-    <main className="min-h-screen bg-[#F8F9FC] pb-28">
-      {/* HEADER */}
-      <section className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 py-4 backdrop-blur">
-        <div className="flex items-center justify-between px-6 py-3">
+    <main className="min-h-dvh overflow-x-hidden bg-[#F9F9F9] text-black">
+      <div className="mx-auto flex min-h-dvh w-full max-w-[393px] flex-col px-4 pt-[max(54px,env(safe-area-inset-top))] pb-[calc(104px+env(safe-area-inset-bottom))]">
+        {/* HEADER */}
+       <section className="shrink-0">
+          <div className="flex w-full items-center justify-between">
+            <Image
+              src="/Ciiya.svg"
+              alt="Ciiya Logo"
+              width={120}
+              height={40}
+              priority
+              className="h-8 w-auto max-w-[132px]"
+            />
 
-  {/* LEFT */}
-
-  <div className="flex items-center gap-2">
-
-    <Image
-      src="/logo-mininum.svg"
-      alt="Ciiya Logo"
-      width={0}
-      height={0}
-      priority
-      className="h-12 w-auto"
-    />
-</div>
-
-          <div className="flex items-center gap-2">
-            <IconButton icon="setting" variant="ghost" />
-         <ProfileAvatarSettings
-         email={user.email}
-         initialAvatarUrl={user.user_metadata?.avatar_url || null}
+            <div className="shrink-0 rounded-full bg-white border border-black/5">
+  <ProfileAvatarSettings
+    email={user.email}
+    initialAvatarUrl={user.user_metadata?.avatar_url || null}
   />
-
-  <LogoutButton />
 </div>
-        </div>
-      </section>
+          </div>
+        </section>
 
-      <section className="px-5 py-5">
-        <div className="mx-auto max-w-md space-y-5">
-          {/* ACTION BUTTONS */}
-          <div className="grid grid-cols-3 gap-3 auto-rows-[110px] px-5">
-         <CreateAlbumModal />
+        {/* HERO */}
+       <section className="pt-6">
+          <h1 className="mt-4 text-[38px] font-black leading-[0.94] tracking-[-0.06em] text-black">
+  Hello, {(
+    user.user_metadata?.full_name ||
+    user.user_metadata?.name ||
+    user.email?.split('@')[0] ||
+    'User'
+  ).split(' ')[0]}!  
+</h1>
 
-        <Link
-        href="/pricing"
-        className="flex h-full flex-col items-center justify-center gap-2 rounded-[22px] border border-slate-200 bg-white shadow-sm hover:shadow-md transition"
-  >
-        <AppIcon name="hard-drive" size={26} className="opacity-80" />
-        <p className="text-sm font-semibold">Upgrade Plan</p>
-      </Link>
+          <p className="mt-3 text-[15px] font-bold tracking-[-0.02em] text-black">
+            {albums.length} albums · {totalPhotos} photos
+          </p>
+        </section>
 
-        <div className="flex h-full flex-col items-center justify-center gap-2 rounded-[22px] border border-slate-200 bg-white shadow-sm hover:shadow-md transition">
-        <AppIcon name="transfer-data" size={26} className="opacity-80" />
-        <p className="text-sm font-semibold">Transfer Files</p>
-       </div>
-       </div>
+    <AlbumsListClient
+  albums={albums}
+  photoCountMap={photoCountMap}
+/>
 
-          {/* STORAGE */}
-          <div className="rounded-[30px] bg-white p-5 shadow">
-            <div className="flex justify-between">
-              <div>
-                <h2 className="font-bold">Storage Usage</h2>
-                <p className="text-sm text-slate-500">{currentPlanName}</p>
-              </div>
-            
-              
+        {/* ACTION CARDS */}
+      <section className="pt-6">
+          <div className="flex min-h-[132px] w-full items-center justify-center rounded-[28px] bg-[#f0B1DE] p-5 text-white border border-black/5 transition active:scale-[0.98]">
+             
+             <CreateAlbumModal />
+             
+         </div>
+       </section>
 
-              <span className="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-sm">
-                {Math.round(usagePercent)}%
+        {/* ALBUM LIST */}
+      <section className="pt-5">
+          <div className="w-full">
+            <div className="mb-3 flex items-center justify-between px-1">
+              <h2 className="text-[24px] font-black tracking-[-0.05em]">
+              Your albums
+            </h2>
+
+              <span className="shrink-0 text-[15px] font-bold text-black/80">
+                See all
               </span>
             </div>
 
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
-          <div
-             className={`${barColor} h-full rounded-full transition-all duration-500 ease-out`}
-           style={{ width: `${usagePercent}%` }}
-          />
-        </div>
-
-            <div className="mt-2 flex justify-between text-xs text-slate-500">
-              <span>{formatBytes(totalBytes)}</span>
-              <span>{formatBytes(storageLimitBytes)}</span>
-            </div>
-
-            <div className="mt-3 flex gap-2">
-              <Link
-                href="/pricing"
-                className="bg-blue-600 text-white px-4 py-2 rounded-full text-sm"
-              >
-                  Upgrade
-              </Link>
-             <ManageBillingButton />
-             </div>
-          </div>
-
-          {/* ALBUM LIST */}
-          {albums.length > 0 ? (
-            <div className="px-5 mt-6 space-y-3">
-              {albums.map((album) => (
-                <div
-                  key={album.id}
-                  className="relative bg-white p-2 rounded-2xl shadow"
-                >
-                  <DeleteAlbumButton albumId={album.id} />
-
-                  <Link
-                    href={`/albums/${album.id}`}
-                    className="flex gap-4"
+            {albums.length > 0 ? (
+              <div className="space-y-3">
+                {albums.map((album) => (
+                  <div
+                    key={album.id}
+                    className="relative w-full overflow-hidden rounded-[22px] bg-white p-2 border border-black/5"
                   >
-                    {/* COVER */}
-                    <div className="relative w-24 h-18 rounded-xl overflow-hidden bg-slate-100">
-                      {album.cover_url ? (
-                        <img
-                      src={album.cover_url}
-                      loading="lazy"
-                      decoding="async"
-                      alt={album.title || 'Album cover'}
-                     className="h-full w-full object-cover transition-opacity duration-300"
-                  />
-                      ) : (
-                        <div className="flex items-center justify-center h-full text-xs text-slate-400">
-                          No Cover
-                        </div>
-                      )}
+                   
+                    <DeleteAlbumButton albumId={album.id} />
+                    
 
-                      <span className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-                        {photoCountMap[album.id] || 0}
-                      </span>
-                    </div>
+                    <Link href={`/albums/${album.id}`} className="flex min-w-0 gap-3">
+                      <div className="relative h-[86px] w-[96px] shrink-0 overflow-hidden rounded-[18px] bg-slate-100">
+                        {album.cover_url ? (
+                          <img
+                            src={album.cover_url}
+                            loading="lazy"
+                            decoding="async"
+                            alt={album.title || 'Album cover'}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-xs text-slate-400">
+                            No Cover
+                          </div>
+                        )}
 
-                    {/* INFO */}
-                    <div className="flex-1">
-                      <p className="font-semibold text-slate-900">
-                      {album.title}
-                      </p>
+                        <span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-1 text-[11px] font-bold text-white">
+                          {photoCountMap[album.id] || 0}
+                        </span>
+                      </div>
 
-                     <span className="inline-block w-fit rounded-full bg-blue-100 px-3 py-0.5 text-[12px] font-medium text-blue-600">
-                        Owner
-                      </span>
+                      <div className="min-w-0 flex-1 py-1 pr-7">
+                        <p className="truncate text-[15px] sm:text-[16px] font-black tracking-[-0.03em] text-black">
+                          {album.title}
+                        </p>
 
-                      <p className="text-[13px] text-slate-400 leading-tight">
-                        {album.description || 'No description'}
-                      </p>
-                    </div>
-                  </Link>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="mt-16 flex flex-col items-center justify-center text-center">
-            <AppIcon name="gallery" size={48} className="opacity-40 mb-3" />
+                        <span className="mt-1 inline-block rounded-full bg-black px-3 py-1 text-[11px] font-bold text-white">
+                          Album
+                        </span>
 
-            <p className="text-lg font-semibold text-slate-700">
-    No albums yet
-  </p>
-
-            <p className="text-sm text-slate-400 mt-1">
-    Create your first album to start
-  </p>
+                        <p className="mt-2 line-clamp-2 text-[12px] font-medium leading-snug text-slate-500">
+                          {album.description || 'No description'}
+                        </p>
+                      </div>
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <AppIcon name="gallery" size={46} className="mb-3 opacity-35" />
+                <p className="text-lg font-black text-slate-800">
+                  No albums yet
+                </p>
+                <p className="mt-1 text-sm font-medium text-slate-400">
+                  Create your first album to start
+                </p>
+              </div>
+            )}
           </div>
-          )}
+        </section>
+      </div>
+
+      {/* FLOATING BOTTOM NAV */}
+      <nav className="fixed left-0 right-0 z-50 bottom-[max(20px,env(safe-area-inset-bottom))] px-5">
+        <div className="mx-auto flex max-w-[390px] items-center justify-between rounded-full bg-white/88 border border-black/5 px-4 py-3">
+          <Link
+            href="/albums"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-[#EEF3F6] text-[#0257ff]"
+          >
+            <AppIcon name="album bold" size={25} />
+          </Link>
+
+          <button className="flex h-11 w-11 items-center justify-center rounded-full text-black">
+            <AppIcon name="layer" size={24} />
+          </button>
+
+          <button className="flex h-11 w-11 items-center justify-center rounded-full text-black">
+            <AppIcon name="magic-wand" size={24} />
+          </button>
+
+          <button className="flex h-11 w-11 items-center justify-center rounded-full text-black">
+            <AppIcon name="bell-notification-social-media" size={23} />
+          </button>
+
+          <Link
+            href="/me"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-black"
+          >
+            <AppIcon name="user-1" size={24} />
+          </Link>
         </div>
-      </section>
-    
-     {/* APP BOTTOM BAR */}
-        <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white/95 px-4 pb-[calc(env(safe-area-inset-bottom)+14px)] pt-3 backdrop-blur-xl">
-  <div className="mx-auto grid max-w-[430px] grid-cols-5 text-[11px] text-slate-800">
-
-    {/* ITEM */}
-    <Link href="/albums" className="flex flex-col items-center justify-center gap-1 text-[#2F6BFF]">
-      <AppIcon name="album" size={24} className="opacity-90" />
-      <p className="leading-none">Albums</p>
-    </Link>
-
-    <button className="flex flex-col items-center justify-center gap-1 opacity-90">
-      <AppIcon name="layer" size={24} className="opacity-80" />
-      <p className="leading-none">Microsites</p>
-    </button>
-
-    <button className="flex flex-col items-center justify-center gap-1 opacity-90">
-      <AppIcon name="magic-wand" size={24} className="opacity-80" />
-      <p className="leading-none">AI Retouch</p>
-    </button>
-
-    <button className="flex flex-col items-center justify-center gap-1 opacity-90">
-      <AppIcon name="bell-notification-social-media" size={22} className="opacity-80" />
-      <p className="leading-none">Notifications</p>
-    </button>
-
-    <button className="flex flex-col items-center justify-center gap-1 opacity-90">
-      <AppIcon name="user-1" size={24} className="opacity-80" />
-      <p className="leading-none">Me</p>
-    </button>
-
-  </div>
-</nav>
+      </nav>
     </main>
   )
 }

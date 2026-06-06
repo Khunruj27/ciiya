@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 
+type DownloadSize = 'sd' | 'hd' | 'uhd' | 'original'
+
+function normalizeDownloadSize(value: unknown): DownloadSize {
+  if (value === 'sd' || value === 'uhd' || value === 'original') return value
+  return 'hd'
+}
+
 export async function PATCH(req: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
@@ -20,6 +27,7 @@ export async function PATCH(req: NextRequest) {
     const title = String(body.title || '').trim()
     const description = String(body.description || '').trim()
     const allowDownload = Boolean(body.allowDownload)
+    const downloadSize = normalizeDownloadSize(body.downloadSize)
     const isPasswordProtected = Boolean(body.isPasswordProtected)
     const password = String(body.password || '').trim()
 
@@ -56,12 +64,16 @@ export async function PATCH(req: NextRequest) {
       title: string
       description: string | null
       allow_download: boolean
+      allow_original_download: boolean
+      download_size: DownloadSize
       is_password_protected: boolean
       password_hash?: string | null
     } = {
       title,
       description: description || null,
       allow_download: allowDownload,
+      allow_original_download: allowDownload && downloadSize === 'original',
+      download_size: downloadSize,
       is_password_protected: isPasswordProtected,
     }
 

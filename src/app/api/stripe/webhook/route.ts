@@ -5,27 +5,39 @@ import { createClient } from '@supabase/supabase-js'
 
 export const runtime = 'nodejs'
 
+type StripeSubscriptionWithPeriod = Stripe.Subscription & {
+  current_period_end?: number | null
+}
+
 function getAdminSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    }
   )
 }
 
 async function syncSubscription(stripeSubscriptionId: string) {
   const supabase = getAdminSupabase()
 
-  const subscription: any = await stripe.subscriptions.retrieve(
+  const subscription = (await stripe.subscriptions.retrieve(
     stripeSubscriptionId,
     {
       expand: ['items.data.price'],
     }
-  )
+  )) as StripeSubscriptionWithPeriod
 
   const priceId = subscription.items?.data?.[0]?.price?.id
   const userId = subscription.metadata?.user_id
   const stripeCustomerId =
     typeof subscription.customer === 'string' ? subscription.customer : null
+
+  const currentPeriodEnd = subscription.current_period_end
 
   if (!priceId || !userId) return
 
@@ -52,8 +64,8 @@ async function syncSubscription(stripeSubscriptionId: string) {
     status: subscription.status || 'active',
     stripe_customer_id: stripeCustomerId,
     stripe_subscription_id: subscription.id,
-    current_period_end: subscription.current_period_end
-      ? new Date(subscription.current_period_end * 1000).toISOString()
+    current_period_end: currentPeriodEnd
+      ? new Date(currentPeriodEnd * 1000).toISOString()
       : null,
   })
 }

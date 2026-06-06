@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 type Props = {
   targetPlanId: string
@@ -11,6 +12,7 @@ export default function DowngradePlanButton({
   targetPlanId,
   targetPlanName,
 }: Props) {
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
 
   async function handleDowngrade() {
@@ -34,7 +36,7 @@ export default function DowngradePlanButton({
       }
 
       alert(`Downgraded to ${targetPlanName}`)
-      window.location.reload()
+      router.refresh()
     } finally {
       setLoading(false)
     }

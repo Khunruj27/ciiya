@@ -1,5 +1,3 @@
-'use client'
-
 type Props = {
   name: string
   size?: number
@@ -8,7 +6,7 @@ type Props = {
 
 export default function AppIcon({
   name,
-  size = 20,
+  size = 24,
   className = '',
 }: Props) {
   return (

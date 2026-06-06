@@ -10,7 +10,23 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "worker:photos": "tsx workers/photo-worker.ts"
+    "worker:photos": "tsx workers/photo-worker.ts",
+    "worker:faces": "tsx workers/face-worker.ts",
+    "cleanup:orphans": "tsx scripts/cleanup-orphan-files.ts",
+    "billing:cron": "tsx scripts/billing-cron.ts",
+    "cleanup:jobs": "tsx scripts/cleanup-old-jobs.ts",
+    "cleanup:all": "npm run cleanup:orphans && npm run cleanup:jobs",
+    "health:check": "tsx scripts/system-health-check.ts",
+    "retry:failed": "tsx scripts/retry-failed-jobs.ts",
+    "maintenance:check": "npm run health:check",
+    "maintenance:cleanup": "npm run cleanup:all",
+    "maintenance:retry": "npm run retry:failed",
+    "maintenance:all": "npm run health:check && npm run retry:failed && npm run cleanup:all",
+    "maintenance": "tsx scripts/auto-maintenance.ts",
+    "faces:cluster": "tsx scripts/cluster-faces.ts",
+    "simulator": "open -a Simulator && next dev --webpack -H 0.0.0.0",
+    "ios": "npm run simulator",
+    "worker:camera": "tsx workers/camera-live-import-worker.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -25,9 +41,10 @@
     "canvas": "^3.2.3",
     "chokidar": "^5.0.0",
     "clsx": "^2.1.1",
+    "crypto-js": "^4.2.0",
     "dotenv": "^17.4.2",
     "form-data": "^4.0.5",
-    "lucide-react": "^1.11.0",
+    "lucide-react": "^1.16.0",
     "next": "16.2.4",
     "node-fetch": "^3.3.2",
     "qrcode": "^1.5.4",
@@ -39,7 +56,7 @@
     "react-window": "^1.8.11",
     "sharp": "^0.34.5",
     "stripe": "^22.0.2",
-    "ws": "^8.20.0"
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

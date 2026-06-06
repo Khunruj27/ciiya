@@ -60,15 +60,35 @@ export async function POST(req: NextRequest) {
     if (existingSub?.stripe_customer_id) {
       customerId = String(existingSub.stripe_customer_id)
     } else {
-      const customer = await stripe.customers.create({
-        email: user.email,
-        metadata: {
-          user_id: user.id,
-        },
-      })
+  const customer = await stripe.customers.create({
+    email: user.email,
+    metadata: {
+      user_id: user.id,
+    },
+  })
 
-      customerId = customer.id
-    }
+  customerId = customer.id
+
+  const { error: customerSaveError } = await supabase
+    .from('subscriptions')
+    .upsert(
+      {
+        user_id: user.id,
+        stripe_customer_id: customerId,
+        status: 'inactive',
+      },
+      {
+        onConflict: 'user_id',
+      }
+    )
+
+  if (customerSaveError) {
+    console.error(
+      'Save Stripe customer id failed:',
+      customerSaveError.message
+    )
+  }
+}
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',

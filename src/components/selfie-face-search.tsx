@@ -123,7 +123,7 @@ export default function SelfieFaceSearch({ albumId }: { albumId: string }) {
         disabled={loading}
         className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-black px-5 py-3 text-sm font-semibold text-white shadow-2xl transition hover:scale-105 disabled:opacity-60"
       >
-        🔍 Face Search
+       🔍 Face Search
       </button>
 
       <input

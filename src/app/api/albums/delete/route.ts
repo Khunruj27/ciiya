@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import {
+  createClient,
+  type SupabaseClient,
+} from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 
 export const runtime = 'nodejs'
@@ -9,7 +12,13 @@ const BUCKET = 'albums'
 const LIST_LIMIT = 1000
 const REMOVE_CHUNK_SIZE = 100
 
-function getSupabaseAdmin() {
+type StorageFile = {
+  name: string
+}
+
+type SupabaseAdminClient = SupabaseClient
+
+function getSupabaseAdmin(): SupabaseAdminClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -46,7 +55,10 @@ function chunkArray<T>(items: T[], size: number) {
   return chunks
 }
 
-async function listAllStoragePaths(supabase: any, prefix: string) {
+async function listAllStoragePaths(
+  supabase: SupabaseAdminClient,
+  prefix: string
+) {
   const allPaths: string[] = []
   let offset = 0
 
@@ -67,15 +79,17 @@ async function listAllStoragePaths(supabase: any, prefix: string) {
       break
     }
 
-    if (!files || files.length === 0) break
+    const storageFiles = (files || []) as StorageFile[]
+
+    if (storageFiles.length === 0) break
 
     allPaths.push(
-      ...files
-        .filter((file: any) => file.name)
-        .map((file: any) => `${prefix}/${file.name}`)
+      ...storageFiles
+        .filter((file) => file.name)
+        .map((file) => `${prefix}/${file.name}`)
     )
 
-    if (files.length < LIST_LIMIT) break
+    if (storageFiles.length < LIST_LIMIT) break
 
     offset += LIST_LIMIT
   }
@@ -244,22 +258,38 @@ export async function POST(req: NextRequest) {
     }
 
     const { error: albumError } = await supabaseAdmin
-      .from('albums')
-      .delete()
-      .eq('id', albumId)
-      .eq('owner_id', user.id)
+  .from('albums')
+  .delete()
+  .eq('id', albumId)
+  .eq('owner_id', user.id)
 
-    if (albumError) {
-      return NextResponse.json({ error: albumError.message }, { status: 500 })
-    }
+if (albumError) {
+  return NextResponse.json({ error: albumError.message }, { status: 500 })
+}
 
-    return NextResponse.json({
-      success: true,
-      deletedStorageFiles,
-      deletedPhotoRows: photos.length,
-      deletedAlbumId: albumId,
-      storageWarning,
-    })
+const { error: recalculateError } = await supabaseAdmin.rpc(
+  'recalculate_user_storage',
+  {
+    user_uuid: user.id,
+  }
+)
+
+if (recalculateError) {
+  console.error(
+    'Recalculate storage after album delete failed:',
+    recalculateError.message
+  )
+}
+
+return NextResponse.json({
+  success: true,
+  deletedStorageFiles,
+  deletedPhotoRows: photos.length,
+  deletedAlbumId: albumId,
+  storageWarning,
+  storageRecalculated: !recalculateError,
+})
+
   } catch (error) {
     console.error('Delete album error:', error)
 

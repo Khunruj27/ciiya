@@ -3,12 +3,31 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+type DownloadSize = 'sd' | 'hd' | 'uhd' | 'original'
+
 type Props = {
   albumId: string
   initialTitle: string
   initialDescription: string | null
   initialAllowDownload: boolean
+  initialDownloadSize: DownloadSize
   initialIsPasswordProtected: boolean
+}
+
+const downloadSizeOptions: {
+  value: DownloadSize
+  label: string
+  desc: string
+}[] = [
+  { value: 'sd', label: 'SD', desc: '2000px ประหยัดพื้นที่และ bandwidth มากที่สุด' },
+  { value: 'hd', label: 'HD', desc: '3000px แนะนำสำหรับส่งลูกค้าทั่วไป' },
+  { value: 'uhd', label: 'UHD', desc: '4000px คุณภาพสูงกว่า แต่ใช้ bandwidth มากขึ้น' },
+  { value: 'original', label: 'Original', desc: 'ไฟล์ต้นฉบับ ใช้ storage/egress สูงสุด' },
+]
+
+function normalizeDownloadSize(value: string | null | undefined): DownloadSize {
+  if (value === 'sd' || value === 'uhd' || value === 'original') return value
+  return 'hd'
 }
 
 export default function AlbumSettingsForm({
@@ -16,6 +35,7 @@ export default function AlbumSettingsForm({
   initialTitle,
   initialDescription,
   initialAllowDownload,
+  initialDownloadSize,
   initialIsPasswordProtected,
 }: Props) {
   const router = useRouter()
@@ -23,6 +43,9 @@ export default function AlbumSettingsForm({
   const [title, setTitle] = useState(initialTitle)
   const [description, setDescription] = useState(initialDescription || '')
   const [allowDownload, setAllowDownload] = useState(initialAllowDownload)
+  const [downloadSize, setDownloadSize] = useState<DownloadSize>(
+    normalizeDownloadSize(initialDownloadSize)
+  )
   const [isPasswordProtected, setIsPasswordProtected] = useState(
     initialIsPasswordProtected
   )
@@ -54,6 +77,7 @@ export default function AlbumSettingsForm({
           title: title.trim(),
           description: description.trim(),
           allowDownload,
+          downloadSize,
           isPasswordProtected,
           password,
         }),
@@ -78,7 +102,10 @@ export default function AlbumSettingsForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 rounded-3xl bg-white p-4 shadow-sm">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-4 rounded-3xl bg-white p-4 shadow-sm"
+    >
       <div>
         <h2 className="text-lg font-semibold text-slate-900">Album Settings</h2>
         <p className="text-sm text-slate-500">
@@ -107,14 +134,12 @@ export default function AlbumSettingsForm({
         />
       </div>
 
-      <div className="rounded-2xl border border-slate-200 p-4">
+      <div className="space-y-4 rounded-2xl border border-slate-200 p-4">
         <label className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-medium text-slate-900">
-              Allow downloads
-            </p>
+            <p className="text-sm font-medium text-slate-900">Allow downloads</p>
             <p className="text-xs text-slate-500">
-              Let public visitors download photos
+              ให้ลูกค้าบันทึกรูปจากหน้าแชร์ได้
             </p>
           </div>
 
@@ -125,9 +150,53 @@ export default function AlbumSettingsForm({
             className="h-5 w-5"
           />
         </label>
+
+        {allowDownload ? (
+          <div className="space-y-3 border-t border-slate-100 pt-4">
+            <div>
+              <p className="text-sm font-medium text-slate-900">
+                Download size
+              </p>
+              <p className="text-xs text-slate-500">
+                หน้าแชร์จะโหลดตามขนาดนี้เท่านั้น ลูกค้าเลือกขนาดเองไม่ได้
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              {downloadSizeOptions.map((option) => (
+                <label
+                  key={option.value}
+                  className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-3 transition ${
+                    downloadSize === option.value
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="downloadSize"
+                    value={option.value}
+                    checked={downloadSize === option.value}
+                    onChange={() => setDownloadSize(option.value)}
+                    className="mt-1 h-4 w-4"
+                  />
+
+                  <span>
+                    <span className="block text-sm font-semibold text-slate-900">
+                      {option.label}
+                    </span>
+                    <span className="block text-xs text-slate-500">
+                      {option.desc}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
-      <div className="rounded-2xl border border-slate-200 p-4 space-y-3">
+      <div className="space-y-3 rounded-2xl border border-slate-200 p-4">
         <label className="flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-medium text-slate-900">
@@ -163,16 +232,13 @@ export default function AlbumSettingsForm({
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <a
-          href="#"
-          onClick={(e) => {
-            e.preventDefault()
-            history.back()
-          }}
+        <button
+          type="button"
+          onClick={() => history.back()}
           className="rounded-2xl bg-slate-100 px-4 py-3 text-center text-slate-700"
         >
           Back
-        </a>
+        </button>
 
         <button
           type="submit"
@@ -184,7 +250,9 @@ export default function AlbumSettingsForm({
       </div>
 
       {errorMsg ? <p className="text-sm text-red-500">{errorMsg}</p> : null}
-      {successMsg ? <p className="text-sm text-green-600">{successMsg}</p> : null}
+      {successMsg ? (
+        <p className="text-sm text-green-600">{successMsg}</p>
+      ) : null}
     </form>
   )
 }

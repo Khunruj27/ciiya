@@ -8,11 +8,25 @@ type Photo = {
   preview_url?: string | null
   thumbnail_url?: string | null
   filename?: string | null
+  blur_data_url?: string | null
 }
 
 type Props = {
   albumId: string
   photos: Photo[]
+}
+
+type FaceDetectionResult = {
+  detection: {
+    box: {
+      x: number
+      y: number
+      width: number
+      height: number
+    }
+    score: number
+  }
+  descriptor: Float32Array | number[]
 }
 
 let modelsLoaded = false
@@ -82,7 +96,7 @@ export default function FaceReindexButton({ albumId, photos }: Props) {
             .withFaceLandmarks()
             .withFaceDescriptors()
 
-          const faces = detections.map((result: any) => {
+          const faces = detections.map((result: FaceDetectionResult) => {
             const box = result.detection.box
 
             return {

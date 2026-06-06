@@ -1,23 +1,54 @@
 import { config } from 'dotenv'
 
-config({
-  path: '.env.local',
-})
+config({ path: '.env.local' })
 
-import path from 'path'
 import { createClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
-import * as faceapi from '@vladmandic/face-api'
-import canvas from 'canvas'
 import WebSocket from 'ws'
 
+sharp.concurrency(Number(process.env.SHARP_CONCURRENCY || 1))
+sharp.cache({
+  memory: Number(process.env.SHARP_CACHE_MEMORY || 64),
+  files: Number(process.env.SHARP_CACHE_FILES || 0),
+  items: Number(process.env.SHARP_CACHE_ITEMS || 32),
+})
+
 type OutputSize = 'sd' | 'hd' | 'uhd' | 'thumbnail'
+type SelectedSize = 'sd' | 'hd' | 'uhd' | 'original'
+
+type PhotoJob = {
+  id: string
+  photo_id: string
+  album_id: string
+  owner_id: string
+
+  original_path: string
+  preset_path?: string | null
+
+  size?: string | null
+
+  retry_count?: number | null
+  retries?: number | null
+}
+
+type XmpAdjustments = {
+  exposure: number
+  contrast: number
+  saturation: number
+  vibrance: number
+}
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
-const POLL_INTERVAL = Number(process.env.WORKER_POLL_INTERVAL || 3000)
-const WORKER_LIMIT = Number(process.env.WORKER_LIMIT || 1)
-const FACE_SCAN_ENABLED = process.env.FACE_SCAN_ENABLED === 'true'
+
+const POLL_INTERVAL = Number(process.env.WORKER_POLL_INTERVAL || 2000)
+const WORKER_LIMIT = Number(process.env.WORKER_LIMIT || 2)
+const FACE_SCAN_ENABLED = process.env.FACE_SCAN_ENABLED !== 'false'
+const MAX_CLAIM_BATCH = Number(process.env.PHOTO_JOB_CLAIM_BATCH || 4)
+const MAX_PER_ALBUM = Number(process.env.PHOTO_JOB_MAX_PER_ALBUM || 1)
+
+let lastHeartbeatAt = 0
+let lastRecoverAt = 0
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
@@ -29,40 +60,137 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
     autoRefreshToken: false,
   },
   realtime: {
-    transport: WebSocket as any,
+    transport: WebSocket as unknown as typeof globalThis.WebSocket,
   },
 })
 
-const { Canvas, Image, ImageData } = canvas
+const presetCache = new Map<string, XmpAdjustments | null>()
 
-faceapi.env.monkeyPatch({
-  Canvas: Canvas as any,
-  Image: Image as any,
-  ImageData: ImageData as any,
-})
-
-let faceModelsLoaded = false
-
-console.log('Photo worker started')
-console.log('[Worker] FACE_SCAN_ENABLED =', process.env.FACE_SCAN_ENABLED)
-console.log('[Worker] NODE_VERSION =', process.version)
+console.log('[PhotoWorker] started')
+console.log('[PhotoWorker] FACE_SCAN_ENABLED =', FACE_SCAN_ENABLED)
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function loadFaceModels() {
-  if (faceModelsLoaded) return
+async function withRetry<T>(
+  fn: () => PromiseLike<T>,
+  retries = 5,
+  baseDelay = 1200
+): Promise<T> {
+  let lastError: unknown
 
-  const modelPath = path.join(process.cwd(), 'public', 'models')
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error
+      console.error(`[PhotoWorker] retry ${attempt}/${retries} failed`, error)
 
-  await faceapi.nets.tinyFaceDetector.loadFromDisk(modelPath)
-  await faceapi.nets.faceLandmark68Net.loadFromDisk(modelPath)
-  await faceapi.nets.faceRecognitionNet.loadFromDisk(modelPath)
+      if (attempt < retries) {
+        await sleep(baseDelay * attempt)
+      }
+    }
+  }
 
-  faceModelsLoaded = true
+  throw lastError
+}
 
-  console.log('[Worker] face models loaded')
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value))
+}
+
+function getXmpNumber(xmp: string, key: string) {
+  const patterns = [
+    new RegExp(`${key}="([^"]+)"`),
+    new RegExp(`crs:${key}="([^"]+)"`),
+  ]
+
+  for (const pattern of patterns) {
+    const match = xmp.match(pattern)
+
+    if (match?.[1]) {
+      const value = Number(match[1])
+      if (Number.isFinite(value)) return value
+    }
+  }
+
+  return 0
+}
+
+async function loadXmpAdjustments(
+  presetPath?: string | null
+): Promise<XmpAdjustments | null> {
+  if (!presetPath) return null
+
+  if (presetCache.has(presetPath)) {
+    return presetCache.get(presetPath) || null
+  }
+
+  try {
+    const result = await withRetry(() =>
+      supabase.storage.from('albums').download(presetPath)
+    )
+
+    if (result.error || !result.data) {
+      console.warn('[PhotoWorker] preset download failed:', result.error?.message)
+      presetCache.set(presetPath, null)
+      return null
+    }
+
+    const xmp = Buffer.from(await result.data.arrayBuffer()).toString('utf-8')
+
+    const preset: XmpAdjustments = {
+      exposure: getXmpNumber(xmp, 'Exposure2012'),
+      contrast: getXmpNumber(xmp, 'Contrast2012'),
+      saturation: getXmpNumber(xmp, 'Saturation'),
+      vibrance: getXmpNumber(xmp, 'Vibrance'),
+    }
+
+    console.log('[PhotoWorker] loaded xmp:', preset)
+
+    presetCache.set(presetPath, preset)
+
+    return preset
+  } catch (error) {
+    console.error('[PhotoWorker] xmp parse failed:', error)
+    presetCache.set(presetPath, null)
+    return null
+  }
+}
+
+function applyXmpAdjustments(image: sharp.Sharp, preset: XmpAdjustments | null) {
+  if (!preset) return image
+
+  const brightness = clamp(1 + preset.exposure * 0.2, 0.6, 1.6)
+
+  const saturation = clamp(
+    1 + preset.saturation * 0.006 + preset.vibrance * 0.005,
+    0.2,
+    2
+  )
+
+  const contrast = clamp(1 + preset.contrast * 0.005, 0.7, 1.7)
+
+  return image
+    .modulate({
+      brightness,
+      saturation,
+    })
+    .linear(contrast, 128 - 128 * contrast)
+}
+
+function normalizeSelectedSize(size: string): SelectedSize {
+  if (size === 'sd') return 'sd'
+  if (size === 'uhd') return 'uhd'
+  if (size === 'original') return 'original'
+  return 'hd'
+}
+
+function getWidthBySize(size: SelectedSize) {
+  if (size === 'sd') return 2000
+  if (size === 'uhd') return 4000
+  return 3000
 }
 
 function makeOutputPath(originalPath: string, folder: OutputSize) {
@@ -73,62 +201,97 @@ function makeOutputPath(originalPath: string, folder: OutputSize) {
 }
 
 async function updatePhoto(photoId: string, payload: Record<string, unknown>) {
-  const { error } = await supabase.from('photos').update(payload).eq('id', photoId)
+  const result = await withRetry(() =>
+    supabase
+      .from('photos')
+      .update({
+        ...payload,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', photoId)
+  )
 
-  if (error) {
-    console.error('[Worker] update photo failed:', error.message)
+  if (result.error) {
+    console.error('[PhotoWorker] update photo failed:', result.error.message)
   }
 }
 
-async function updateProgress(photoId: string, progress: number, status?: string) {
-  const payload: Record<string, unknown> = {
-    processing_progress: progress,
-  }
+async function sendHeartbeat() {
+  const result = await withRetry(() =>
+    supabase.from('worker_heartbeats').upsert(
+      {
+        worker_id: `photo-worker-${process.pid}`,
+        worker_name: `photo-worker-${process.pid}`,
+        worker_type: 'photo',
+        status: 'online',
+        last_seen: new Date().toISOString(),
+        last_seen_at: new Date().toISOString(),
+        metadata: {
+          pid: process.pid,
+          node: process.version,
+          workerLimit: WORKER_LIMIT,
+          maxClaimBatch: MAX_CLAIM_BATCH,
+          maxPerAlbum: MAX_PER_ALBUM,
+          faceScanEnabled: FACE_SCAN_ENABLED,
+        },
+      },
+      { onConflict: 'worker_id' }
+    )
+  )
 
-  if (status) payload.processing_status = status
-
-  await updatePhoto(photoId, payload)
-}
-
-async function updateFaceProgress(
-  photoId: string,
-  progress: number,
-  status?: string,
-  extra: Record<string, unknown> = {}
-) {
-  const payload: Record<string, unknown> = {
-    face_scan_progress: progress,
-    ...extra,
-  }
-
-  if (status) payload.face_scan_status = status
-
-  await updatePhoto(photoId, payload)
-}
-
-async function logWorkerError(
-  job: any,
-  message: string,
-  meta: Record<string, unknown> = {}
-) {
-  const { error } = await supabase.from('worker_logs').insert({
-    job_id: job?.id || null,
-    photo_id: job?.photo_id || null,
-    owner_id: job?.owner_id || null,
-    album_id: job?.album_id || null,
-    level: 'error',
-    message,
-    meta,
-  })
-
-  if (error) {
-    console.error('[Worker] log insert failed:', error.message)
+  if (result.error) {
+    console.error('[PhotoWorker] heartbeat failed:', result.error.message)
   }
 }
 
-async function generateResizeBuffer(buffer: Buffer, width: number, quality = 86) {
-  return sharp(buffer)
+async function recoverStaleJobs() {
+  const staleSince = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+
+  const result = await withRetry(() =>
+    supabase
+      .from('photo_jobs')
+      .update({
+        status: 'pending',
+        progress: 0,
+        error: 'Recovered stale processing job',
+        started_at: null,
+        finished_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('status', 'processing')
+      .lt('started_at', staleSince)
+  )
+
+  if (result.error) {
+    console.error('[PhotoWorker] recover stale failed:', result.error.message)
+  }
+}
+
+async function generateBlurDataUrl(buffer: Buffer) {
+  const tiny = await sharp(buffer)
     .rotate()
+    .resize(20, 20, {
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+    .jpeg({
+      quality: 40,
+      mozjpeg: true,
+    })
+    .toBuffer()
+
+  return `data:image/jpeg;base64,${tiny.toString('base64')}`
+}
+
+async function generateResizeBuffer(
+  buffer: Buffer,
+  width: number,
+  quality = 86,
+  preset: XmpAdjustments | null = null
+) {
+  const image = sharp(buffer).rotate()
+
+  return applyXmpAdjustments(image, preset)
     .resize({
       width,
       fit: 'inside',
@@ -141,252 +304,218 @@ async function generateResizeBuffer(buffer: Buffer, width: number, quality = 86)
     .toBuffer()
 }
 
-async function scanFaces(buffer: Buffer) {
-  await loadFaceModels()
+async function queueFaceJob(params: {
+  job: PhotoJob
+  imagePath: string
+  imageUrl: string
+}) {
+  const { job, imagePath, imageUrl } = params
 
-  const img = await canvas.loadImage(buffer)
+  if (!FACE_SCAN_ENABLED) {
+    await updatePhoto(String(job.photo_id), {
+      face_scan_status: 'skipped',
+      face_scan_progress: 100,
+      face_scan_error: 'FACE_SCAN_ENABLED is false',
+      faces_count: 0,
+    })
 
-  const detections = await faceapi
-    .detectAllFaces(
-      img as any,
-      new faceapi.TinyFaceDetectorOptions({
-        inputSize: 512,
-        scoreThreshold: 0.45,
-      })
-    )
-    .withFaceLandmarks()
-    .withFaceDescriptors()
-
-  return detections
-}
-
-function getSelectedOutput(
-  selectedSize: string,
-  originalPath: string,
-  originalUrl: string,
-  sdPath: string,
-  sdUrl: string,
-  hdPath: string,
-  hdUrl: string,
-  uhdPath: string,
-  uhdUrl: string
-) {
-  if (selectedSize === 'sd') return { path: sdPath, url: sdUrl, label: 'sd' }
-
-  if (selectedSize === 'uhd') return { path: uhdPath, url: uhdUrl, label: 'uhd' }
-
-  if (selectedSize === 'original') {
-    return { path: originalPath, url: originalUrl, label: 'original' }
+    return
   }
 
-  return { path: hdPath, url: hdUrl, label: 'hd' }
-}
+  const existingResult = await withRetry(() =>
+    supabase
+      .from('face_jobs')
+      .select('id,status')
+      .eq('photo_id', String(job.photo_id))
+      .in('status', ['pending', 'processing', 'done'])
+      .maybeSingle()
+  )
 
-async function claimJob(job: any) {
-  const { data, error } = await supabase
-    .from('photo_jobs')
-    .update({
-      status: 'processing',
-      started_at: new Date().toISOString(),
-      finished_at: null,
-      error: null,
-    })
-    .eq('id', job.id)
-    .eq('status', 'pending')
-    .select('id')
-    .maybeSingle()
-
-  if (error) {
-    await logWorkerError(job, error.message, {
-      stage: 'claim_job',
-    })
-
-    return false
+  if (existingResult.error) {
+    console.error('[PhotoWorker] check face job failed:', existingResult.error.message)
+    return
   }
 
-  return Boolean(data)
-}
-
-async function markJobDone(job: any) {
-  const { error } = await supabase
-    .from('photo_jobs')
-    .update({
-      status: 'done',
-      finished_at: new Date().toISOString(),
-      error: null,
+  if (existingResult.data) {
+    await updatePhoto(String(job.photo_id), {
+      face_scan_status:
+        existingResult.data.status === 'done' ? 'done' : 'pending',
+      face_scan_progress: existingResult.data.status === 'done' ? 100 : 0,
+      face_scan_error: null,
     })
-    .eq('id', job.id)
 
-  if (error) {
-    console.error('[Worker] mark job done failed:', error.message)
+    return
   }
-}
 
-async function markJobFailedOrRetry(job: any, message: string) {
-  const retryCount = Number(job.retry_count || 0)
-  const maxRetries = 3
-  const shouldRetry = retryCount < maxRetries
-
-  await logWorkerError(job, message, {
-    stage: 'external_photo_worker',
-    retryCount,
-    willRetry: shouldRetry,
-    originalPath: job.original_path,
-    size: job.size,
-  })
-
-  await supabase
-    .from('photo_jobs')
-    .update({
-      status: shouldRetry ? 'pending' : 'failed',
-      retry_count: retryCount + 1,
-      error: message,
-      started_at: null,
-      finished_at: new Date().toISOString(),
-    })
-    .eq('id', job.id)
-
-  await updatePhoto(job.photo_id, {
-    processing_status: shouldRetry ? 'pending' : 'failed',
-    processing_progress: 0,
-  })
-}
-
-async function recoverStaleJobs() {
-  const staleMinutes = 10
-  const staleSince = new Date(Date.now() - staleMinutes * 60 * 1000).toISOString()
-
-  const { error } = await supabase
-    .from('photo_jobs')
-    .update({
+  const faceJobResult = await withRetry(() =>
+    supabase.from('face_jobs').insert({
+      photo_id: String(job.photo_id),
+      album_id: String(job.album_id),
+      owner_id: String(job.owner_id),
+      image_path: imagePath,
+      image_url: imageUrl,
       status: 'pending',
-      error: 'Recovered stale processing job',
+      progress: 0,
+      priority: 100,
       retry_count: 0,
-      started_at: null,
+      payload: {
+        source: 'photo-worker',
+        photoId: String(job.photo_id),
+        albumId: String(job.album_id),
+      },
     })
-    .eq('status', 'processing')
-    .lt('started_at', staleSince)
+  )
 
-  if (error) {
-    console.error('[Worker] recover stale jobs failed:', error.message)
+  if (faceJobResult.error) {
+    console.error('[PhotoWorker] queue face job failed:', faceJobResult.error.message)
+
+    await updatePhoto(String(job.photo_id), {
+      face_scan_status: 'failed',
+      face_scan_progress: 100,
+      face_scan_error: faceJobResult.error.message,
+    })
+
+    return
   }
+
+  await updatePhoto(String(job.photo_id), {
+    face_scan_status: 'pending',
+    face_scan_progress: 0,
+    face_scan_error: null,
+    faces_count: 0,
+  })
 }
 
-async function runFaceScanSafe(job: any, imageBuffer: Buffer) {
-  try {
-    await updateFaceProgress(job.photo_id, 10, 'processing', {
-      face_scan_error: null,
-      faces_count: 0,
-    })
-
-    await supabase.from('photo_faces').delete().eq('photo_id', job.photo_id)
-
-    await updateFaceProgress(job.photo_id, 30, 'processing')
-
-    if (!FACE_SCAN_ENABLED) {
-      await updateFaceProgress(job.photo_id, 100, 'skipped', {
-        faces_count: 0,
-        face_scan_error: 'FACE_SCAN_ENABLED is not true',
+async function markJobDone(job: PhotoJob) {
+  const result = await withRetry(() =>
+    supabase
+      .from('photo_jobs')
+      .update({
+        status: 'done',
+        progress: 100,
+        finished_at: new Date().toISOString(),
+        error: null,
+        updated_at: new Date().toISOString(),
       })
+      .eq('id', String(job.id))
+  )
 
-      console.log(`[Worker] face scan skipped ${job.photo_id}`)
-      return
-    }
-
-    await updateFaceProgress(job.photo_id, 50, 'processing')
-
-    const detections = await scanFaces(imageBuffer)
-
-    await updateFaceProgress(job.photo_id, 80, 'processing')
-
-    if (detections.length > 0) {
-      const rows = detections.map((detection: any, index: number) => ({
-        photo_id: job.photo_id,
-        album_id: job.album_id,
-        owner_id: job.owner_id,
-        face_index: index,
-        box_x: detection.detection.box.x,
-        box_y: detection.detection.box.y,
-        box_width: detection.detection.box.width,
-        box_height: detection.detection.box.height,
-        descriptor: Array.from(detection.descriptor),
-        person_cluster_id: null,
-      }))
-
-      const { error } = await supabase.from('photo_faces').insert(rows)
-
-      if (error) throw new Error(error.message)
-    }
-
-    await updateFaceProgress(job.photo_id, 100, 'done', {
-      faces_count: detections.length,
-      face_scan_error: null,
-    })
-
-    console.log(`[Worker] face scan done ${job.photo_id}: ${detections.length} faces`)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Face scan failed'
-
-    await logWorkerError(job, message, {
-      stage: 'face_scan',
-      photoId: job.photo_id,
-    })
-
-    await updateFaceProgress(job.photo_id, 100, 'failed', {
-      face_scan_error: message,
-      faces_count: 0,
-    })
-
-    console.error(`[Worker] face scan failed ${job.photo_id}:`, message)
+  if (result.error) {
+    console.error('[PhotoWorker] mark job done failed:', result.error.message)
   }
 }
 
-async function processPhotoJob(job: any) {
-  const claimed = await claimJob(job)
+function isTransientError(message: string) {
+  const text = message.toLowerCase()
 
-  if (!claimed) return
+  return (
+    text.includes('fetch failed') ||
+    text.includes('timeout') ||
+    text.includes('network') ||
+    text.includes('und_err') ||
+    text.includes('econnreset') ||
+    text.includes('socket') ||
+    text.includes('connection')
+  )
+}
 
+async function markJobFailedOrRetry(
+  job: PhotoJob,
+  message: string
+) {
+  const retryCount = Number(job.retry_count || job.retries || 0)
+  const maxRetries = isTransientError(message) ? 8 : 3
+  const shouldRetry = retryCount < maxRetries
+  const nextStatus = shouldRetry ? 'pending' : 'failed'
+
+  const result = await withRetry(() =>
+    supabase
+      .from('photo_jobs')
+      .update({
+        status: nextStatus,
+        progress: 0,
+        retry_count: retryCount + 1,
+        retries: retryCount + 1,
+        error: message,
+        started_at: null,
+        finished_at: shouldRetry ? null : new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', String(job.id))
+  )
+
+  if (result.error) {
+    console.error('[PhotoWorker] mark failed/retry failed:', result.error.message)
+  }
+
+  if (job.photo_id) {
+    await updatePhoto(String(job.photo_id), {
+      processing_status: nextStatus,
+      processing_progress: 0,
+    })
+  }
+}
+
+async function processPhotoJob(job: PhotoJob) {
   try {
-    console.log(`[Worker] processing job ${job.id}`)
+    console.log('[PhotoWorker] processing:', job.id)
 
-    await updateProgress(job.photo_id, 10, 'processing')
+    if (!job.photo_id) throw new Error('Missing photo_id')
+    if (!job.original_path) throw new Error('Missing original_path')
 
-    if (!job.original_path) {
-      throw new Error('Missing original_path')
+    await updatePhoto(String(job.photo_id), {
+      processing_status: 'processing',
+      processing_progress: 10,
+    })
+
+    const downloadResult = await withRetry(() =>
+      supabase.storage.from('albums').download(String(job.original_path))
+    )
+
+    if (downloadResult.error || !downloadResult.data) {
+      throw new Error(downloadResult.error?.message || 'Cannot download original file')
     }
 
-    const { data: originalFile, error: downloadError } = await supabase.storage
-      .from('albums')
-      .download(job.original_path)
+    const originalBuffer = Buffer.from(await downloadResult.data.arrayBuffer())
+    const xmpPreset = await loadXmpAdjustments(job.preset_path || null)
 
-    if (downloadError || !originalFile) {
-      throw new Error(
-        downloadError?.message || `Original file download failed: ${job.original_path}`
+    console.log('[PhotoWorker] preset path:', job.preset_path || null)
+
+    const selectedSize = normalizeSelectedSize(
+      String(job.size || 'hd').toLowerCase()
+    )
+    const previewWidth = getWidthBySize(selectedSize)
+
+    const previewBuffer =
+      selectedSize === 'original'
+        ? originalBuffer
+        : await generateResizeBuffer(originalBuffer, previewWidth, 86, xmpPreset)
+
+    const previewPath =
+      selectedSize === 'original'
+        ? String(job.original_path)
+        : makeOutputPath(String(job.original_path), selectedSize)
+
+    if (selectedSize !== 'original') {
+      const uploadPreviewResult = await withRetry(() =>
+        supabase.storage.from('albums').upload(previewPath, previewBuffer, {
+          contentType: 'image/jpeg',
+          cacheControl: 'no-store',
+          upsert: true,
+        })
       )
+
+      if (uploadPreviewResult.error) {
+        throw new Error(uploadPreviewResult.error.message)
+      }
     }
 
-    const buffer = Buffer.from(await originalFile.arrayBuffer())
-    const originalSizeBytes = buffer.length
-
-    await updateProgress(job.photo_id, 25, 'processing')
-
-    const sdBuffer = await generateResizeBuffer(buffer, 2000, 86)
-
-    await updateProgress(job.photo_id, 40, 'processing')
-
-    const hdBuffer = await generateResizeBuffer(buffer, 3000, 86)
-
-    await updateProgress(job.photo_id, 55, 'processing')
-
-    const uhdBuffer = await generateResizeBuffer(buffer, 4000, 86)
-
-    await updateProgress(job.photo_id, 70, 'processing')
-
-    const thumbBuffer = await sharp(buffer)
-      .rotate()
+    const thumbnailBuffer = await applyXmpAdjustments(
+      sharp(originalBuffer).rotate(),
+      xmpPreset
+    )
       .resize(480, 480, {
         fit: 'cover',
-        withoutEnlargement: true,
       })
       .jpeg({
         quality: 76,
@@ -394,182 +523,181 @@ async function processPhotoJob(job: any) {
       })
       .toBuffer()
 
-    const sdPath = makeOutputPath(job.original_path, 'sd')
-    const hdPath = makeOutputPath(job.original_path, 'hd')
-    const uhdPath = makeOutputPath(job.original_path, 'uhd')
-    const thumbPath = makeOutputPath(job.original_path, 'thumbnail')
+    const thumbnailPath = makeOutputPath(String(job.original_path), 'thumbnail')
 
-    await updateProgress(job.photo_id, 80, 'processing')
-
-    const [sdUpload, hdUpload, uhdUpload, thumbUpload] = await Promise.all([
-      supabase.storage.from('albums').upload(sdPath, sdBuffer, {
+    const uploadThumbResult = await withRetry(() =>
+      supabase.storage.from('albums').upload(thumbnailPath, thumbnailBuffer, {
         contentType: 'image/jpeg',
-        cacheControl: '31536000',
+        cacheControl: 'no-store',
         upsert: true,
-      }),
-      supabase.storage.from('albums').upload(hdPath, hdBuffer, {
-        contentType: 'image/jpeg',
-        cacheControl: '31536000',
-        upsert: true,
-      }),
-      supabase.storage.from('albums').upload(uhdPath, uhdBuffer, {
-        contentType: 'image/jpeg',
-        cacheControl: '31536000',
-        upsert: true,
-      }),
-      supabase.storage.from('albums').upload(thumbPath, thumbBuffer, {
-        contentType: 'image/jpeg',
-        cacheControl: '31536000',
-        upsert: true,
-      }),
-    ])
-
-    if (sdUpload.error) throw new Error(sdUpload.error.message)
-    if (hdUpload.error) throw new Error(hdUpload.error.message)
-    if (uhdUpload.error) throw new Error(uhdUpload.error.message)
-    if (thumbUpload.error) throw new Error(thumbUpload.error.message)
-
-    const { data: originalUrlData } = supabase.storage
-      .from('albums')
-      .getPublicUrl(job.original_path)
-
-    const { data: sdUrlData } = supabase.storage.from('albums').getPublicUrl(sdPath)
-    const { data: hdUrlData } = supabase.storage.from('albums').getPublicUrl(hdPath)
-    const { data: uhdUrlData } = supabase.storage.from('albums').getPublicUrl(uhdPath)
-    const { data: thumbUrlData } = supabase.storage
-      .from('albums')
-      .getPublicUrl(thumbPath)
-
-    const selectedSize = String(job.size || 'hd').toLowerCase()
-
-    const selected = getSelectedOutput(
-      selectedSize,
-      job.original_path,
-      originalUrlData.publicUrl,
-      sdPath,
-      sdUrlData.publicUrl,
-      hdPath,
-      hdUrlData.publicUrl,
-      uhdPath,
-      uhdUrlData.publicUrl
+      })
     )
 
-    const processedBytes =
-      sdBuffer.length + hdBuffer.length + uhdBuffer.length + thumbBuffer.length
+    if (uploadThumbResult.error) {
+      throw new Error(uploadThumbResult.error.message)
+    }
 
-    const selectedProcessedBytes =
-      selected.label === 'sd'
-        ? sdBuffer.length
-        : selected.label === 'uhd'
-          ? uhdBuffer.length
-          : selected.label === 'original'
-            ? 0
-            : hdBuffer.length
+    await updatePhoto(String(job.photo_id), {
+      processing_progress: 60,
+    })
 
-    const finalPhotoPayload = {
-      public_url: selected.url,
-      storage_path: selected.path,
-      preview_path: selected.path,
-      preview_url: selected.url,
-      thumbnail_path: thumbPath,
+    const { data: previewUrlData } = supabase.storage
+      .from('albums')
+      .getPublicUrl(previewPath)
+
+    const { data: thumbUrlData } = supabase.storage
+      .from('albums')
+      .getPublicUrl(thumbnailPath)
+
+    const blurDataUrl = await generateBlurDataUrl(originalBuffer)
+
+    let hdPath: string | null = null
+    let hdUrl: string | null = null
+
+    if (selectedSize === 'hd') {
+      hdPath = previewPath
+      hdUrl = previewUrlData.publicUrl
+    }
+
+    if (selectedSize !== 'hd') {
+  await updatePhoto(String(job.photo_id), {
+    processing_progress: 78,
+  })
+
+  const hdBuffer = await generateResizeBuffer(
+    originalBuffer,
+    3000,
+    84,
+    xmpPreset
+  )
+
+  const generatedHdPath = makeOutputPath(String(job.original_path), 'hd')
+
+      const uploadHdResult = await withRetry(() =>
+        supabase.storage.from('albums').upload(generatedHdPath, hdBuffer, {
+          contentType: 'image/jpeg',
+          cacheControl: 'no-store',
+          upsert: true,
+        })
+      )
+
+      if (uploadHdResult.error) {
+        throw new Error(uploadHdResult.error.message)
+      }
+
+      const { data } = supabase.storage.from('albums').getPublicUrl(generatedHdPath)
+
+      hdPath = generatedHdPath
+      hdUrl = data.publicUrl
+    }
+
+    const finalPayload = {
+      public_url: previewUrlData.publicUrl,
+      storage_path: previewPath,
+
+      preview_path: previewPath,
+      preview_url: previewUrlData.publicUrl,
+
+      thumbnail_path: thumbnailPath,
       thumbnail_url: thumbUrlData.publicUrl,
-      sd_path: sdPath,
+
       hd_path: hdPath,
-      uhd_path: uhdPath,
-      sd_url: sdUrlData.publicUrl,
-      hd_url: hdUrlData.publicUrl,
-      uhd_url: uhdUrlData.publicUrl,
-      selected_size: selected.label,
-      original_size_bytes: originalSizeBytes,
-      preview_size_bytes: processedBytes,
-      thumbnail_size_bytes: thumbBuffer.length,
-      file_size_bytes: originalSizeBytes + processedBytes,
+      hd_url: hdUrl,
+
+      blur_data_url: blurDataUrl,
+
       processing_status: 'done',
       processing_progress: 100,
-      face_scan_status: 'pending',
-      face_scan_progress: 0,
+
+      face_scan_status: FACE_SCAN_ENABLED ? 'pending' : 'skipped',
+      face_scan_progress: FACE_SCAN_ENABLED ? 0 : 100,
+      face_scan_error: FACE_SCAN_ENABLED ? null : 'FACE_SCAN_ENABLED is false',
       faces_count: 0,
-      face_scan_error: null,
+
+      updated_at: new Date().toISOString(),
     }
 
-    const { error: updateError } = await supabase
-      .from('photos')
-      .update(finalPhotoPayload)
-      .eq('id', job.photo_id)
+    const updateResult = await withRetry(() =>
+      supabase.from('photos').update(finalPayload).eq('id', String(job.photo_id))
+    )
 
-    if (updateError) {
-      console.error('[Worker] full photo update failed:', updateError.message)
-
-      await updatePhoto(job.photo_id, {
-        public_url: selected.url,
-        storage_path: selected.path,
-        preview_path: selected.path,
-        preview_url: selected.url,
-        thumbnail_path: thumbPath,
-        thumbnail_url: thumbUrlData.publicUrl,
-        original_size_bytes: originalSizeBytes,
-        preview_size_bytes: selectedProcessedBytes,
-        thumbnail_size_bytes: thumbBuffer.length,
-        file_size_bytes:
-          originalSizeBytes + selectedProcessedBytes + thumbBuffer.length,
-        processing_status: 'done',
-        processing_progress: 100,
-        face_scan_status: 'pending',
-        face_scan_progress: 0,
-        faces_count: 0,
-        face_scan_error: null,
-      })
+    if (updateResult.error) {
+      throw new Error(updateResult.error.message)
     }
+
+    await queueFaceJob({
+      job,
+      imagePath: hdPath || previewPath,
+      imageUrl: hdUrl || previewUrlData.publicUrl,
+    })
 
     await markJobDone(job)
 
-    console.log(`[Worker] resize done ${job.id}`)
+    console.log('[PhotoWorker] done:', job.id)
 
-    await runFaceScanSafe(job, hdBuffer)
+    sharp.cache(false)
+    sharp.cache({
+      memory: Number(process.env.SHARP_CACHE_MEMORY || 64),
+      files: Number(process.env.SHARP_CACHE_FILES || 0),
+      items: Number(process.env.SHARP_CACHE_ITEMS || 32),
+    })
 
-    console.log(`[Worker] job complete ${job.id}`)
+    global.gc?.()
+
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Process failed'
 
-    console.error(`[Worker] job failed ${job.id}:`, message)
+    console.error('[PhotoWorker] failed:', job.id, message)
 
     await markJobFailedOrRetry(job, message)
   }
 }
 
 async function pollJobs() {
-  await recoverStaleJobs()
+  const result = await withRetry(() =>
+    supabase.rpc('claim_photo_jobs', {
+      claim_limit: WORKER_LIMIT,
+      claim_batch: MAX_CLAIM_BATCH,
+      max_per_album: MAX_PER_ALBUM,
+    })
+  )
 
-  const { data: jobs, error } = await supabase
-    .from('photo_jobs')
-    .select('*')
-    .eq('status', 'pending')
-    .is('cancelled_at', null)
-    .order('priority', { ascending: true })
-    .order('created_at', { ascending: true })
-    .limit(WORKER_LIMIT)
-
-  if (error) {
-    console.error('[Worker] polling error:', error.message)
+  if (result.error) {
+    console.error('[PhotoWorker] claim rpc error:', result.error.message)
     return
   }
 
-  if (!jobs || jobs.length === 0) {
-    console.log('[Worker] no pending jobs')
+  const jobs = result.data || []
+
+  if (jobs.length === 0) {
     return
   }
 
-  for (const job of jobs) {
-    await processPhotoJob(job)
-  }
+  console.log(`[PhotoWorker] claimed ${jobs.length} jobs`)
+
+   await Promise.allSettled(
+    (jobs as PhotoJob[]).map((job) => processPhotoJob(job))
+  )
 }
 
 async function start() {
   while (true) {
     try {
+      const now = Date.now()
+
+      if (now - lastHeartbeatAt > 30 * 1000) {
+        await sendHeartbeat()
+        lastHeartbeatAt = now
+      }
+
+      if (now - lastRecoverAt > 60 * 1000) {
+        await recoverStaleJobs()
+        lastRecoverAt = now
+      }
+
       await pollJobs()
     } catch (error) {
-      console.error('[Worker] loop error:', error)
+      console.error('[PhotoWorker] loop error:', error)
     }
 
     await sleep(POLL_INTERVAL)
@@ -577,6 +705,6 @@ async function start() {
 }
 
 start().catch((error) => {
-  console.error('[Worker] fatal error:', error)
+  console.error('[PhotoWorker] fatal:', error)
   process.exit(1)
 })

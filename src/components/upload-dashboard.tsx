@@ -6,19 +6,43 @@ export default function UploadDashboard() {
   const [count, setCount] = useState(0)
 
   useEffect(() => {
-    const interval = setInterval(async () => {
-      const res = await fetch('/api/photos/count')
-      const data = await res.json()
-      setCount(data.total || 0)
-    }, 3000)
+    let mounted = true
 
-    return () => clearInterval(interval)
+    async function fetchCount() {
+      try {
+        const res = await fetch('/api/photos/count', {
+          cache: 'no-store',
+        })
+
+        if (!res.ok) return
+
+        const data = await res.json()
+
+        if (mounted) {
+          setCount(data.total || 0)
+        }
+      } catch (error) {
+        console.error('UploadDashboard fetch error', error)
+      }
+    }
+
+    fetchCount()
+
+    const interval = setInterval(fetchCount, 15000)
+
+    return () => {
+      mounted = false
+      clearInterval(interval)
+    }
   }, [])
 
   return (
-    <div className="bg-white p-4 rounded-3xl shadow-sm">
+    <div className="rounded-3xl bg-white p-4 shadow-sm">
       <h3 className="text-sm font-semibold">Upload Status</h3>
-      <p className="text-xl mt-2">📸 {count} photos</p>
+
+      <p className="mt-2 text-xl">
+        📸 {count} photos
+      </p>
     </div>
   )
 }

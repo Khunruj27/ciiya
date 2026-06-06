@@ -1,30 +1,38 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 
 type Props = {
   shareToken: string
 }
 
+function getShareUrl(relativeUrl: string) {
+  if (typeof window === 'undefined') {
+    return relativeUrl
+  }
+
+  return `${window.location.origin}${relativeUrl}`
+}
+
 export default function PublicActionsBar({ shareToken }: Props) {
   const [copied, setCopied] = useState(false)
-  const [origin, setOrigin] = useState('')
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  useEffect(() => {
-    setOrigin(window.location.origin)
-  }, [])
-
-  // URL แบบ relative (ใช้ตอน SSR)
   const relativeUrl = useMemo(() => `/share/${shareToken}`, [shareToken])
-
-  // URL แบบเต็ม (ใช้หลัง mount)
-  const shareUrl = origin ? `${origin}${relativeUrl}` : relativeUrl
+  const shareUrl = getShareUrl(relativeUrl)
 
   async function handleCopy() {
     try {
       await navigator.clipboard.writeText(shareUrl)
       setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
+
+      if (copiedTimerRef.current) {
+        clearTimeout(copiedTimerRef.current)
+      }
+
+      copiedTimerRef.current = setTimeout(() => {
+        setCopied(false)
+      }, 1800)
     } catch {
       alert('Copy failed')
     }

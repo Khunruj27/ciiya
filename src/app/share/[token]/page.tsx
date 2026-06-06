@@ -1,14 +1,17 @@
 import PublicGalleryInfinite from '@/components/public-gallery-infinite'
 import ShareViewTracker from '@/components/share-view-tracker'
-import PublicTopBar from '@/components/public-top-bar'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
-import PublicGalleryRealtime from '@/components/public-gallery-realtime'
 import ScrollToTopButton from '@/components/scroll-to-top-button'
 import SelfieFaceSearch from '@/components/selfie-face-search'
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 type PageProps = {
   params: Promise<{ token: string }>
 }
+
+const PAGE_SIZE = 50
 
 export default async function SharePage({ params }: PageProps) {
   const { token } = await params
@@ -25,24 +28,24 @@ export default async function SharePage({ params }: PageProps) {
       share_token,
       view_count,
       created_at
-    `
+      `
     )
     .eq('share_token', token)
-    .single()
+    .maybeSingle()
 
   if (albumError || !album) {
     return (
-      <main className="min-h-screen bg-[#f6f7fb] px-4 py-10">
-        <div className="mx-auto max-w-md rounded-[32px] bg-white p-6 shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-black/5">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-400">
+      <main className="min-h-screen bg-[#F5F5F7] px-4 py-10 text-black">
+        <div className="mx-auto max-w-[430px] rounded-[36px] bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+          <p className="text-[13px] font-semibold text-[#8E8E93]">
             Ciiya Gallery
           </p>
 
-          <h1 className="mt-3 text-2xl font-bold text-slate-900">
+          <h1 className="mt-3 text-[32px] font-black tracking-[-0.06em]">
             Album not found
           </h1>
 
-          <p className="mt-2 text-sm leading-6 text-slate-500">
+          <p className="mt-3 text-[15px] font-medium leading-6 text-[#8E8E93]">
             This shared album does not exist or is no longer available.
           </p>
         </div>
@@ -50,127 +53,158 @@ export default async function SharePage({ params }: PageProps) {
     )
   }
 
-const PAGE_SIZE = 50
+  const { count: photoCountResult } = await supabase
+    .from('photos')
+    .select('id', {
+      count: 'exact',
+      head: true,
+    })
+    .eq('album_id', album.id)
+    .eq('processing_status', 'done')
+    .not('preview_url', 'is', null)
+    .not('thumbnail_url', 'is', null)
 
-const { data: photos, count, error: photosError } = await supabase
-  .from('photos')
-  .select(
-    `
-    id,
-    album_id,
-    filename,
-    public_url,
-    preview_url,
-    thumbnail_url,
-    created_at,
-    view_count,
-    processing_status
-    `,
-    { count: 'exact' }
-  )
-  .eq('album_id', album.id)
-  .eq('processing_status', 'done')
-  .order('created_at', { ascending: false })
-  .range(0, PAGE_SIZE - 1)
+  const { data: photos, error: photosError } = await supabase
+    .from('photos')
+    .select(
+      `
+      id,
+      album_id,
+      filename,
+      public_url,
+      preview_url,
+      thumbnail_url,
+      blur_data_url,
+      created_at,
+      view_count,
+      processing_status
+      `
+    )
+    .eq('album_id', album.id)
+    .eq('processing_status', 'done')
+    .not('preview_url', 'is', null)
+    .not('thumbnail_url', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(PAGE_SIZE)
 
   if (photosError) {
     throw new Error(photosError.message)
   }
 
-  const photoCount = count || 0
   const visiblePhotos = photos ?? []
+  const photoCount = photoCountResult || 0
+
   const initialCursor =
-  photos && photos.length > 0
-    ? photos[photos.length - 1].created_at
-    : null
+    visiblePhotos.length > 0
+      ? visiblePhotos[visiblePhotos.length - 1].created_at
+      : null
 
   return (
-    <main className="min-h-screen bg-[#f6f7fb]">
+   <main className="min-h-screen bg-[#FAF7F4] text-[#1C0617]">
       <ShareViewTracker token={token} />
-      <PublicGalleryRealtime albumId={album.id} />
 
-      <section className="relative overflow-hidden px-4 pb-24 pt-10 text-white">
-        <div className="absolute inset-0">
-          {album.cover_url ? (
-            <img
-              src={album.cover_url}
-              alt={album.title || 'Album cover'}
-              loading="eager"
-              decoding="async"
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="h-full w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700" />
-          )}
+      {/* HERO */}
+      <section className="overflow-hidden rounded-[34px] border border-black/5 bg-white p-2">
+        <div className="relative h-[280px] overflow-hidden rounded-[28px] bg-[#F2EEE9]">
+          <div className="relative overflow-hidden rounded-[10px] bg-black shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
+            <div className="relative h-[240px]">
+              {album.cover_url ? (
+                <img
+                  src={album.cover_url}
+                  alt={album.title || 'Album cover'}
+                  loading="eager"
+                  decoding="async"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="h-full w-full bg-gradient-to-br from-[#72D8FF] via-[#5B8CFF] to-[#315BFF]" />
+              )}
 
-          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/45 to-black/70" />
-          <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#f6f7fb] to-transparent" />
-        </div>
+              <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/20 to-black/78" />
 
-        <div className="relative mx-auto max-w-md">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-[0.28em] text-white/70">
-                Ciiya Photosharing
+              <div className="absolute left-5 right-5 top-5 flex items-center justify-between">
+                <div className="rounded-full bg-white/18 px-4 py-2 text-[12px] font-bold text-white backdrop-blur-xl">
+                  Gallery
+                </div>
+
+                <div className="rounded-full bg-white/18 px-4 py-2 text-[12px] font-bold text-white backdrop-blur-xl">
+                  Live album
+                </div>
+              </div>
+              
+              
+              <div className="absolute bottom-4 left-4 right-4">
+               <p className="text-[12px] font-black uppercase tracking-[0.16em] text-white/70">
+                Shared Album
               </p>
 
-              <h1 className="mt-3 text-3xl font-bold leading-tight drop-shadow-sm">
+             <h1 className="mt-2 text-[32px] font-black leading-[0.95] tracking-[-0.06em] text-white">
                 {album.title}
-              </h1>
+             </h1>
+
+            <p className="mt-2 line-clamp-2 text-[13px] font-semibold leading-snug text-white/75">
+            {album.description || 'View and download your event photos'}
+            </p>
             </div>
-
-            <div className="rounded-full bg-white/15 px-3 py-2 text-xs font-medium text-white backdrop-blur-md">
-              Public
+              
             </div>
-          </div>
-
-          <p className="mt-4 max-w-sm text-sm leading-6 text-white/85">
-            {album.description ||
-              'A curated gallery of beautiful captured moments.'}
-          </p>
-
-          <div className="mt-6 flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-white/15 px-3 py-1.5 text-xs text-white/90 backdrop-blur-md">
-              {photoCount} photo{photoCount === 1 ? '' : 's'}
-            </span>
-
-            <span className="rounded-full bg-white/15 px-3 py-1.5 text-xs text-white/90 backdrop-blur-md">
-              {album.view_count || 0} views
-            </span>
-
-            <span className="rounded-full bg-blue-600/90 px-3 py-1.5 text-xs text-white shadow backdrop-blur-md">
-              Cover Image
-            </span>
           </div>
         </div>
       </section>
 
-      <section className="px-4 pt-4">
-        <div className="mx-auto max-w-md space-y-4">
-          <PublicTopBar shareToken={token} count={photoCount} />
+     <section className="mt-4 grid grid-cols-2 gap-3">
+  <div className="rounded-[24px] border border-black/5 bg-[#F0B1DE] px-4 py-3">
+    <p className="text-[12px] font-bold text-[#4A3140]">
+      Photos
+    </p>
+    <p className="mt-1 text-[26px] font-black leading-none tracking-[-0.05em]">
+      {photos.length}
+    </p>
+  </div>
+
+  <div className="rounded-[24px] border border-black/5 bg-[#D0F578] px-4 py-3">
+    <p className="text-[12px] font-bold text-[#344318]">
+      Views
+    </p>
+    <p className="mt-1 text-[26px] font-black leading-none tracking-[-0.05em]">
+      {album.view_count || 0}
+    </p>
+  </div>
+</section>
+
+      {/* CONTENT */}
+      <section className="px-4 pb-12 pt-5">
+        <div className="mx-auto max-w-[430px] space-y-5">
           <SelfieFaceSearch albumId={album.id} />
 
           {visiblePhotos.length > 0 ? (
             <PublicGalleryInfinite
-            initialPhotos={photos || []}
-            totalCount={photoCount}
-            albumTitle={album.title}
-            albumId={album.id}
-           initialCursor={initialCursor}
-        />
+              initialPhotos={visiblePhotos}
+              totalCount={photoCount}
+              albumTitle={album.title}
+              albumId={album.id}
+              shareToken={token}
+              initialCursor={initialCursor}
+            />
           ) : (
-            <div className="rounded-[32px] border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500 shadow-[0_10px_30px_rgba(15,23,42,0.08)]">
-              No photos in this album yet.
+            <div className="rounded-[36px] bg-white px-7 py-14 text-center border border-black/5">
+              <p className="text-[22px] font-black tracking-[-0.04em] text-slate-900">
+                No photos yet
+              </p>
+
+              <p className="mt-2 text-[15px] font-medium leading-6 text-[#8E8E93]">
+                This album is ready, but no photos have been published yet.
+              </p>
             </div>
           )}
 
-          <div className="rounded-[32px] bg-white p-5 text-center shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-black/5">
-            <p className="text-sm font-semibold text-slate-900">
+          <div className="rounded-[34px] bg-white p-3 text-center  border border-black/5">
+            <p className="text-[16px] font-black tracking-[-0.03em] text-slate-950">
               Powered by Ciiya
             </p>
 
-            <p className="mt-1 text-xs text-slate-500">
-              Photo sharing Flashform
+            <p className="mt-1 text-[13px] font-medium text-[#8E8E93]">
+              Photos sharing gallery
             </p>
           </div>
         </div>

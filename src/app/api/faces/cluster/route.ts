@@ -1,11 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
-import { createClient } from '@supabase/supabase-js'
+import {
+  createClient,
+  type SupabaseClient,
+} from '@supabase/supabase-js'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-function getSupabaseAdmin() {
+type SupabaseAdminClient = SupabaseClient
+
+type FaceRecord = {
+  id: string
+  photo_id: string | null
+  album_id: string | null
+  owner_id: string | null
+  descriptor?: unknown
+  embedding?: unknown
+  confidence?: number | null
+}
+
+type FaceCluster = {
+  center: number[]
+  items: FaceRecord[]
+}
+
+function getSupabaseAdmin(): SupabaseAdminClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -26,6 +46,22 @@ function euclidean(a: number[], b: number[]) {
   return Math.sqrt(a.reduce((sum, val, i) => sum + (val - b[i]) ** 2, 0))
 }
 
+function normalizeVector(value: unknown): number[] | null {
+  try {
+    const vector = typeof value === 'string' ? JSON.parse(value) : value
+
+    if (!Array.isArray(vector)) return null
+
+    const numbers = vector.map((item) => Number(item))
+
+    if (numbers.some((item) => Number.isNaN(item))) return null
+
+    return numbers
+  } catch {
+    return null
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
@@ -43,12 +79,15 @@ export async function POST(req: NextRequest) {
     const albumId = String(body?.albumId || '').trim()
 
     if (!albumId) {
-      return NextResponse.json({ error: 'albumId is required' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'albumId is required' },
+        { status: 400 }
+      )
     }
 
-    const { data: embeddings, error } = await supabaseAdmin
-      .from('face_embeddings')
-      .select('*')
+    const { data: facesData, error } = await supabaseAdmin
+      .from('photo_faces')
+      .select('id, photo_id, album_id, owner_id, descriptor, embedding, confidence')
       .eq('album_id', albumId)
       .eq('owner_id', user.id)
 
@@ -56,12 +95,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    if (!embeddings?.length) {
+    const faces = (facesData || []) as FaceRecord[]
+
+    if (!faces.length) {
       return NextResponse.json({
         success: true,
         clusters: 0,
         faces: 0,
-        message: 'No embeddings',
+        message: 'No faces',
       })
     }
 
@@ -72,24 +113,24 @@ export async function POST(req: NextRequest) {
       .eq('owner_id', user.id)
 
     await supabaseAdmin
-      .from('face_embeddings')
-      .update({ cluster_id: null })
+      .from('photo_faces')
+      .update({
+        cluster_id: null,
+        person_cluster_id: null,
+      })
       .eq('album_id', albumId)
       .eq('owner_id', user.id)
 
     const threshold = 0.6
-    const clusters: { center: number[]; items: any[] }[] = []
+    const clusters: FaceCluster[] = []
 
-    for (const emb of embeddings) {
-      const vector = Array.isArray(emb.embedding)
-        ? emb.embedding
-        : typeof emb.embedding === 'string'
-          ? JSON.parse(emb.embedding)
-          : emb.embedding
+    for (const face of faces) {
+      const vector =
+        normalizeVector(face.descriptor) || normalizeVector(face.embedding)
 
-      if (!Array.isArray(vector)) continue
+      if (!vector) continue
 
-      let foundCluster: { center: number[]; items: any[] } | null = null
+      let foundCluster: FaceCluster | null = null
 
       for (const cluster of clusters) {
         const dist = euclidean(vector, cluster.center)
@@ -101,18 +142,23 @@ export async function POST(req: NextRequest) {
       }
 
       if (foundCluster) {
-        foundCluster.items.push(emb)
+        foundCluster.items.push(face)
+
+        const total = foundCluster.items.length
+        foundCluster.center = foundCluster.center.map((value, index) => {
+          return value + (vector[index] - value) / total
+        })
       } else {
         clusters.push({
           center: vector,
-          items: [emb],
+          items: [face],
         })
       }
     }
 
     for (let i = 0; i < clusters.length; i += 1) {
       const cluster = clusters[i]
-      const coverPhotoId = cluster.items[0]?.photo_id ?? null
+      const previewPhotoId = cluster.items[0]?.photo_id ?? null
 
       const { data: newCluster, error: insertError } = await supabaseAdmin
         .from('face_clusters')
@@ -120,7 +166,7 @@ export async function POST(req: NextRequest) {
           owner_id: user.id,
           album_id: albumId,
           label: `Person ${i + 1}`,
-          cover_photo_id: coverPhotoId,
+          preview_photo_id: previewPhotoId,
           face_count: cluster.items.length,
         })
         .select('id')
@@ -136,8 +182,11 @@ export async function POST(req: NextRequest) {
       const ids = cluster.items.map((item) => item.id)
 
       const { error: updateError } = await supabaseAdmin
-        .from('face_embeddings')
-        .update({ cluster_id: newCluster.id })
+        .from('photo_faces')
+        .update({
+          cluster_id: newCluster.id,
+          person_cluster_id: newCluster.id,
+        })
         .in('id', ids)
 
       if (updateError) {
@@ -148,7 +197,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       clusters: clusters.length,
-      faces: embeddings.length,
+      faces: faces.length,
     })
   } catch (err) {
     console.error(err)

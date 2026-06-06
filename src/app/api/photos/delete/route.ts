@@ -4,6 +4,24 @@ import { createServerSupabaseClient } from '@/lib/supabase-server'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+import { createClient } from '@supabase/supabase-js'
+
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!url || !key) {
+    throw new Error('Missing Supabase admin env')
+  }
+
+  return createClient(url, key, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  })
+}
+
 function uniquePaths(paths: Array<string | null | undefined>) {
   return Array.from(
     new Set(
@@ -18,6 +36,7 @@ function uniquePaths(paths: Array<string | null | undefined>) {
 export async function DELETE(req: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
+    const supabaseAdmin = getSupabaseAdmin()
 
     const {
       data: { user },
@@ -95,6 +114,16 @@ export async function DELETE(req: NextRequest) {
       .delete()
       .eq('photo_id', photoId)
       .eq('owner_id', user.id)
+    
+    await supabase
+      .from('face_jobs')
+      .delete()
+      .eq('photo_id', photoId)
+
+    await supabase
+      .from('photo_faces')
+      .delete()
+      .eq('photo_id', photoId)
 
     const pathsToRemove = uniquePaths([
       photo.storage_path,
@@ -109,15 +138,15 @@ export async function DELETE(req: NextRequest) {
     let storageErrorMessage: string | null = null
 
     if (pathsToRemove.length > 0) {
-      const { error: storageError } = await supabase.storage
-        .from('albums')
-        .remove(pathsToRemove)
+  const { error: storageError } = await supabaseAdmin.storage
+    .from('albums')
+    .remove(pathsToRemove)
 
-      if (storageError) {
-        storageErrorMessage = storageError.message
-        console.error('Delete photo storage error:', storageError.message)
-      }
-    }
+  if (storageError) {
+    storageErrorMessage = storageError.message
+    console.error('Delete photo storage error:', storageError.message)
+  }
+}
 
     const { error: deleteError } = await supabase
       .from('photos')
@@ -128,6 +157,20 @@ export async function DELETE(req: NextRequest) {
     if (deleteError) {
       return NextResponse.json({ error: deleteError.message }, { status: 500 })
     }
+
+    const { error: recalculateError } = await supabase.rpc(
+  'recalculate_user_storage',
+  {
+    user_uuid: user.id,
+  }
+)
+
+if (recalculateError) {
+  console.error(
+    'Recalculate storage after photo delete failed:',
+    recalculateError.message
+  )
+}
 
     return NextResponse.json({
       success: true,

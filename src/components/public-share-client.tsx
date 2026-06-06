@@ -9,6 +9,7 @@ type Photo = {
   preview_url?: string | null
   thumbnail_url?: string | null
   file_name?: string | null
+  blur_data_url?: string | null
 }
 
 type Props = {
@@ -32,7 +33,7 @@ export default function PublicShareClient({ token, photos }: Props) {
 
       <div className="grid grid-cols-3 gap-1 px-2 py-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
         {filteredPhotos.map((photo) => {
-          const src = photo.thumbnail_url || photo.preview_url || photo.public_url
+          const src = photo.thumbnail_url || photo.preview_url || ''
 
           if (!src) return null
 

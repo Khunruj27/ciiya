@@ -38,42 +38,54 @@ export default async function PricingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-5 pb-24">
-      <div className="mx-auto w-full max-w-[360px] space-y-3">
+    <main className="min-h-screen overflow-hidden bg-[#F7F8FC] px-5 pt-[max(60px,env(safe-area-inset-top))] pb-[max(40px,env(safe-area-inset-bottom))] text-slate-950">
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-[280px] bg-[radial-gradient(circle_at_50%_0%,rgba(47,107,255,0.18),transparent_62%)]" />
+
+      <div className="relative mx-auto w-full max-w-[390px]">
         <Link
           href="/albums"
-          className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400"
+          className="inline-flex h-11 items-center rounded-full bg-white/80 px-4 text-sm font-bold text-slate-500 shadow-sm ring-1 ring-black/5 backdrop-blur-xl transition active:scale-95"
         >
-          ‹ Back to Albums
+          ‹ Back
         </Link>
 
-        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5">
-          <h1 className="text-lg font-bold tracking-tight text-slate-900">
-            Upgrade Plan
-          </h1>
-          <p className="mt-1.5 text-xs leading-5 text-slate-500">
-            Choose the storage plan that fits your workflow.
-          </p>
-        </div>
-
-        {plans && plans.length > 0 ? (
-          <UpgradePlanList
-            plans={plans}
-            currentSubscription={currentSubscription}
-          />
-        ) : (
-          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center shadow-sm">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-xl">
-              📦
+       <section className="mt-4 rounded-[28px] sm:rounded-[32px] bg-white p-4 shadow-sm ring-1 ring-black/5">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-black tracking-[-0.03em] text-slate-950">
+                Available Plans
+              </h2>
+              <p className="mt-1 text-xs font-medium text-slate-500">
+                Select a plan to continue.
+              </p>
             </div>
-            <h2 className="mt-3 text-base font-semibold text-slate-900">
-              No plans found
-            </h2>
-            <p className="mt-1.5 text-xs leading-5 text-slate-500">
-              Please add plans in the database first, then reload this page.
-            </p>
+
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-50 text-lg">
+              ✦
+            </div>
           </div>
-        )}
+
+          {plans && plans.length > 0 ? (
+            <UpgradePlanList
+              plans={plans}
+              currentSubscription={currentSubscription}
+            />
+          ) : (
+            <div className="rounded-[26px] border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white text-2xl shadow-sm ring-1 ring-black/5">
+                📦
+              </div>
+
+              <h2 className="mt-4 text-base font-black text-slate-900">
+                No plans found
+              </h2>
+
+              <p className="mt-2 text-xs leading-5 text-slate-500">
+                Please add plans in the database first, then reload this page.
+              </p>
+            </div>
+          )}
+        </section>
       </div>
     </main>
   )

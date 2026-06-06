@@ -1,8 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase-client'
+import { useRouter } from 'next/navigation'
 
 type Category = {
   id: string
@@ -12,6 +12,9 @@ type Category = {
 type Props = {
   albumId: string
   categories?: Category[]
+  initialAutoFaceScan?: boolean
+  initialAutoPublish?: boolean
+  onUploadStarted?: () => void
 }
 
 type UploadStatus =
@@ -19,6 +22,7 @@ type UploadStatus =
   | 'uploading'
   | 'queued'
   | 'done'
+  | 'duplicate'
   | 'error'
 
 type UploadItem = {
@@ -28,6 +32,9 @@ type UploadItem = {
   status: UploadStatus
   error?: string
 }
+
+const UPLOAD_CONCURRENCY = 2
+const MAX_UPLOAD_RETRIES = 3
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
@@ -55,20 +62,103 @@ function getSafeFileName(fileName: string) {
   return `${Date.now()}-${crypto.randomUUID()}-${safeBaseName || 'photo'}.${ext}`
 }
 
+function getQuickFileHash(file: File) {
+  return `${file.name}-${file.size}-${file.lastModified}`
+}
+
+async function retryAsync<T>(
+  fn: () => Promise<T>,
+  retries = MAX_UPLOAD_RETRIES,
+  delay = 1000
+): Promise<T> {
+  let lastError: unknown
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error
+
+      if (attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, delay * attempt))
+      }
+    }
+  }
+
+  throw lastError
+}
+
 export default function UploadPhotoForm({
   albumId,
   categories = [],
+  initialAutoFaceScan = true,
+  initialAutoPublish = false,
+  onUploadStarted,
 }: Props) {
-  const router = useRouter()
+  const supabase = useMemo(() => createClient(), [])
+
+  const mountedRef = useRef(true)
+  const uploadingRef = useRef(false)
 
   const [items, setItems] = useState<UploadItem[]>([])
   const [presetFile, setPresetFile] = useState<File | null>(null)
   const [size, setSize] = useState('original')
+  const [autoFaceScan, setAutoFaceScan] = useState(initialAutoFaceScan)
+  const [autoPublish, setAutoPublish] = useState(initialAutoPublish)
   const [categoryId, setCategoryId] = useState('')
   const [uploading, setUploading] = useState(false)
   const [currentFileName, setCurrentFileName] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
+
+  const router = useRouter()
+
+  useEffect(() => {
+    mountedRef.current = true
+
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  useEffect(() => {
+    uploadingRef.current = uploading
+  }, [uploading])
+
+  useEffect(() => {
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      if (!uploadingRef.current) return
+
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [])
+
+  function safeSetUploading(value: boolean) {
+    if (!mountedRef.current) return
+    setUploading(value)
+  }
+
+  function safeSetCurrentFileName(value: string) {
+    if (!mountedRef.current) return
+    setCurrentFileName(value)
+  }
+
+  function safeSetErrorMsg(value: string) {
+    if (!mountedRef.current) return
+    setErrorMsg(value)
+  }
+
+  function safeSetSuccessMsg(value: string) {
+    if (!mountedRef.current) return
+    setSuccessMsg(value)
+  }
 
   const totalSelectedBytes = useMemo(() => {
     return items.reduce((sum, item) => sum + item.file.size, 0)
@@ -76,7 +166,10 @@ export default function UploadPhotoForm({
 
   const uploadedCount = useMemo(() => {
     return items.filter(
-      (item) => item.status === 'queued' || item.status === 'done'
+      (item) =>
+        item.status === 'queued' ||
+        item.status === 'done' ||
+        item.status === 'duplicate'
     ).length
   }, [items])
 
@@ -84,11 +177,24 @@ export default function UploadPhotoForm({
     return items.filter((item) => item.status === 'error').length
   }, [items])
 
+  const pendingUploadCount = useMemo(() => {
+    return items.filter(
+      (item) => item.status === 'waiting' || item.status === 'error'
+    ).length
+  }, [items])
+
   const totalProgress = useMemo(() => {
     if (!items.length) return 0
 
     const total = items.reduce((sum, item) => {
-      if (item.status === 'queued' || item.status === 'done') return sum + 100
+      if (
+        item.status === 'queued' ||
+        item.status === 'done' ||
+        item.status === 'duplicate'
+      ) {
+        return sum + 100
+      }
+
       return sum + item.progress
     }, 0)
 
@@ -96,6 +202,8 @@ export default function UploadPhotoForm({
   }, [items])
 
   function updateItem(id: string, update: Partial<UploadItem>) {
+    if (!mountedRef.current) return
+
     setItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, ...update } : item))
     )
@@ -110,21 +218,24 @@ export default function UploadPhotoForm({
     if (uploading) return
 
     setItems((prev) =>
-      prev.filter((item) => item.status !== 'queued' && item.status !== 'done')
+      prev.filter(
+        (item) =>
+          item.status !== 'queued' &&
+          item.status !== 'done' &&
+          item.status !== 'duplicate'
+      )
     )
   }
 
-  async function uploadDirectToSupabase(item: UploadItem) {
-    const supabase = createClient()
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
-
-    if (userError || !user) {
-      throw new Error('Unauthorized')
+  async function uploadDirectToSupabase(
+    item: UploadItem,
+    context: {
+      userId: string
+      presetPath: string | null
     }
+  ) {
+    const userId = context.userId
+    const presetPath = context.presetPath
 
     updateItem(item.id, {
       progress: 10,
@@ -132,14 +243,15 @@ export default function UploadPhotoForm({
     })
 
     const safeFileName = getSafeFileName(item.file.name)
-    const storagePath = `${user.id}/${albumId}/original/${safeFileName}`
+    const fileHash = getQuickFileHash(item.file)
+    const storagePath = `${userId}/${albumId}/original/${safeFileName}`
 
-    const { error: uploadError } = await supabase.storage
-      .from('albums')
-      .upload(storagePath, item.file, {
+    const { error: uploadError } = await retryAsync(() =>
+      supabase.storage.from('albums').upload(storagePath, item.file, {
         contentType: item.file.type || 'image/jpeg',
         upsert: false,
       })
+    )
 
     if (uploadError) {
       throw new Error(uploadError.message)
@@ -150,22 +262,40 @@ export default function UploadPhotoForm({
       status: 'uploading',
     })
 
-    const finalizeRes = await fetch('/api/photos/finalize-upload', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        albumId,
-        storagePath,
-        fileName: item.file.name,
-        fileSizeBytes: item.file.size,
-        size,
-        categoryId: categoryId || null,
-      }),
-    })
+    const finalizeRes = await retryAsync(() =>
+      fetch('/api/photos/finalize-upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          albumId,
+          storagePath,
+          fileName: item.file.name,
+          fileHash,
+          fileSizeBytes: item.file.size,
+          size,
+          categoryId: categoryId || null,
+          presetPath,
+          autoFaceScan,
+          autoPublish,
+        }),
+      })
+    )
 
     const finalizeData = await finalizeRes.json().catch(() => null)
+
+    if (finalizeData?.duplicate) {
+      await supabase.storage.from('albums').remove([storagePath])
+
+      updateItem(item.id, {
+        progress: 100,
+        status: 'duplicate',
+        error: undefined,
+      })
+
+      return finalizeData
+    }
 
     if (!finalizeRes.ok || !finalizeData?.success) {
       await supabase.storage.from('albums').remove([storagePath])
@@ -184,12 +314,107 @@ export default function UploadPhotoForm({
     return finalizeData
   }
 
+  async function runUploadPool(
+    uploadItems: UploadItem[],
+    context: {
+      userId: string
+      presetPath: string | null
+    }
+  ) {
+    let currentIndex = 0
+    let shouldStop = false
+
+    const results: {
+      success: boolean
+      status?: UploadStatus
+      error?: string
+    }[] = []
+
+    async function worker() {
+      while (currentIndex < uploadItems.length && !shouldStop) {
+        const item = uploadItems[currentIndex]
+        currentIndex += 1
+
+        if (!item) continue
+
+        safeSetCurrentFileName(item.file.name)
+
+        updateItem(item.id, {
+          progress: 0,
+          status: 'uploading',
+          error: undefined,
+        })
+
+        try {
+          const data = await uploadDirectToSupabase(item, context)
+
+          if (
+            data?.error?.includes('Storage full') ||
+            data?.jobError?.includes('Storage full')
+          ) {
+            throw new Error('Storage full')
+          }
+
+          results.push({
+            success: true,
+            status: data?.duplicate ? 'duplicate' : 'queued',
+          })
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : 'Upload failed'
+
+          updateItem(item.id, {
+            status: 'error',
+            error: message,
+          })
+
+          results.push({
+            success: false,
+            error: message,
+          })
+
+          if (message.includes('Storage full')) {
+            shouldStop = true
+
+            uploadItems.slice(currentIndex).forEach((pendingItem) => {
+              updateItem(pendingItem.id, {
+                status: 'error',
+                error: 'Storage full',
+              })
+            })
+
+            router.push('/pricing')
+            return
+          }
+        }
+      }
+    }
+
+    const workers = Array.from(
+      { length: Math.min(UPLOAD_CONCURRENCY, uploadItems.length) },
+      () => worker()
+    )
+
+    await Promise.all(workers)
+
+    return results
+  }
+
   async function handleUpload() {
-    setErrorMsg('')
-    setSuccessMsg('')
+    safeSetErrorMsg('')
+    safeSetSuccessMsg('')
 
     if (items.length === 0) {
-      setErrorMsg('Please select at least one JPG file')
+      safeSetErrorMsg('Please select at least one JPG file')
+      return
+    }
+
+    const uploadItems = items.filter(
+      (item) => item.status === 'waiting' || item.status === 'error'
+    )
+
+    if (uploadItems.length === 0) {
+      safeSetErrorMsg('No pending files to upload')
       return
     }
 
@@ -204,107 +429,182 @@ export default function UploadPhotoForm({
     })
 
     if (invalidFile) {
-      setErrorMsg('Only JPG/JPEG files are allowed')
+      safeSetErrorMsg('Only JPG/JPEG files are allowed')
       return
     }
 
     if (presetFile && !presetFile.name.toLowerCase().endsWith('.xmp')) {
-      setErrorMsg('Only .xmp preset file is allowed')
+      safeSetErrorMsg('Only .xmp preset file is allowed')
       return
     }
 
     try {
-      setUploading(true)
+      safeSetUploading(true)
+      onUploadStarted?.()
 
-      const uploadItems = items.filter(
-        (item) => item.status === 'waiting' || item.status === 'error'
-      )
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser()
 
-      for (const item of uploadItems) {
-        setCurrentFileName(item.file.name)
+      if (userError || !user) {
+        throw new Error('Unauthorized')
+      }
 
-        updateItem(item.id, {
-          progress: 0,
-          status: 'uploading',
-          error: undefined,
-        })
+      let sharedPresetPath: string | null = null
 
-        try {
-          const data = await uploadDirectToSupabase(item)
+      if (presetFile) {
+        const presetSafeName = getSafeFileName(presetFile.name)
+        sharedPresetPath = `${user.id}/${albumId}/presets/${presetSafeName}`
 
-          if (
-            data?.error?.includes('Storage full') ||
-            data?.jobError?.includes('Storage full')
-          ) {
-            window.location.href = '/pricing'
-            return
-          }
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : 'Upload failed'
-
-          updateItem(item.id, {
-            status: 'error',
-            error: message,
+        const { error: presetUploadError } = await retryAsync(() =>
+          supabase.storage.from('albums').upload(sharedPresetPath!, presetFile, {
+            contentType: 'application/xml',
+            upsert: true,
           })
+        )
 
-          setErrorMsg(message)
-
-          if (message.includes('Storage full')) {
-            window.location.href = '/pricing'
-            return
-          }
+        if (presetUploadError) {
+          throw new Error(presetUploadError.message)
         }
       }
 
-      setCurrentFileName('')
-      setSuccessMsg(
+      const results = await runUploadPool(uploadItems, {
+        userId: user.id,
+        presetPath: sharedPresetPath,
+      })
+
+      safeSetCurrentFileName('')
+
+      const successCount = results.filter((item) => item.success).length
+      const errorCount = results.filter((item) => !item.success).length
+
+      safeSetSuccessMsg(
         presetFile
-          ? `Upload queued with preset: ${uploadItems.length} file(s)`
-          : `Upload queued: ${uploadItems.length} file(s)`
+          ? `Upload queued with preset: ${successCount}/${uploadItems.length} file(s)`
+          : `Upload queued: ${successCount}/${uploadItems.length} file(s)`
       )
 
-      router.refresh()
+      if (errorCount > 0) {
+        safeSetErrorMsg(
+          `${errorCount} file(s) failed. You can press Start Upload again to retry.`
+        )
+      }
     } catch (error) {
-      setErrorMsg(error instanceof Error ? error.message : 'Upload failed')
-      setCurrentFileName('')
+      safeSetErrorMsg(error instanceof Error ? error.message : 'Upload failed')
+      safeSetCurrentFileName('')
     } finally {
-      setUploading(false)
+      safeSetUploading(false)
+    }
+  }
+
+  async function handleStartAutoUpload() {
+    safeSetErrorMsg('')
+    safeSetSuccessMsg('')
+
+    try {
+      safeSetUploading(true)
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser()
+
+      if (userError || !user) {
+        throw new Error('Unauthorized')
+      }
+
+      let presetPath: string | null = null
+
+      if (presetFile) {
+        if (!presetFile.name.toLowerCase().endsWith('.xmp')) {
+          throw new Error('Only .xmp preset file is allowed')
+        }
+
+        const safeName = getSafeFileName(presetFile.name)
+        presetPath = `${user.id}/${albumId}/presets/${safeName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('albums')
+          .upload(presetPath, presetFile, {
+            contentType: 'application/xml',
+            upsert: true,
+          })
+
+        if (uploadError) {
+          throw new Error(uploadError.message)
+        }
+      }
+
+      const res = await fetch('/api/camera/upload-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          albumId,
+          presetPath,
+          resizeMode: size,
+          autoFaceScan,
+          autoPublish,
+        }),
+      })
+
+      const json = await res.json().catch(() => null)
+
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || 'Start auto upload failed')
+      }
+
+      safeSetSuccessMsg('Auto Upload Active')
+      onUploadStarted?.()
+    } catch (error) {
+      safeSetErrorMsg(error instanceof Error ? error.message : 'Start failed')
+    } finally {
+      safeSetUploading(false)
     }
   }
 
   return (
-    <div className="space-y-4 rounded-3xl bg-white p-4 shadow-sm">
-      <div className="space-y-2">
-        <label className="text-xs font-semibold text-slate-500">Photos</label>
+    <div className="space-y-4 rounded-3xl bg-white p-4 border border-black/5">
+      {/* JPG Photos */}
+<div className="space-y-2">
+  <label className="text-xs font-semibold text-slate-500">
+    JPG Photos
+  </label>
 
-        <input
-          type="file"
-          multiple
-          accept=".jpg,.jpeg,image/jpeg"
-          onChange={(e) => {
-            const selected = Array.from(e.target.files || [])
+  <input
+    type="file"
+    multiple
+    accept=".jpg,.jpeg,image/jpeg"
+    onChange={(e) => {
+      const selected = Array.from(e.target.files || [])
 
-            const newItems: UploadItem[] = selected.map((file) => ({
-              id: makeItemId(file),
-              file,
-              progress: 0,
-              status: 'waiting',
-            }))
+      const newItems: UploadItem[] = selected.map((file) => ({
+        id: makeItemId(file),
+        file,
+        progress: 0,
+        status: 'waiting',
+      }))
 
-            setItems((prev) => [...prev, ...newItems])
-            setCurrentFileName('')
-            setErrorMsg('')
-            setSuccessMsg('')
+      setItems((prev) => [...prev, ...newItems])
+      setCurrentFileName('')
+      setErrorMsg('')
+      setSuccessMsg('')
 
-            e.currentTarget.value = ''
-          }}
-          className="block w-full text-sm text-slate-600"
-          disabled={uploading}
-        />
-      </div>
+      e.currentTarget.value = ''
+    }}
+    className="block w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600"
+    disabled={uploading}
+  />
 
-      <div className="space-y-2">
+  <p className="text-xs text-slate-400">
+    Select one or multiple JPG/JPEG photos.
+  </p>
+</div>
+    
+
+     <div className="space-y-2">
         <label className="text-xs font-semibold text-slate-500">
           Lightroom Preset (.xmp)
         </label>
@@ -318,7 +618,7 @@ export default function UploadPhotoForm({
             setErrorMsg('')
             setSuccessMsg('')
           }}
-          className="block w-full text-sm text-slate-600"
+          className="block w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600"
           disabled={uploading}
         />
 
@@ -400,6 +700,7 @@ export default function UploadPhotoForm({
                   <p className="truncate text-xs font-semibold text-slate-700">
                     {item.file.name}
                   </p>
+
                   <p className="mt-0.5 text-[11px] text-slate-400">
                     {formatBytes(item.file.size)}
                   </p>
@@ -430,15 +731,18 @@ export default function UploadPhotoForm({
                   className={
                     item.status === 'error'
                       ? 'text-red-500'
-                      : item.status === 'queued' || item.status === 'done'
-                      ? 'text-green-600'
-                      : 'text-slate-500'
+                      : item.status === 'queued' ||
+                          item.status === 'done' ||
+                          item.status === 'duplicate'
+                        ? 'text-green-600'
+                        : 'text-slate-500'
                   }
                 >
                   {item.status === 'waiting' && 'Waiting'}
                   {item.status === 'uploading' && `Uploading ${item.progress}%`}
                   {item.status === 'queued' && 'Uploaded • Processing preview'}
                   {item.status === 'done' && 'Done'}
+                  {item.status === 'duplicate' && 'Duplicate • Already uploaded'}
                   {item.status === 'error' && (item.error || 'Error')}
                 </span>
 
@@ -463,16 +767,19 @@ export default function UploadPhotoForm({
 
       <div className="space-y-2">
         <button
-          type="button"
-          onClick={handleUpload}
-          disabled={uploading || items.length === 0}
-          className="w-full rounded-xl bg-blue-600 py-3 text-white disabled:opacity-50"
-        >
-          {uploading ? 'Uploading...' : 'Start Upload'}
-        </button>
+  type="button"
+  onClick={handleStartAutoUpload}
+  disabled={uploading}
+  className="w-full rounded-xl bg-[#F0B1DE] border border-black/5 py-3 text-white disabled:opacity-50"
+>
+  {uploading ? 'Starting...' : 'Start Auto Upload'}
+</button>
 
         {items.some(
-          (item) => item.status === 'queued' || item.status === 'done'
+          (item) =>
+            item.status === 'queued' ||
+            item.status === 'done' ||
+            item.status === 'duplicate'
         ) ? (
           <button
             type="button"

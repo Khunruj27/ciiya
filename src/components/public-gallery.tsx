@@ -395,42 +395,41 @@ export default function PublicGallery({ photos: initialPhotos }: Props) {
             <button type="button" onClick={() => setTab('live')}>
               <p
                 className={`text-sm font-semibold ${
-                  tab === 'live' ? 'text-[#2F6BFF]' : 'text-slate-500'
+                  tab === 'live' ? 'text-[#F0B1DE]' : 'text-slate-600'
                 }`}
               >
                 Live Photos
               </p>
               {tab === 'live' ? (
-                <div className="mx-auto mt-2 h-1 w-8 rounded-full bg-[#2F6BFF]" />
+                <div className="mx-auto mt-2 h-1 w-8 rounded-full bg-[#F0B1DE]" />
               ) : null}
             </button>
 
             <button type="button" onClick={() => setTab('popular')}>
               <p
                 className={`text-sm font-semibold ${
-                  tab === 'popular' ? 'text-[#2F6BFF]' : 'text-slate-500'
+                  tab === 'popular' ? 'text-[#F0B1DE]' : 'text-slate-600'
                 }`}
               >
                 Popular🔥
               </p>
               {tab === 'popular' ? (
-                <div className="mx-auto mt-2 h-1 w-8 rounded-full bg-[#2F6BFF]" />
+                <div className="mx-auto mt-2 h-1 w-8 rounded-full bg-[#F0B1DE]" />
               ) : null}
             </button>
           </div>
 
-         <div className="grid grid-cols-3 gap-1.5 border border-black/5 overflow-hidden rounded-[26px]">
+         <div className="grid grid-cols-3 gap-1.5 border border-black/5 overflow-hidden rounded-[26px] p-1.5">
             {[2, 3, 4].map((cols) => (
-              <button
+               <button
                 key={cols}
                 type="button"
                 onClick={() => setGridCols(cols)}
-                className={[
-                  'flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 active:scale-90',
-                 gridCols === cols
-                    ? 'bg-[#F0B1DE] text-white'
-                    : 'text-slate-500',
-               ].join(' ')}
+                className={`flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 active:scale-90 ${
+                  gridCols === cols
+                    ? 'bg-[#F0B1DE] text-white shadow-sm'
+                    : 'text-slate-500'
+                }`}
               >
                 {cols === 2 && <Grid2Icon />}
                 {cols === 3 && <Grid3Icon />}

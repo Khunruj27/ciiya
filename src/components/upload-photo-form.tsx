@@ -768,11 +768,11 @@ export default function UploadPhotoForm({
       <div className="space-y-2">
         <button
   type="button"
-  onClick={handleStartAutoUpload}
+  onClick={handleUpload}
   disabled={uploading}
   className="w-full rounded-xl bg-[#F0B1DE] border border-black/5 py-3 text-white disabled:opacity-50"
 >
-  {uploading ? 'Starting...' : 'Start Auto Upload'}
+  {uploading ? 'Uploading...' : 'Auto Upload'}
 </button>
 
         {items.some(

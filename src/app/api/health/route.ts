@@ -56,7 +56,7 @@ async function getWorkerHealth(
 
   const { data, error } = await supabase
     .from('worker_heartbeats')
-    .select('worker_name, worker_type, status, last_seen_at, meta')
+    .select('worker_name, worker_type, status, last_seen_at, metadata')
     .eq('worker_type', workerType)
     .gte('last_seen_at', staleSince)
     .order('last_seen_at', { ascending: false })

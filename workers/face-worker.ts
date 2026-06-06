@@ -405,7 +405,7 @@ async function clusterAlbumFaces(albumId: string | null, ownerId: string | null)
       .eq('album_id', albumId)
       .eq('owner_id', ownerId)
 
-    const threshold = Number(process.env.FACE_CLUSTER_THRESHOLD || 0.6)
+    const threshold = Number(process.env.FACE_CLUSTER_THRESHOLD || 0.52)
     const clusters: {
   center: number[]
   items: FaceRow[]

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": "20.x"
+  "node": "20.x"
   },
   "scripts": {
     "dev": "next dev --webpack",
@@ -26,7 +26,8 @@
     "faces:cluster": "tsx scripts/cluster-faces.ts",
     "simulator": "open -a Simulator && next dev --webpack -H 0.0.0.0",
     "ios": "npm run simulator",
-    "worker:camera": "tsx workers/camera-live-import-worker.ts"
+    "worker:camera": "tsx workers/camera-live-import-worker.ts",
+    "storage:cleanup": "tsx scripts/storage-cleanup-cron.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -72,3 +73,5 @@
     "typescript": "^5"
   }
 }
+
+

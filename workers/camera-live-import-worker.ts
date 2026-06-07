@@ -25,7 +25,7 @@ const GPHOTO_BIN = process.env.GPHOTO_BIN || 'gphoto2'
 const CAMERA_IMPORT_TEMP_DIR =
   process.env.CAMERA_IMPORT_TEMP_DIR || '.ciiya-camera-imports'
 
-const POLL_INTERVAL_MS = 2000
+const POLL_INTERVAL_MS = 1500
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   throw new Error('Missing Supabase environment variables')
@@ -47,6 +47,7 @@ type CameraUploadSession = {
   auto_face_scan: boolean | null
   auto_publish: boolean | null
   status: string
+  last_activity_at?: string | null
 }
 
 type DetectedCamera = {
@@ -63,6 +64,28 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+async function expireInactiveSessions() {
+  const timeoutAt = new Date(
+    Date.now() - 30 * 60 * 1000
+  ).toISOString()
+
+  const { error } = await supabase
+    .from('camera_upload_sessions')
+    .update({
+      status: 'stopped',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('status', 'active')
+    .lt('last_activity_at', timeoutAt)
+
+  if (error) {
+    console.error(
+      '[camera-live-import-worker] expire sessions:',
+      error.message
+    )
+  }
+}
+
 async function loadActiveSessions() {
   const { data, error } = await supabase
     .from('camera_upload_sessions')
@@ -75,9 +98,10 @@ async function loadActiveSessions() {
       resize_mode,
       auto_face_scan,
       auto_publish,
-      status
-      `
-    )
+      status,
+      last_activity_at
+
+`)
     .eq('status', 'active')
     .order('created_at', { ascending: true })
     .limit(10)
@@ -334,6 +358,17 @@ function getQuickFileHash(filename: string, size: number, cameraFileId: string) 
   return `${filename}-${size}-${cameraFileId}`
 }
 
+function isStorageLimitError(error: unknown) {
+  const message =
+    error instanceof Error ? error.message : String(error || '')
+
+  return (
+    message.toLowerCase().includes('storage full') ||
+    message.toLowerCase().includes('storage limit') ||
+    message.toLowerCase().includes('quota')
+  )
+}
+
 async function finalizeCameraUpload(params: {
   session: CameraUploadSession
   file: CameraFile
@@ -461,25 +496,47 @@ async function uploadLocalCameraFile(
       .eq('id', importRow.id)
 
     console.log(
-      `[camera-live-import-worker] uploaded and finalized ${file.filename}`
-    )
-  } catch (error) {
+  `[camera-live-import-worker] DONE album=${session.album_id} file=${file.filename}`
+)
+    } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Upload/finalize failed'
+
+    const { data: failedRow } = await supabase
+      .from('camera_live_imports')
+      .select('storage_path')
+      .eq('album_id', session.album_id)
+      .eq('camera_file_id', file.cameraFileId)
+      .maybeSingle()
+
+    if (failedRow?.storage_path) {
+      const { error: removeError } = await supabase.storage
+        .from('albums')
+        .remove([failedRow.storage_path])
+
+      if (removeError) {
+        console.error(
+          `[camera-live-import-worker] cleanup uploaded file failed path=${failedRow.storage_path}:`,
+          removeError.message
+        )
+      }
+    }
+
     await supabase
       .from('camera_live_imports')
       .update({
         status: 'failed',
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Upload/finalize failed',
+        error: isStorageLimitError(error)
+          ? 'Storage full. Please upgrade plan or free up space.'
+          : message,
         updated_at: new Date().toISOString(),
       })
       .eq('album_id', session.album_id)
       .eq('camera_file_id', file.cameraFileId)
 
     console.error(
-      `[camera-live-import-worker] upload/finalize failed filename=${file.filename}:`,
-      error instanceof Error ? error.message : error
+      `[camera-live-import-worker] upload/finalize failed album=${session.album_id} filename=${file.filename}:`,
+      message
     )
   }
 }
@@ -516,6 +573,15 @@ async function processSession(session: CameraUploadSession) {
   
   const newFiles = await filterNewCameraFiles(session, files)
 
+  if (newFiles.length > 0) {
+  await supabase
+    .from('camera_upload_sessions')
+    .update({
+      last_activity_at: new Date().toISOString(),
+    })
+    .eq('id', session.id)
+}
+
 if (newFiles.length === 0) {
   console.log(
     `[camera-live-import-worker] no new JPG files album=${session.album_id}`
@@ -524,7 +590,7 @@ if (newFiles.length === 0) {
 }
 
 console.log(
-  `[camera-live-import-worker] queueing ${newFiles.length} new JPG file(s)`
+  `[camera-live-import-worker] album=${session.album_id} queueing ${newFiles.length} new JPG file(s)`
 )
 
 for (const file of newFiles) {
@@ -532,6 +598,7 @@ for (const file of newFiles) {
 }
 
 for (const file of newFiles) {
+  await downloadCameraFile(session, file)
   await uploadLocalCameraFile(session, file)
 }
 }
@@ -541,6 +608,8 @@ async function main() {
 
   while (true) {
     try {
+      await expireInactiveSessions()
+
       const sessions = await loadActiveSessions()
 
       if (sessions.length === 0) {

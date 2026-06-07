@@ -10,9 +10,7 @@ export default async function PricingPage() {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) {
-    redirect('/login')
-  }
+  if (!user) redirect('/login')
 
   const { data: plans, error: plansError } = await supabase
     .from('plans')
@@ -20,47 +18,80 @@ export default async function PricingPage() {
     .eq('is_active', true)
     .order('sort_order', { ascending: true })
 
-  if (plansError) {
-    throw new Error(plansError.message)
-  }
+  if (plansError) throw new Error(plansError.message)
 
-  const { data: currentSubscription, error: subscriptionError } = await supabase
-    .from('subscriptions')
-    .select('plan_id, status, current_period_end')
+  const { data: storageUsage, error: storageUsageError } = await supabase
+    .from('user_storage_usage')
+    .select('current_plan, storage_limit_bytes, storage_used_bytes, used_bytes')
     .eq('user_id', user.id)
-    .eq('status', 'active')
-    .order('created_at', { ascending: false })
-    .limit(1)
     .maybeSingle()
 
-  if (subscriptionError) {
-    throw new Error(subscriptionError.message)
-  }
+  if (storageUsageError) throw new Error(storageUsageError.message)
+
+  const currentPlanSlug =
+    storageUsage?.current_plan ||
+    plans?.find(
+      (plan) =>
+        Number(plan.storage_limit_bytes) ===
+        Number(storageUsage?.storage_limit_bytes || 0)
+    )?.slug ||
+    'free'
+
+  const currentPlan = plans?.find((plan) => plan.slug === currentPlanSlug)
+
+  const currentSubscription = currentPlan
+    ? {
+        plan_id: currentPlan.id,
+        status: 'active',
+        current_period_end: null,
+        storage_limit_bytes: Number(currentPlan.storage_limit_bytes || 0),
+      }
+    : null
+
+  const totalBytes = Number(
+    storageUsage?.storage_used_bytes ?? storageUsage?.used_bytes ?? 0
+  )
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#F7F8FC] px-5 pt-[max(60px,env(safe-area-inset-top))] pb-[max(40px,env(safe-area-inset-bottom))] text-slate-950">
-      <div className="pointer-events-none fixed inset-x-0 top-0 h-[280px] bg-[radial-gradient(circle_at_50%_0%,rgba(47,107,255,0.18),transparent_62%)]" />
+    <main className="min-h-screen overflow-hidden bg-[#FAF7F4] px-5 pt-[max(54px,env(safe-area-inset-top))] pb-[max(42px,env(safe-area-inset-bottom))] text-[#1C0617]">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(240,177,222,0.32),transparent_38%),radial-gradient(circle_at_100%_20%,rgba(208,245,120,0.22),transparent_32%)]" />
 
-      <div className="relative mx-auto w-full max-w-[390px]">
-        <Link
-          href="/albums"
-          className="inline-flex h-11 items-center rounded-full bg-white/80 px-4 text-sm font-bold text-slate-500 shadow-sm ring-1 ring-black/5 backdrop-blur-xl transition active:scale-95"
-        >
-          ‹ Back
-        </Link>
+      <div className="relative mx-auto w-full max-w-[393px]">
+        <div className="flex items-center justify-between">
+          <Link
+            href="/me"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-black/5 bg-white/80 text-2xl font-black text-[#1C0617] backdrop-blur-xl transition active:scale-95"
+          >
+            ‹
+          </Link>
 
-       <section className="mt-4 rounded-[28px] sm:rounded-[32px] bg-white p-4 shadow-sm ring-1 ring-black/5">
-          <div className="mb-4 flex items-center justify-between">
+          <div className="rounded-full border border-black/5 bg-white/80 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-[#8E8E93] backdrop-blur-xl">
+            Pricing
+          </div>
+        </div>
+
+        <section className="mt-8">
+          <p className="text-[13px] font-black uppercase tracking-[0.18em] text-[#8E8E93]">
+            Storage Plans
+          </p>
+
+          <h1 className="mt-3 text-[44px] font-black leading-[0.9] tracking-[-0.08em] text-[#1C0617]">
+            Upgrade your space.
+          </h1>
+        </section>
+
+        <section className="mt-5 rounded-[32px] border border-black/5 bg-white/90 p-4 backdrop-blur-xl">
+          <div className="mb-5 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-black tracking-[-0.03em] text-slate-950">
+              <h2 className="text-[24px] font-black tracking-[-0.05em]">
                 Available Plans
               </h2>
-              <p className="mt-1 text-xs font-medium text-slate-500">
-                Select a plan to continue.
+              <p className="mt-1 text-xs font-semibold text-[#8E8E93]">
+                Upgrade, downgrade, or keep your current plan.
               </p>
             </div>
 
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-50 text-lg">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F6F7FA] text-xl">
               ✦
             </div>
           </div>
@@ -69,10 +100,11 @@ export default async function PricingPage() {
             <UpgradePlanList
               plans={plans}
               currentSubscription={currentSubscription}
+              totalBytes={totalBytes}
             />
           ) : (
-            <div className="rounded-[26px] border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white text-2xl shadow-sm ring-1 ring-black/5">
+            <div className="rounded-[26px] border border-dashed border-slate-300 bg-[#F6F7FA] p-6 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white text-2xl">
                 📦
               </div>
 

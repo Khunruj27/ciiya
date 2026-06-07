@@ -75,6 +75,7 @@ export async function POST(req: Request) {
         auto_face_scan: Boolean(autoFaceScan),
         auto_publish: Boolean(autoPublish),
         status: 'active',
+        last_activity_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .select('*')

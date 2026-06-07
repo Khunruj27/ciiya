@@ -106,6 +106,11 @@ export default function CreateAlbumForm({ onSuccess }: Props) {
       >
         {loading ? 'Creating...' : 'Create Album'}
       </button>
+      {error ? (
+  <p className="px-2 text-sm font-semibold text-red-500">
+    {error}
+  </p>
+) : null}
     </div>
   )
 }

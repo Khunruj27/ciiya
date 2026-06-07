@@ -81,16 +81,16 @@ export default function UpgradePlanList({
 
   if (!plans || plans.length === 0) {
     return (
-      <div className="rounded-[20px] border border-dashed border-slate-300 bg-white px-5 py-6 text-center shadow-sm">
-        <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-lg">
+      <div className="rounded-[28px] border border-dashed border-black/10 bg-[#F6F7FA] px-5 py-8 text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white text-2xl">
           📦
         </div>
 
-        <h2 className="mt-3 text-[15px] font-semibold leading-tight text-slate-950">
+        <h2 className="mt-4 text-base font-black text-[#1C0617]">
           No plans found
         </h2>
 
-        <p className="mt-1 text-[12px] leading-5 text-slate-500">
+        <p className="mt-2 text-xs font-semibold leading-5 text-[#8E8E93]">
           Please add plans in the database first.
         </p>
       </div>
@@ -100,14 +100,14 @@ export default function UpgradePlanList({
   return (
     <div className="space-y-2.5">
       {isSuccess ? (
-        <div className="rounded-[18px] bg-green-50 px-4 py-2.5 text-[12px] font-medium leading-5 text-green-700 ring-1 ring-green-200">
-          Payment successful.
+        <div className="rounded-[22px] border border-green-200 bg-green-50 px-4 py-3 text-xs font-bold leading-5 text-green-700">
+          Payment successful. Your plan has been updated.
         </div>
       ) : null}
 
       {isCanceled ? (
-        <div className="rounded-[18px] bg-yellow-50 px-4 py-2.5 text-[12px] font-medium leading-5 text-yellow-700 ring-1 ring-yellow-200">
-          Payment was canceled.
+        <div className="rounded-[22px] border border-yellow-200 bg-yellow-50 px-4 py-3 text-xs font-bold leading-5 text-yellow-700">
+          Payment was canceled. You can choose another plan anytime.
         </div>
       ) : null}
 
@@ -123,104 +123,115 @@ export default function UpgradePlanList({
         const cannotDowngrade =
           isDowngrade && totalBytes > plan.storage_limit_bytes
 
+        const storageLabel = formatStorage(
+          Number(plan.storage_limit_bytes || 0)
+        )
+
         return (
           <div
             key={plan.id}
-            className={`relative overflow-hidden rounded-[20px] p-[1px] ${
-              isPopular && !isCurrent
-                ? 'bg-gradient-to-br from-[#0A84FF] via-[#64D2FF] to-[#5E5CE6] shadow-[0_14px_34px_rgba(10,132,255,0.14)]'
-                : isCurrent
-                ? 'bg-[#0A84FF] shadow-[0_10px_26px_rgba(10,132,255,0.10)]'
-                : 'bg-slate-200/80'
+            className={`relative overflow-hidden rounded-[30px] border p-4 transition active:scale-[0.99] ${
+              isCurrent
+                ? 'border-black/10 bg-[#F0B1DE]'
+                : isPopular
+                  ? 'border-black/10 bg-[#D0F578]'
+                  : 'border-black/5 bg-[#F6F7FA]'
             }`}
           >
-            <div
-              className={`relative rounded-[19px] bg-white px-4 py-3 ${
-                isPopular && !isCurrent
-                  ? 'bg-gradient-to-br from-white via-[#FAFCFF] to-[#EEF6FF]'
-                  : ''
-              }`}
-            >
-              {isPopular && !isCurrent ? (
-                <div className="absolute right-3 top-3">
-                  <span className="rounded-full bg-[#0A84FF] px-2.5 py-1 text-[10px] font-semibold leading-none text-white shadow-sm">
-                    Best Value
-                  </span>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="truncate text-[22px] font-black leading-none tracking-[-0.06em] text-[#1C0617]">
+                    {plan.name}
+                  </h2>
+
+                  {isCurrent ? (
+                    <span className="rounded-full bg-white/75 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#1C0617]">
+                      Current
+                    </span>
+                  ) : null}
+
+                  {isPopular && !isCurrent ? (
+                    <span className="rounded-full bg-white/75 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#344318]">
+                      Best
+                    </span>
+                  ) : null}
                 </div>
-              ) : null}
 
-              {isCurrent ? (
-                <div className="absolute right-3 top-3">
-                  <span className="rounded-full bg-[#EEF6FF] px-2.5 py-1 text-[10px] font-semibold leading-none text-[#0A84FF]">
-                    Current
-                  </span>
-                </div>
-              ) : null}
-
-              <div className="pr-20">
-                <h2 className="text-[15px] font-semibold leading-tight tracking-[-0.01em] text-slate-950">
-                  {plan.name}
-                </h2>
-
-                <p className="mt-1 text-[12px] leading-4 text-slate-500">
-                  Storage up to{' '}
-                  {formatStorage(Number(plan.storage_limit_bytes || 0))}
+                <p className="mt-2 text-xs font-bold leading-5 text-[#4A3140]/75">
+                  Storage up to {storageLabel}
                 </p>
 
                 {isPopular ? (
-                  <p className="mt-0.5 text-[11px] leading-4 text-[#0A84FF]">
-                    Recommended for photographers
+                  <p className="mt-1 text-xs font-bold leading-5 text-[#344318]">
+                    Recommended for photographers and client galleries.
                   </p>
                 ) : null}
               </div>
 
-              {cannotDowngrade ? (
-                <p className="mt-2.5 rounded-[14px] bg-red-50 px-3 py-2 text-[11px] leading-4 text-red-600">
-                  ⚠️ You are using more storage than this plan allows.
+              <div className="shrink-0 text-right">
+                <p className="text-[28px] font-black leading-none tracking-[-0.07em] text-[#1C0617]">
+                  {plan.price_thb === 0 ? 'Free' : `฿${plan.price_thb}`}
                 </p>
-              ) : null}
 
-              <div className="mt-3 flex items-end justify-between gap-3">
-                <div>
-                  <p className="text-[24px] font-semibold leading-none tracking-[-0.04em] text-slate-950">
-                    {plan.price_thb === 0 ? 'Free' : `฿${plan.price_thb}`}
-                  </p>
-
-                  <p className="mt-1 text-[11px] leading-none text-slate-500">
-                    {plan.price_thb === 0 ? 'Starter plan' : 'per month'}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleCheckout(plan.id)}
-                  disabled={
-                    isCurrent || loadingPlanId === plan.id || cannotDowngrade
-                  }
-                  className={`min-w-[86px] rounded-full px-3.5 py-2 text-[12px] font-semibold leading-none shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55 ${
-                    isCurrent
-                      ? 'bg-slate-300 text-[#0A84FF]'
-                      : cannotDowngrade
-                      ? 'bg-slate-300 text-white'
-                      : isPopular
-                      ? 'bg-[#0A84FF] text-white shadow-[0_8px_18px_rgba(10,132,255,0.22)]'
-                      : 'bg-slate-950 text-white'
-                  }`}
-                >
-                  {isCurrent
-                    ? 'Current'
-                    : cannotDowngrade
-                    ? 'Too large'
-                    : loadingPlanId === plan.id
-                    ? 'Processing'
-                    : plan.price_thb === 0
-                    ? 'Use Free'
-                    : isPopular
-                    ? 'Upgrade 🚀'
-                    : 'Choose'}
-                </button>
+                <p className="mt-1 text-[11px] font-bold text-[#8E8E93]">
+                  {plan.price_thb === 0 ? 'Starter' : '/ month'}
+                </p>
               </div>
             </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="rounded-[20px] bg-white/65 px-3 py-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8E8E93]">
+                  Space
+                </p>
+                <p className="mt-1 text-sm font-black text-[#1C0617]">
+                  {storageLabel}
+                </p>
+              </div>
+
+              <div className="rounded-[20px] bg-white/65 px-3 py-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8E8E93]">
+                  Delivery
+                </p>
+                <p className="mt-1 text-sm font-black text-[#1C0617]">
+                  Gallery
+                </p>
+              </div>
+            </div>
+
+            {cannotDowngrade ? (
+              <p className="mt-3 rounded-[20px] bg-red-50 px-3 py-3 text-xs font-bold leading-5 text-red-600">
+                ⚠️ You are using more storage than this plan allows.
+              </p>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={() => handleCheckout(plan.id)}
+              disabled={
+                isCurrent || loadingPlanId === plan.id || cannotDowngrade
+              }
+              className={`mt-4 flex h-12 w-full items-center justify-center rounded-full text-sm font-black transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55 ${
+                isCurrent
+                  ? 'bg-white/70 text-[#1C0617]'
+                  : cannotDowngrade
+                    ? 'bg-slate-300 text-white'
+                    : 'bg-[#1C0617] text-white'
+              }`}
+            >
+              {isCurrent
+                ? 'Current Plan'
+                : cannotDowngrade
+                  ? 'Storage Too Large'
+                  : loadingPlanId === plan.id
+                    ? 'Processing...'
+                    : plan.price_thb === 0
+                      ? 'Use Free'
+                      : isPopular
+                        ? 'Upgrade Plan'
+                        : 'Choose Plan'}
+            </button>
           </div>
         )
       })}

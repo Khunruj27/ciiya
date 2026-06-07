@@ -3,6 +3,10 @@
 import React, { useEffect, useRef, useState } from 'react'
 import DeletePhotoButton from '@/components/delete-photo-button'
 import { useRouter } from 'next/navigation'
+import {
+  OPTIMISTIC_UPLOAD_EVENT,
+  type OptimisticUpload,
+} from '@/components/optimistic-upload'
 
 type Photo = {
   id: string
@@ -21,16 +25,30 @@ function preloadImage(src?: string | null) {
   img.src = src
 }
 
+function getPhotoFileKey(photo: Photo) {
+  return String(photo.filename || '').toLowerCase()
+}
+
+function getOptimisticFileKey(item: OptimisticUpload) {
+  return String(item.fileName || '').toLowerCase()
+}
+
 function isPhotoReady(photo: Photo) {
   return Boolean(photo.thumbnail_url || photo.preview_url)
 }
 
-export default function AlbumPhotoGridPreview({ photos }: { photos: Photo[] }) {
+export default function AlbumPhotoGridPreview({
+  photos,
+}: {
+  photos: Photo[]
+}) {
   const router = useRouter()
 
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({})
   const [retryingId, setRetryingId] = useState<string | null>(null)
+  const [optimisticUploads, setOptimisticUploads] =
+    useState<OptimisticUpload[]>([])
 
   const containerRef = useRef<HTMLDivElement | null>(null)
   const startX = useRef(0)
@@ -39,6 +57,31 @@ export default function AlbumPhotoGridPreview({ photos }: { photos: Photo[] }) {
   const lastDistance = useRef(0)
 
   const activePhoto = activeIndex !== null ? photos[activeIndex] : null
+
+  useEffect(() => {
+    function handleOptimisticUpload(event: Event) {
+      const customEvent = event as CustomEvent<OptimisticUpload[]>
+
+      setOptimisticUploads((prev) => [
+        ...customEvent.detail,
+        ...prev,
+      ])
+    }
+
+    window.addEventListener(
+      OPTIMISTIC_UPLOAD_EVENT,
+      handleOptimisticUpload
+    )
+
+    return () => {
+      window.removeEventListener(
+        OPTIMISTIC_UPLOAD_EVENT,
+        handleOptimisticUpload
+      )
+    }
+  }, [])
+
+  
 
   useEffect(() => {
     if (activeIndex === null) return
@@ -181,10 +224,48 @@ export default function AlbumPhotoGridPreview({ photos }: { photos: Photo[] }) {
     deltaX.current = 0
   }
 
+  const existingPhotoKeys = new Set(
+  photos
+    .map(getPhotoFileKey)
+    .filter(Boolean)
+)
+
+const visibleOptimisticUploads = optimisticUploads.filter(
+  (item) => !existingPhotoKeys.has(getOptimisticFileKey(item))
+)
+
   return (
-    <>
-      <div className="grid grid-cols-3 gap-[2px] px-[2px]">
-        {photos.map((photo, index) => {
+  <>
+    <div className="grid grid-cols-3 gap-[2px] px-[2px]">
+      {visibleOptimisticUploads.map((item) => (
+        <div
+          key={`optimistic-${item.id}`}
+          className="relative isolate overflow-hidden bg-neutral-200"
+        >
+          <div className="aspect-square w-full bg-neutral-200" />
+
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/35">
+            <div className="text-xs font-semibold text-white">
+              Processing...
+            </div>
+
+            <div className="mt-2 h-2 w-20 overflow-hidden rounded-full bg-white/20">
+              <div
+                className="h-full bg-white transition-all duration-300"
+                style={{
+                  width: `${Math.max(8, item.progress)}%`,
+                }}
+              />
+            </div>
+
+            <div className="mt-2 max-w-[80%] truncate text-[10px] text-white/80">
+              {item.fileName}
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {photos.map((photo, index) => {
           const imageSrc = photo.thumbnail_url || photo.preview_url || photo.public_url
           const status = photo.processing_status || 'done'
           const progress = Number(photo.processing_progress || 0)

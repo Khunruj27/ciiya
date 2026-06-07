@@ -198,15 +198,15 @@ export default async function SharePage({ params }: PageProps) {
             </div>
           )}
 
-          <div className="rounded-[34px] bg-white p-3 text-center  border border-black/5">
-            <p className="text-[16px] font-black tracking-[-0.03em] text-slate-950">
-              Powered by Ciiya
+           {/* FOOTER */}
+        <footer className="text-center">
+          <p className="pt-5 text-[13px] font-semibold text-[#B0A6AB]">
+             Powered by Ciiya app
+          </p>
+          <p className="text-[10px] font-medium text-[#8E8E93]">
+              Photos sharing platform
             </p>
-
-            <p className="mt-1 text-[13px] font-medium text-[#8E8E93]">
-              Photos sharing gallery
-            </p>
-          </div>
+        </footer>
         </div>
       </section>
 

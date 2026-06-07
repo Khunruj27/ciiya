@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import UploadPhotoForm from '@/components/upload-photo-form'
+import type { OptimisticUpload } from '@/components/optimistic-upload'
+
 
 type Category = {
   id: string
@@ -14,6 +16,7 @@ type Props = {
   categories?: Category[]
   initialAutoFaceScan?: boolean
   initialAutoPublish?: boolean
+  onOptimisticUploads?: (items: OptimisticUpload[]) => void
 }
 
 export default function UploadPhotoModal({
@@ -21,10 +24,13 @@ export default function UploadPhotoModal({
   categories = [],
   initialAutoFaceScan = true,
   initialAutoPublish = false,
+  onOptimisticUploads,
 }: Props) {
 
   const [open, setOpen] = useState(false)
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null)
+
+
 
   function openModal() {
     setPortalHost(document.body)
@@ -92,6 +98,7 @@ export default function UploadPhotoModal({
                 initialAutoFaceScan={initialAutoFaceScan}
                 initialAutoPublish={initialAutoPublish}
                 onUploadStarted={() => setOpen(false)}
+                onOptimisticUploads={onOptimisticUploads}
               />
               </div>
             </div>
@@ -106,7 +113,7 @@ export default function UploadPhotoModal({
         type="button"
         onClick={openModal}
         aria-label="Upload photos"
-        className="flex h-14 w-14 items-center justify-center rounded-full bg-[#F0B1DE] text-white border border-black/5 transition active:scale-95 disabled:opacity-60"
+        className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F0B1DE] text-white border border-black/5 transition active:scale-95 disabled:opacity-60"
         disabled={open}
       >
         <span className="text-[34px] font-light leading-none">+</span>

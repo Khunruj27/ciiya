@@ -230,7 +230,7 @@ export default function PublicGallery({ photos: initialPhotos }: Props) {
   const [tab, setTab] = useState<'live' | 'popular'>('live')
   const [scale, setScale] = useState(1)
   const [lastTap, setLastTap] = useState(0)
-  const [gridCols, setGridCols] = useState(getInitialGridCols)
+  const [gridCols, setGridCols] = useState(3)
   const [viewerLoaded, setViewerLoaded] = useState(false)
 
   const pinchStartDistance = useRef<number | null>(null)

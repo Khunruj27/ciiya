@@ -53,6 +53,22 @@ function normalizeRequestedSize(value: string): RequestedSize {
   return 'hd'
 }
 
+function normalizePlanKey(value?: string | null): keyof typeof PLAN_LIMITS {
+  const plan = String(value || '').toLowerCase().trim()
+
+  if (plan === 'starter' || plan === '20gb') return 'starter'
+  if (plan === 'pro' || plan === 'pro-50gb' || plan === '50gb') return 'pro'
+  if (
+    plan === 'business' ||
+    plan === 'pro-100gb' ||
+    plan === '100gb'
+  ) {
+    return 'business'
+  }
+
+  return 'free'
+}
+
 function getPhotoJobPriority(params: {
   fileSizeBytes: number
   size: RequestedSize
@@ -389,8 +405,7 @@ if (!ownerId) {
 
     if (!usage) {
       const defaultPlan = 'free'
-      const defaultLimit =
-        PLAN_LIMITS[defaultPlan as keyof typeof PLAN_LIMITS].storageBytes
+const defaultLimit = PLAN_LIMITS[defaultPlan].storageBytes
 
       await supabaseAdmin.from('user_storage_usage').upsert(
         {
@@ -432,9 +447,13 @@ if (!ownerId) {
       usage.storage_used_bytes || usage.used_bytes || 0
     )
 
-    const currentLimit = Number(
-      usage.storage_limit_bytes || PLAN_LIMITS.free.storageBytes
-    )
+    const normalizedPlan = normalizePlanKey(usage.current_plan)
+
+const currentLimit = Number(
+  usage.storage_limit_bytes ||
+    PLAN_LIMITS[normalizedPlan].storageBytes ||
+    PLAN_LIMITS.free.storageBytes
+)
 
     const estimatedUploadBytes =
       fileSizeBytes +

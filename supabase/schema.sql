@@ -78,7 +78,7 @@ create table if not exists public.user_storage_usage (
   current_plan text default 'free',
   used_bytes bigint not null default 0,
   storage_used_bytes bigint not null default 0,
-  storage_limit_bytes bigint not null default 5368709120
+  storage_limit_bytes bigint not null default 5368709120,
   photo_count integer default 0,
   photos_count integer default 0,
   albums_count integer default 0,
@@ -1151,15 +1151,28 @@ using (
 insert into public.plans (
   name,
   slug,
-  storage_limit_bytes
+  price_thb,
+  price,
+  storage_limit_bytes,
+  max_albums,
+  max_photos,
+  sort_order,
+  is_active
 )
 values
-  ('Free', 'free', 21474836480),
-  ('Pro 50GB', 'pro-50gb', 53687091200),
-  ('Pro 100GB', 'pro-100gb', 107374182400)
+  ('Free', 'free', 0, 0, 5368709120, 9999, 999999, 1, true),
+  ('Starter', 'starter', 299, 299, 21474836480, 9999, 999999, 2, true),
+  ('Pro', 'pro', 499, 499, 53687091200, 9999, 999999, 3, true),
+  ('Business', 'business', 699, 699, 107374182400, 9999, 999999, 4, true)
 on conflict (slug) do update set
   name = excluded.name,
+  price_thb = excluded.price_thb,
+  price = excluded.price,
   storage_limit_bytes = excluded.storage_limit_bytes,
+  max_albums = excluded.max_albums,
+  max_photos = excluded.max_photos,
+  sort_order = excluded.sort_order,
+  is_active = excluded.is_active,
   updated_at = now();
 
 -- =========================================================

@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import { useRouter } from 'next/navigation'
+import type { OptimisticUpload } from '@/components/optimistic-upload'
+
 
 type Category = {
   id: string
@@ -15,6 +17,7 @@ type Props = {
   initialAutoFaceScan?: boolean
   initialAutoPublish?: boolean
   onUploadStarted?: () => void
+  onOptimisticUploads?: (items: OptimisticUpload[]) => void
 }
 
 type UploadStatus =
@@ -94,6 +97,7 @@ export default function UploadPhotoForm({
   initialAutoFaceScan = true,
   initialAutoPublish = false,
   onUploadStarted,
+  onOptimisticUploads,
 }: Props) {
   const supabase = useMemo(() => createClient(), [])
 
@@ -103,8 +107,8 @@ export default function UploadPhotoForm({
   const [items, setItems] = useState<UploadItem[]>([])
   const [presetFile, setPresetFile] = useState<File | null>(null)
   const [size, setSize] = useState('original')
-  const [autoFaceScan, setAutoFaceScan] = useState(initialAutoFaceScan)
-  const [autoPublish, setAutoPublish] = useState(initialAutoPublish)
+  const [autoFaceScan] = useState(initialAutoFaceScan)
+  const [autoPublish] = useState(initialAutoPublish)
   const [categoryId, setCategoryId] = useState('')
   const [uploading, setUploading] = useState(false)
   const [currentFileName, setCurrentFileName] = useState('')
@@ -175,12 +179,6 @@ export default function UploadPhotoForm({
 
   const failedCount = useMemo(() => {
     return items.filter((item) => item.status === 'error').length
-  }, [items])
-
-  const pendingUploadCount = useMemo(() => {
-    return items.filter(
-      (item) => item.status === 'waiting' || item.status === 'error'
-    ).length
   }, [items])
 
   const totalProgress = useMemo(() => {
@@ -413,6 +411,16 @@ export default function UploadPhotoForm({
       (item) => item.status === 'waiting' || item.status === 'error'
     )
 
+    onOptimisticUploads?.(
+  uploadItems.map((item) => ({
+    id: item.id,
+    fileName: item.file.name,
+    fileHash: `${item.file.name}-${item.file.size}-${item.file.lastModified}`,
+    progress: 5,
+    status: 'uploading',
+  }))
+)
+
     if (uploadItems.length === 0) {
       safeSetErrorMsg('No pending files to upload')
       return
@@ -493,73 +501,6 @@ export default function UploadPhotoForm({
     } catch (error) {
       safeSetErrorMsg(error instanceof Error ? error.message : 'Upload failed')
       safeSetCurrentFileName('')
-    } finally {
-      safeSetUploading(false)
-    }
-  }
-
-  async function handleStartAutoUpload() {
-    safeSetErrorMsg('')
-    safeSetSuccessMsg('')
-
-    try {
-      safeSetUploading(true)
-
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser()
-
-      if (userError || !user) {
-        throw new Error('Unauthorized')
-      }
-
-      let presetPath: string | null = null
-
-      if (presetFile) {
-        if (!presetFile.name.toLowerCase().endsWith('.xmp')) {
-          throw new Error('Only .xmp preset file is allowed')
-        }
-
-        const safeName = getSafeFileName(presetFile.name)
-        presetPath = `${user.id}/${albumId}/presets/${safeName}`
-
-        const { error: uploadError } = await supabase.storage
-          .from('albums')
-          .upload(presetPath, presetFile, {
-            contentType: 'application/xml',
-            upsert: true,
-          })
-
-        if (uploadError) {
-          throw new Error(uploadError.message)
-        }
-      }
-
-      const res = await fetch('/api/camera/upload-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          albumId,
-          presetPath,
-          resizeMode: size,
-          autoFaceScan,
-          autoPublish,
-        }),
-      })
-
-      const json = await res.json().catch(() => null)
-
-      if (!res.ok || !json?.success) {
-        throw new Error(json?.error || 'Start auto upload failed')
-      }
-
-      safeSetSuccessMsg('Auto Upload Active')
-      onUploadStarted?.()
-    } catch (error) {
-      safeSetErrorMsg(error instanceof Error ? error.message : 'Start failed')
     } finally {
       safeSetUploading(false)
     }
@@ -772,7 +713,7 @@ export default function UploadPhotoForm({
   disabled={uploading}
   className="w-full rounded-xl bg-[#F0B1DE] border border-black/5 py-3 text-white disabled:opacity-50"
 >
-  {uploading ? 'Uploading...' : 'Auto Upload'}
+  {uploading ? 'Uploading...' : 'Start Upload'}
 </button>
 
         {items.some(

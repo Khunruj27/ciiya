@@ -319,26 +319,19 @@ export default async function MePage() {
         {/* FOOTER */}
         <footer className="text-center">
           <p className="pt-5 text-[13px] font-semibold text-[#B0A6AB]">
-            Ciiya Version 17.1
+            Ciiya Version 23.1
           </p>
         </footer>
       </div>
 
       {/* BOTTOM NAV */}
-      <nav className="fixed left-0 right-0 z-50 bottom-[max(20px,env(safe-area-inset-bottom))] px-5">
-        <div className="mx-auto flex max-w-[390px] items-center justify-between rounded-full border border-black/5 bg-white/88 px-4 py-3 backdrop-blur-2xl">
+      <nav className="fixed left-0 right-0 z-50 bottom-[max(20px,env(safe-area-inset-bottom))] flex justify-center px-5">
+        <div className="inline-flex items-center gap-5 rounded-full bg-white/88 border border-black/5 px-4 py-3 backdrop-blur-xl">
           <Link
             href="/albums"
             className="flex h-11 w-11 items-center justify-center rounded-full text-black"
           >
             <AppIcon name="album" size={24} />
-          </Link>
-
-          <Link
-            href="/dashboard"
-            className="flex h-11 w-11 items-center justify-center rounded-full text-black"
-          >
-            <AppIcon name="layer" size={24} />
           </Link>
 
           <Link
@@ -352,14 +345,14 @@ export default async function MePage() {
             href="/notifications"
             className="flex h-11 w-11 items-center justify-center rounded-full text-black"
           >
-            <AppIcon name="bell-notification-social-media" size={24} />
+            <AppIcon name="bell" size={23} />
           </Link>
 
           <Link
             href="/me"
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-[#EEF3F6] text-[#0257ff]"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-[#F0B1DE]"
           >
-            <AppIcon name="user" size={22} />
+            <AppIcon name="user-1" size={22} />
           </Link>
         </div>
       </nav>

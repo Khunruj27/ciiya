@@ -4,17 +4,28 @@ import { createServerSupabaseClient } from '@/lib/supabase-server'
 import ShareActions from '@/components/share-actions'
 import EditAlbumForm from '@/components/edit-album-form'
 import CoverCropUpload from '@/components/cover-crop-upload'
-import UploadPhotoModal from '@/components/upload-photo-modal'
-import AlbumPhotoGridPreview from '@/components/album-photo-grid-preview'
 import AlbumRealtimeRefresher from '@/components/album-realtime-refresher'
 import AppIcon from '@/components/app-icon'
 import AlbumCameraStatus from '@/components/album-camera-status'
+import UploadPhotoModal from '@/components/upload-photo-modal'
+import AlbumPhotoGridPreview from '@/components/album-photo-grid-preview'
+import AlbumProcessingQueue from '@/components/album-processing-queue'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 type PageProps = {
   params: Promise<{ id: string }>
+}
+
+type AlbumQueueItem = {
+  id: string
+  photo_id?: string | null
+  filename: string
+  type: 'upload' | 'photo' | 'face'
+  status: string
+  progress: number
+  created_at: string
 }
 
 export default async function AlbumDetailPage({ params }: PageProps) {
@@ -53,22 +64,24 @@ export default async function AlbumDetailPage({ params }: PageProps) {
   }
 
   const { data: photosData, error: photosError } = await supabase
-    .from('photos')
-    .select(
-      `
-      *,
-      preview_url,
-      thumbnail_url,
-      sd_url,
-      hd_url,
-      uhd_url,
-      processing_status,
-      processing_progress
-      `
-    )
-    .eq('album_id', id)
-    .eq('owner_id', user.id)
-    .order('created_at', { ascending: false })
+  .from('photos')
+  .select(
+    `
+    *,
+    preview_url,
+    thumbnail_url,
+    sd_url,
+    hd_url,
+    uhd_url,
+    processing_status,
+    processing_progress,
+    face_scan_status,
+    face_scan_progress
+    `
+  )
+  .eq('album_id', id)
+  .eq('owner_id', user.id)
+  .order('created_at', { ascending: false })
 
   if (photosError) throw new Error(photosError.message)
 
@@ -92,6 +105,129 @@ export default async function AlbumDetailPage({ params }: PageProps) {
   if (categoriesError) throw new Error(categoriesError.message)
 
   const categories = categoriesData ?? []
+
+    const { data: cameraImportsData } = await supabase
+    .from('camera_live_imports')
+    .select('id, filename, status, progress, created_at')
+    .eq('album_id', id)
+    .in('status', ['pending', 'imported', 'uploading', 'finalizing'])
+    .order('created_at', { ascending: false })
+    .limit(8)
+
+  const { data: photoJobsData } = await supabase
+  .from('photo_jobs')
+  .select('id, photo_id, original_path, status, progress, created_at')
+    .eq('album_id', id)
+    .in('status', ['pending', 'processing'])
+    .order('created_at', { ascending: false })
+    .limit(8)
+
+  const { data: faceJobsData } = await supabase
+  .from('face_jobs')
+  .select('id, photo_id, image_path, status, progress, created_at')
+    .eq('album_id', id)
+    .in('status', ['pending', 'processing'])
+    .order('created_at', { ascending: false })
+    .limit(8)
+
+    const activePhotoItems = photos
+    .filter(
+      (photo) =>
+        ['pending', 'processing'].includes(
+          String(photo.processing_status || '')
+        ) ||
+        ['pending', 'processing'].includes(
+          String(photo.face_scan_status || '')
+        )
+    )
+    .slice(0, 8)
+
+  const cameraQueueItems: AlbumQueueItem[] = (cameraImportsData || []).map(
+  (item) => ({
+    id: item.id,
+    photo_id: null,
+    filename: item.filename || 'Camera photo',
+    type: 'upload',
+    status: String(item.status || 'pending'),
+    progress: Number(item.progress || 0),
+    created_at: String(item.created_at || new Date().toISOString()),
+  })
+)
+
+const photoJobQueueItems: AlbumQueueItem[] = (photoJobsData || []).map(
+  (item) => ({
+    id: item.id,
+    photo_id: item.photo_id || null,
+    filename: item.original_path?.split('/').pop() || 'Processing photo',
+    type: 'photo',
+    status: String(item.status || 'processing'),
+    progress: Number(item.progress || 0),
+    created_at: String(item.created_at || new Date().toISOString()),
+  })
+)
+
+const faceJobQueueItems: AlbumQueueItem[] = (faceJobsData || []).map(
+  (item) => ({
+    id: item.id,
+    photo_id: item.photo_id || null,
+    filename: item.image_path?.split('/').pop() || 'Face scan',
+    type: 'face',
+    status: String(item.status || 'processing'),
+    progress: Number(item.progress || 0),
+    created_at: String(item.created_at || new Date().toISOString()),
+  })
+)
+
+const photoStatusQueueItems: AlbumQueueItem[] = activePhotoItems.map((photo) => {
+  const isFaceScan = ['pending', 'processing'].includes(
+    String(photo.face_scan_status || '')
+  )
+
+  return {
+    id: photo.id,
+    photo_id: photo.id,
+    filename:
+      photo.filename ||
+      photo.file_name ||
+      photo.original_path?.split('/').pop() ||
+      'Photo',
+    type: isFaceScan ? 'face' : 'photo',
+    status: isFaceScan
+      ? String(photo.face_scan_status || 'processing')
+      : String(photo.processing_status || 'processing'),
+    progress: isFaceScan
+      ? Number(photo.face_scan_progress || 0)
+      : Number(photo.processing_progress || 0),
+    created_at: String(photo.created_at || new Date().toISOString()),
+  }
+})
+
+const queueItems: AlbumQueueItem[] = [
+  ...cameraQueueItems,
+  ...photoJobQueueItems,
+  ...faceJobQueueItems,
+  ...photoStatusQueueItems,
+]
+  .filter((item, index, array) => {
+    const itemKey = item.photo_id
+      ? `${item.type}-photo-${item.photo_id}`
+      : `${item.type}-${item.id}`
+
+    return (
+      index ===
+      array.findIndex((other) => {
+        const otherKey = other.photo_id
+          ? `${other.type}-photo-${other.photo_id}`
+          : `${other.type}-${other.id}`
+
+        return otherKey === itemKey
+      })
+    )
+  })
+  .sort(
+    (a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  )
 
   return (
   <main className="min-h-screen bg-[#FAF7F4] text-[#1C0617] text-black">
@@ -157,6 +293,8 @@ export default async function AlbumDetailPage({ params }: PageProps) {
 
 <AlbumCameraStatus albumId={album.id} />
 
+<AlbumProcessingQueue items={queueItems} />
+
         {/* ACTION BAR */}
         <section className="pt-5">
           <div className="flex items-center justify-between rounded-[28px] bg-white border border-black/5 p-4">
@@ -209,8 +347,8 @@ export default async function AlbumDetailPage({ params }: PageProps) {
       </div>
 
       {/* FLOATING BOTTOM NAV */}
-<nav className="fixed left-0 right-0 z-50 bottom-[max(20px,env(safe-area-inset-bottom))] px-5">
-  <div className="mx-auto flex max-w-[390px] items-center justify-between rounded-full border border-black/5 bg-white/90 px-3 py-2">
+<nav className="fixed left-0 right-0 z-50 bottom-[max(20px,env(safe-area-inset-bottom))] flex justify-center px-5">
+        <div className="inline-flex items-center gap-5 rounded-full bg-white/88 border border-black/5 px-3 py-2 backdrop-blur-xl">
     <Link
       href="/albums"
       className="flex h-11 w-11 items-center justify-center rounded-full text-black"
@@ -218,11 +356,7 @@ export default async function AlbumDetailPage({ params }: PageProps) {
       <AppIcon name="album" size={24} />
     </Link>
 
-    <button className="flex h-11 w-11 items-center justify-center rounded-full text-black">
-      <AppIcon name="layer" size={24} />
-    </button>
-
-    <div className="flex h-14 w-14 items-center justify-center">
+    <div className="flex h-12 w-12 items-center justify-center">
   <UploadPhotoModal
     albumId={album.id}
     categories={categories}
@@ -232,17 +366,10 @@ export default async function AlbumDetailPage({ params }: PageProps) {
 </div>
 
     <Link
-      href={`/albums/${album.id}/people`}
-      className="flex h-11 w-11 items-center justify-center rounded-full text-black"
-    >
-      <AppIcon name="users" size={23} />
-    </Link>
-
-    <Link
       href="/me"
       className="flex h-11 w-11 items-center justify-center rounded-full text-black"
     >
-      <AppIcon name="user-1" size={24} />
+      <AppIcon name="user-1" size={23} />
     </Link>
   </div>
 </nav>

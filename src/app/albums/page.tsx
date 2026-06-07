@@ -176,25 +176,21 @@ export default async function AlbumsPage() {
       </div>
 
       {/* FLOATING BOTTOM NAV */}
-      <nav className="fixed left-0 right-0 z-50 bottom-[max(20px,env(safe-area-inset-bottom))] px-5">
-        <div className="mx-auto flex max-w-[390px] items-center justify-between rounded-full bg-white/88 border border-black/5 px-4 py-3">
+      <nav className="fixed left-0 right-0 z-50 bottom-[max(20px,env(safe-area-inset-bottom))] flex justify-center px-5">
+        <div className="inline-flex items-center gap-5 rounded-full bg-white/88 border border-black/5 px-4 py-3 backdrop-blur-xl">
           <Link
             href="/albums"
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-[#EEF3F6] text-[#0257ff]"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-[#F0B1DE]"
           >
-            <AppIcon name="album bold" size={25} />
+            <AppIcon name="album" size={24} />
           </Link>
-
-          <button className="flex h-11 w-11 items-center justify-center rounded-full text-black">
-            <AppIcon name="layer" size={24} />
-          </button>
 
           <button className="flex h-11 w-11 items-center justify-center rounded-full text-black">
             <AppIcon name="magic-wand" size={24} />
           </button>
 
           <button className="flex h-11 w-11 items-center justify-center rounded-full text-black">
-            <AppIcon name="bell-notification-social-media" size={23} />
+            <AppIcon name="bell" size={23} />
           </button>
 
           <Link

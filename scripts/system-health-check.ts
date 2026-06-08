@@ -3,6 +3,7 @@ import { config } from 'dotenv'
 config({ path: '.env.local' })
 
 import { createClient } from '@supabase/supabase-js'
+import WebSocket from 'ws'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -15,6 +16,9 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: {
     persistSession: false,
     autoRefreshToken: false,
+  },
+  realtime: {
+    transport: WebSocket as unknown as typeof globalThis.WebSocket,
   },
 })
 
@@ -81,9 +85,13 @@ async function run() {
     q.eq('status', 'processing').lt('started_at', minutesAgo(20))
   )
 
-  const offlineWorkers = await count('worker_heartbeats', (q) =>
-    q.lt('last_seen_at', minutesAgo(5))
-  )
+  const onlineWorkers = await count('worker_heartbeats', (q) =>
+  q.gte('last_seen_at', minutesAgo(5))
+)
+
+const staleWorkerHeartbeats = await count('worker_heartbeats', (q) =>
+  q.lt('last_seen_at', minutesAgo(60 * 24))
+)
 
   const processingPhotos = await count('photos', (q) =>
     q.eq('processing_status', 'processing')
@@ -118,13 +126,20 @@ async function run() {
   console.log('Face Failed :', faceFailedPhotos)
 
   console.log('\nWORKERS')
-  console.log('--------------------------------')
-  console.log('Offline     :', offlineWorkers)
+console.log('--------------------------------')
+console.log('Online      :', onlineWorkers)
+console.log('Old Records :', staleWorkerHeartbeats)
 
   console.log('\n==============================')
 
   const hasCriticalIssue =
-    stalePhotoJobs > 0 || staleFaceJobs > 0 || offlineWorkers > 0
+  stalePhotoJobs > 0 ||
+  staleFaceJobs > 0 ||
+  failedPhotoJobs > 0 ||
+  failedFaceJobs > 0 ||
+  processingPhotos > 0 ||
+  failedPhotos > 0 ||
+  faceFailedPhotos > 0
 
   console.log(
     hasCriticalIssue ? 'SYSTEM STATUS: WARNING' : 'SYSTEM STATUS: HEALTHY'

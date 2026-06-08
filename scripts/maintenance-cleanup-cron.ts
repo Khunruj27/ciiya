@@ -28,14 +28,24 @@ async function main() {
 
   const workerSecret = process.env.WORKER_SECRET || ''
 
-  const dryRun = getBooleanEnv('STORAGE_CLEANUP_DRY_RUN', true)
-  const limit = getNumberEnv('STORAGE_CLEANUP_LIMIT', 20)
+  const dryRun = getBooleanEnv('MAINTENANCE_CLEANUP_DRY_RUN', true)
+  const keepLogDays = getNumberEnv('MAINTENANCE_LOG_KEEP_DAYS', 14)
+  const keepHeartbeatHours = getNumberEnv(
+    'MAINTENANCE_HEARTBEAT_KEEP_HOURS',
+    24
+  )
+  const limit = getNumberEnv('MAINTENANCE_CLEANUP_LIMIT', 100)
 
-  const url = `${siteUrl}/api/storage/cleanup-orphan`
+  const url = `${siteUrl}/api/admin/maintenance-cleanup`
 
-  console.log('[storage-cleanup-cron] calling:', url)
-  console.log('[storage-cleanup-cron] dryRun:', dryRun)
-  console.log('[storage-cleanup-cron] limit:', limit)
+  console.log('[maintenance-cleanup-cron] calling:', url)
+  console.log('[maintenance-cleanup-cron] dryRun:', dryRun)
+  console.log('[maintenance-cleanup-cron] keepLogDays:', keepLogDays)
+  console.log(
+    '[maintenance-cleanup-cron] keepHeartbeatHours:',
+    keepHeartbeatHours
+  )
+  console.log('[maintenance-cleanup-cron] limit:', limit)
 
   const res = await fetch(url, {
     method: 'POST',
@@ -45,14 +55,16 @@ async function main() {
     },
     body: JSON.stringify({
       dryRun,
+      keepLogDays,
+      keepHeartbeatHours,
       limit,
     }),
   })
 
   const text = await res.text()
 
-  console.log('[storage-cleanup-cron] status:', res.status)
-  console.log('[storage-cleanup-cron] response:', text.slice(0, 500))
+  console.log('[maintenance-cleanup-cron] status:', res.status)
+  console.log('[maintenance-cleanup-cron] response:', text.slice(0, 800))
 
   if (!res.ok) {
     process.exit(1)
@@ -61,16 +73,12 @@ async function main() {
   const data = JSON.parse(text)
 
   console.log(
-    '[storage-cleanup-cron] json:',
+    '[maintenance-cleanup-cron] json:',
     JSON.stringify(data, null, 2)
   )
-
-  if (!dryRun && Number(data.deletedCount || 0) > limit) {
-    throw new Error('Deleted count exceeded limit')
-  }
 }
 
 main().catch((error) => {
-  console.error('[storage-cleanup-cron] fatal:', error)
+  console.error('[maintenance-cleanup-cron] fatal:', error)
   process.exit(1)
 })

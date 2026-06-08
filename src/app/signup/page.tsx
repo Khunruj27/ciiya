@@ -39,41 +39,56 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#EFEFF1] px-4 pb-10 pt-20 text-black">
-      <div className="mx-auto flex min-h-[calc(100dvh-100px)] w-full max-w-[390px] flex-col">
-        <section>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-[14px] font-bold text-black">
-              <span className="h-3 w-3 rounded-full bg-black" />
-              Get started
+    <main className="min-h-dvh overflow-hidden bg-[#FAF7F4] text-[#1C0617]">
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute -top-28 left-1/2 h-[360px] w-[360px] -translate-x-1/2 rounded-full bg-[#D0F578]/45 blur-3xl" />
+        <div className="absolute bottom-[-120px] left-[-120px] h-[320px] w-[320px] rounded-full bg-[#F0B1DE]/50 blur-3xl" />
+      </div>
+
+      <div className="relative mx-auto flex min-h-dvh w-full max-w-[393px] flex-col px-5 pt-[max(52px,env(safe-area-inset-top))] pb-[max(30px,env(safe-area-inset-bottom))]">
+        <header className="flex items-center justify-between">
+          <Link
+            href="/"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-black/5 bg-white/80 text-[22px] font-black backdrop-blur-xl transition active:scale-95"
+          >
+            ‹
+          </Link>
+
+          <Link
+            href="/login"
+            className="flex h-11 items-center justify-center rounded-full border border-black/5 bg-white/80 px-5 text-[13px] font-black text-[#1C0617] backdrop-blur-xl transition active:scale-95"
+          >
+            Login
+          </Link>
+        </header>
+
+        <section className="flex flex-1 flex-col justify-center py-8">
+          <div className="mb-7 px-1">
+            <div className="inline-flex items-center gap-2 rounded-full border border-black/5 bg-white/70 px-3 py-2 backdrop-blur-xl">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#D0F578]" />
+              <span className="text-[12px] font-black uppercase tracking-[0.16em] text-[#8E8E93]">
+                Join Ciiya
+              </span>
             </div>
 
-            <Link
-              href="/login"
-              className="flex h-11 items-center justify-center rounded-full bg-white px-5 text-sm font-black text-black shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition active:scale-95"
-            >
-              Log in
-            </Link>
+            <h1 className="mt-6 text-[48px] font-black leading-[0.88] tracking-[-0.08em] text-[#1C0617]">
+              Start your
+              <br />
+              photo journey.
+            </h1>
+
+            <p className="mt-4 max-w-[320px] text-[15px] font-semibold leading-6 text-[#8E8E93]">
+              Create albums, upload event photos, share galleries, and deliver
+              memories beautifully.
+            </p>
           </div>
 
-          <h1 className="mt-8 text-[40px] font-black leading-[0.92] tracking-[-0.07em] text-black sm:text-[48px]">
-            Create your
-            <br />
-            Ciiya account.
-          </h1>
-
-          <p className="mt-4 text-[15px] font-medium leading-6 text-slate-500 sm:text-[16px] sm:leading-7">
-            Start managing albums and sharing photos with clients.
-          </p>
-        </section>
-
-        <section className="pt-7">
           <form
             onSubmit={handleSignup}
-            className="rounded-[30px] bg-white p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)] sm:rounded-[34px] sm:p-5"
+            className="rounded-[34px] border border-black/5 bg-white/90 p-4 backdrop-blur-xl"
           >
-            <div>
-              <label className="text-sm font-black text-black/70">
+            <div className="rounded-[26px] bg-[#FAF7F4] p-3">
+              <label className="px-2 text-[12px] font-black uppercase tracking-[0.12em] text-[#8E8E93]">
                 Email
               </label>
 
@@ -82,12 +97,12 @@ export default function SignupPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="mt-2 h-13 min-h-12 w-full rounded-[20px] border border-black/5 bg-[#F6F7FA] px-4 text-sm font-bold text-black outline-none placeholder:text-slate-400 focus:border-blue-600"
+                className="mt-1 h-12 w-full rounded-[20px] border border-black/5 bg-white px-4 text-[15px] font-bold text-[#1C0617] outline-none placeholder:text-slate-300 focus:border-[#F0B1DE]"
               />
             </div>
 
-            <div className="mt-4">
-              <label className="text-sm font-black text-black/70">
+            <div className="mt-3 rounded-[26px] bg-[#FAF7F4] p-3">
+              <label className="px-2 text-[12px] font-black uppercase tracking-[0.12em] text-[#8E8E93]">
                 Password
               </label>
 
@@ -95,19 +110,19 @@ export default function SignupPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Create a password"
-                className="mt-2 h-13 min-h-12 w-full rounded-[20px] border border-black/5 bg-[#F6F7FA] px-4 text-sm font-bold text-black outline-none placeholder:text-slate-400 focus:border-blue-600"
+                placeholder="Create a secure password"
+                className="mt-1 h-12 w-full rounded-[20px] border border-black/5 bg-white px-4 text-[15px] font-bold text-[#1C0617] outline-none placeholder:text-slate-300 focus:border-[#F0B1DE]"
               />
             </div>
 
             {errorMsg ? (
-              <p className="mt-4 rounded-2xl bg-[#FFF1F1] px-4 py-3 text-sm font-bold text-red-500">
+              <p className="mt-4 rounded-[20px] border border-red-100 bg-red-50 px-4 py-3 text-[13px] font-bold text-red-500">
                 {errorMsg}
               </p>
             ) : null}
 
             {successMsg ? (
-              <p className="mt-4 rounded-2xl bg-[#EEFDF3] px-4 py-3 text-sm font-bold text-green-600">
+              <p className="mt-4 rounded-[20px] border border-green-100 bg-green-50 px-4 py-3 text-[13px] font-bold text-green-600">
                 {successMsg}
               </p>
             ) : null}
@@ -115,18 +130,28 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={loading || !email || !password}
-              className="mt-5 flex h-13 min-h-12 w-full items-center justify-center rounded-full bg-blue-600 px-4 text-sm font-black text-white transition active:scale-[0.98] disabled:opacity-50"
+              className="mt-5 flex h-14 w-full items-center justify-center rounded-full border border-black/5 bg-[#D0F578] px-5 text-[15px] font-black text-[#1C0617] transition active:scale-[0.98] disabled:opacity-50"
             >
-              {loading ? 'Creating account...' : 'Sign Up'}
+              {loading ? 'Creating account...' : 'Create Account'}
             </button>
 
-            <p className="mt-5 text-center text-sm font-medium text-slate-500">
-              Already have an account?{' '}
-              <Link href="/login" className="font-black text-black">
-                Log in
+            <div className="mt-4 rounded-[24px] bg-[#FAF7F4] px-4 py-4 text-center">
+              <p className="text-[13px] font-semibold text-[#8E8E93]">
+                Already have an account?
+              </p>
+
+              <Link
+                href="/login"
+                className="mt-2 inline-block text-[13px] font-black text-[#1C0617]"
+              >
+                Log in instead
               </Link>
-            </p>
+            </div>
           </form>
+
+          <p className="mt-6 text-center text-xs font-semibold text-[#8E8E93]">
+            © 2026 Ciiya • Premium Event Gallery Platform
+          </p>
         </section>
       </div>
     </main>

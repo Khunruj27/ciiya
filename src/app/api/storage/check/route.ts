@@ -1,15 +1,31 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { PLAN_LIMITS } from '@/lib/plans'
 
 export const runtime = 'nodejs'
-
-const FREE_LIMIT_BYTES = 5 * 1024 * 1024 * 1024
+export const dynamic = 'force-dynamic'
 
 type StorageRow = {
   original_size_bytes?: number | null
   preview_size_bytes?: number | null
   thumbnail_size_bytes?: number | null
   file_size_bytes?: number | null
+}
+
+function normalizePlanKey(value?: string | null): keyof typeof PLAN_LIMITS {
+  const plan = String(value || '').toLowerCase().trim()
+
+  if (plan === 'starter' || plan === '20gb') return 'starter'
+  if (plan === 'pro' || plan === 'pro-50gb' || plan === '50gb') return 'pro'
+  if (
+    plan === 'business' ||
+    plan === 'pro-100gb' ||
+    plan === '100gb'
+  ) {
+    return 'business'
+  }
+
+  return 'free'
 }
 
 export async function POST() {
@@ -26,7 +42,14 @@ export async function POST() {
 
     const { data: usage } = await supabase
       .from('user_storage_usage')
-      .select('used_bytes, storage_used_bytes, storage_limit_bytes, current_plan')
+      .select(
+        `
+        used_bytes,
+        storage_used_bytes,
+        storage_limit_bytes,
+        current_plan
+        `
+      )
       .eq('user_id', user.id)
       .maybeSingle()
 
@@ -43,7 +66,10 @@ export async function POST() {
         .eq('owner_id', user.id)
 
       if (storageError) {
-        return NextResponse.json({ error: storageError.message }, { status: 500 })
+        return NextResponse.json(
+          { error: storageError.message },
+          { status: 500 }
+        )
       }
 
       usedBytes = (storageRows as StorageRow[]).reduce((sum, row) => {
@@ -56,15 +82,23 @@ export async function POST() {
       }, 0)
     }
 
+    const currentPlan = normalizePlanKey(usage?.current_plan)
+    const fallbackLimit = PLAN_LIMITS[currentPlan].storageBytes
+
     const limitBytes = Number(
-      usage?.storage_limit_bytes || FREE_LIMIT_BYTES
+      usage?.storage_limit_bytes || fallbackLimit
     )
 
+    const remainingBytes = Math.max(0, limitBytes - usedBytes)
+    const percent = limitBytes > 0 ? (usedBytes / limitBytes) * 100 : 0
+
     return NextResponse.json({
+      success: true,
       usedBytes,
       limitBytes,
-      currentPlan: usage?.current_plan || 'free',
-      percent: limitBytes > 0 ? (usedBytes / limitBytes) * 100 : 0,
+      remainingBytes,
+      currentPlan,
+      percent,
       isExceeded: limitBytes > 0 ? usedBytes >= limitBytes : false,
     })
   } catch (error) {

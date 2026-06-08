@@ -3,6 +3,7 @@ import { config } from 'dotenv'
 config({ path: '.env.local' })
 
 import { createClient } from '@supabase/supabase-js'
+import WebSocket from 'ws'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -21,16 +22,15 @@ if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   throw new Error('Missing Supabase env')
 }
 
-const supabase = createClient(
-  SUPABASE_URL,
-  SERVICE_ROLE_KEY,
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  }
-)
+const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+  },
+  realtime: {
+    transport: WebSocket as unknown as typeof globalThis.WebSocket,
+  },
+})
 
 async function retryPhotoJobs() {
   const { data, error } = await supabase
@@ -101,7 +101,7 @@ async function retryPhotoJobs() {
 async function retryFaceJobs() {
   const { data, error } = await supabase
     .from('face_jobs')
-    .select('id,photo_id,retry_count,retries,error')
+    .select('id, photo_id, retry_count')
     .eq('status', 'failed')
     .lt('retry_count', 3)
     .order('updated_at', {

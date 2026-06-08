@@ -533,7 +533,7 @@ export default function EditProfilePage() {
           <div className="overflow-hidden rounded-[20px] bg-white border border-black/5">
             <div className="flex items-start gap-4 px-5 py-5">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[#F2F3F7]">
-                <AppIcon name="bell-notification-social-media" size={24} />
+                <AppIcon name="bell" size={24} />
               </div>
 
               <div>

@@ -251,13 +251,17 @@ async function recoverStaleJobs() {
     supabase
       .from('photo_jobs')
       .update({
-        status: 'pending',
-        progress: 0,
-        error: 'Recovered stale processing job',
-        started_at: null,
-        finished_at: null,
-        updated_at: new Date().toISOString(),
-      })
+  status: 'pending',
+  progress: 0,
+  error: 'Recovered stale processing job',
+  started_at: null,
+  finished_at: null,
+
+  worker_id: null,
+  claimed_by: null,
+
+  updated_at: new Date().toISOString(),
+})
       .eq('status', 'processing')
       .lt('started_at', staleSince)
   )
@@ -391,12 +395,16 @@ async function markJobDone(job: PhotoJob) {
     supabase
       .from('photo_jobs')
       .update({
-        status: 'done',
-        progress: 100,
-        finished_at: new Date().toISOString(),
-        error: null,
-        updated_at: new Date().toISOString(),
-      })
+  status: 'done',
+  progress: 100,
+  finished_at: new Date().toISOString(),
+  error: null,
+
+  worker_id: null,
+  claimed_by: null,
+
+  updated_at: new Date().toISOString(),
+})
       .eq('id', String(job.id))
   )
 
@@ -432,15 +440,19 @@ async function markJobFailedOrRetry(
     supabase
       .from('photo_jobs')
       .update({
-        status: nextStatus,
-        progress: 0,
-        retry_count: retryCount + 1,
-        retries: retryCount + 1,
-        error: message,
-        started_at: null,
-        finished_at: shouldRetry ? null : new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+  status: nextStatus,
+  progress: 0,
+  retry_count: retryCount + 1,
+  retries: retryCount + 1,
+  error: message,
+  started_at: null,
+  finished_at: shouldRetry ? null : new Date().toISOString(),
+
+  worker_id: null,
+  claimed_by: null,
+
+  updated_at: new Date().toISOString(),
+})
       .eq('id', String(job.id))
   )
 

@@ -281,11 +281,14 @@ async function markFaceJobDone(job: PhotoJob){
   const { error } = await supabase
     .from('face_jobs')
     .update({
-      status: 'done',
-      progress: 100,
-      finished_at: new Date().toISOString(),
-      error: null,
-    })
+  status: 'done',
+  progress: 100,
+  finished_at: new Date().toISOString(),
+  error: null,
+
+  worker_id: null,
+  claimed_by: null,
+})
     .eq('id', job.id)
 
   if (error) {
@@ -311,14 +314,18 @@ async function markFaceJobFailedOrRetry(
   await supabase
     .from('face_jobs')
     .update({
-      status: shouldRetry ? 'pending' : 'failed',
-      progress: 0,
-      retry_count: retryCount + 1,
-      retries: retryCount + 1,
-      error: message,
-      started_at: null,
-      finished_at: shouldRetry ? null : new Date().toISOString(),
-    })
+  status: shouldRetry ? 'pending' : 'failed',
+  progress: 0,
+  retry_count: retryCount + 1,
+  retries: retryCount + 1,
+  error: message,
+
+  worker_id: null,
+  claimed_by: null,
+
+  started_at: null,
+  finished_at: shouldRetry ? null : new Date().toISOString(),
+})
     .eq('id', job.id)
 
   if (job.photo_id) {
@@ -340,13 +347,16 @@ async function recoverStaleFaceJobs() {
   const { error } = await supabase
     .from('face_jobs')
     .update({
-      status: 'pending',
-      progress: 0,
-      error: 'Recovered stale face processing job',
-      retry_count: 0,
-      started_at: null,
-      finished_at: null,
-    })
+  status: 'pending',
+  progress: 0,
+  error: 'Recovered stale face processing job',
+
+  worker_id: null,
+  claimed_by: null,
+
+  started_at: null,
+  finished_at: null,
+})
     .eq('status', 'processing')
     .lt('started_at', staleSince)
 
@@ -621,10 +631,17 @@ async function pollFaceJobs() {
 )
 }
 
+let lastHeartbeatAt = 0
+
 async function start() {
   while (true) {
     try {
-      await sendHeartbeat()
+      const now = Date.now()
+
+if (now - lastHeartbeatAt > 30000) {
+  await sendHeartbeat()
+  lastHeartbeatAt = now
+}
       await pollFaceJobs()
     } catch (error) {
       console.error('[FaceWorker] loop error:', error)

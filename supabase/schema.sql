@@ -1145,32 +1145,66 @@ using (
 );
 
 -- =========================================================
+-- V25.1 SCHEMA ALIGNMENT
+-- Align database columns with current app code
+-- =========================================================
+
+-- PLANS: pricing / ordering fields used by pricing page
+alter table public.plans
+  add column if not exists price numeric default 0,
+  add column if not exists price_thb integer default 0,
+  add column if not exists sort_order integer default 0;
+
+create index if not exists idx_plans_sort_order
+on public.plans(sort_order);
+
+-- ALBUMS: upload defaults / camera settings used by create album and upload modal
+alter table public.albums
+  add column if not exists upload_mode text default 'manual',
+  add column if not exists upload_size text default 'uhd',
+  add column if not exists upload_profile text default 'professional',
+  add column if not exists album_preset_path text,
+  add column if not exists auto_publish boolean default true,
+  add column if not exists auto_face_scan boolean default true,
+  add column if not exists camera_status text default 'inactive',
+  add column if not exists camera_connection_type text;
+
+-- CAMERA UPLOAD SESSIONS: used by V25.1 camera worker session timeout
+alter table public.camera_upload_sessions
+  add column if not exists last_activity_at timestamptz default now();
+
+create index if not exists idx_camera_upload_sessions_activity
+on public.camera_upload_sessions(last_activity_at);
+
+-- USER STORAGE USAGE: used by change-plan / billing downgrade flow
+alter table public.user_storage_usage
+  add column if not exists pending_plan text,
+  add column if not exists downgrade_scheduled_at timestamptz,
+  add column if not exists current_period_end timestamptz;
+
+-- =========================================================
 -- DEFAULT PLANS
 -- =========================================================
 
 insert into public.plans (
   name,
   slug,
-  price_thb,
-  price,
   storage_limit_bytes,
-  max_albums,
-  max_photos,
+  price,
+  price_thb,
   sort_order,
   is_active
 )
 values
-  ('Free', 'free', 0, 0, 5368709120, 9999, 999999, 1, true),
-  ('Starter', 'starter', 299, 299, 21474836480, 9999, 999999, 2, true),
-  ('Pro', 'pro', 499, 499, 53687091200, 9999, 999999, 3, true),
-  ('Business', 'business', 699, 699, 107374182400, 9999, 999999, 4, true)
+  ('Free', 'free', 5368709120, 0, 0, 1, true),
+  ('Starter 20GB', 'starter', 21474836480, 299, 299, 2, true),
+  ('Pro 50GB', 'pro', 53687091200, 499, 499, 3, true),
+  ('Business 100GB', 'business', 107374182400, 699, 699, 4, true)
 on conflict (slug) do update set
   name = excluded.name,
-  price_thb = excluded.price_thb,
-  price = excluded.price,
   storage_limit_bytes = excluded.storage_limit_bytes,
-  max_albums = excluded.max_albums,
-  max_photos = excluded.max_photos,
+  price = excluded.price,
+  price_thb = excluded.price_thb,
   sort_order = excluded.sort_order,
   is_active = excluded.is_active,
   updated_at = now();

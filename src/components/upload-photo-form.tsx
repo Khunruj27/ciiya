@@ -296,12 +296,16 @@ export default function UploadPhotoForm({
     }
 
     if (!finalizeRes.ok || !finalizeData?.success) {
-      await supabase.storage.from('albums').remove([storagePath])
+  await supabase.storage.from('albums').remove([storagePath])
 
-      throw new Error(
-        finalizeData?.error || finalizeData?.jobError || 'Finalize upload failed'
-      )
-    }
+  if (finalizeData?.code === 'STORAGE_LIMIT_EXCEEDED') {
+    throw new Error('STORAGE_LIMIT_EXCEEDED')
+  }
+
+  throw new Error(
+    finalizeData?.error || finalizeData?.jobError || 'Finalize upload failed'
+  )
+}
 
     updateItem(item.id, {
       progress: 100,
@@ -347,11 +351,12 @@ export default function UploadPhotoForm({
           const data = await uploadDirectToSupabase(item, context)
 
           if (
-            data?.error?.includes('Storage full') ||
-            data?.jobError?.includes('Storage full')
-          ) {
-            throw new Error('Storage full')
-          }
+  data?.code === 'STORAGE_LIMIT_EXCEEDED' ||
+  data?.error?.includes('Storage full') ||
+  data?.jobError?.includes('Storage full')
+) {
+  throw new Error('STORAGE_LIMIT_EXCEEDED')
+}
 
           results.push({
             success: true,
@@ -371,16 +376,20 @@ export default function UploadPhotoForm({
             error: message,
           })
 
-          if (message.includes('Storage full')) {
+          if (
+  message.includes('STORAGE_LIMIT_EXCEEDED') ||
+  message.includes('Storage full')
+) {
             shouldStop = true
 
             uploadItems.slice(currentIndex).forEach((pendingItem) => {
               updateItem(pendingItem.id, {
                 status: 'error',
-                error: 'Storage full',
+               error: 'Storage limit reached',
               })
             })
-
+             
+            safeSetErrorMsg('Storage limit reached. Please upgrade your plan.')
             router.push('/pricing')
             return
           }

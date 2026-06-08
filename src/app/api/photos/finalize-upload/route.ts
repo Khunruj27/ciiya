@@ -244,7 +244,13 @@ if (!user && !isWorkerRequest) {
     const categoryId = body.categoryId || null
     const presetPath = body.presetPath ? String(body.presetPath).trim() : null
 
-    if (!albumId || !storagePath || !fileName || !fileSizeBytes) {
+    if (
+  !albumId ||
+  !storagePath ||
+  !fileName ||
+  !Number.isFinite(fileSizeBytes) ||
+  fileSizeBytes <= 0
+) {
       return NextResponse.json(
         { error: 'Missing required upload data' },
         { status: 400 }
@@ -397,6 +403,8 @@ if (!ownerId) {
       })
     }
 
+    await safeRecalculateStorage(supabaseAdmin, ownerId)
+
     let { data: usage } = await supabaseAdmin
       .from('user_storage_usage')
       .select('*')
@@ -461,16 +469,19 @@ const currentLimit = Number(
       Math.round(fileSizeBytes * 0.05)
 
    if (currentUsed + estimatedUploadBytes > currentLimit) {
+
   return NextResponse.json(
-    {
-      error: 'Storage full',
-      code: 'STORAGE_LIMIT_EXCEEDED',
-      storageUsedBytes: currentUsed,
-      storageLimitBytes: currentLimit,
-      estimatedUploadBytes,
-    },
-    { status: 403 }
-  )
+  {
+    error: 'Storage full',
+    code: 'STORAGE_LIMIT_EXCEEDED',
+    plan: normalizedPlan,
+    storageUsedBytes: currentUsed,
+    storageLimitBytes: currentLimit,
+    estimatedUploadBytes,
+    remainingBytes: Math.max(0, currentLimit - currentUsed),
+  },
+  { status: 403 }
+)
 }
 
     const { data: insertedPhoto, error: insertError } = await supabaseAdmin

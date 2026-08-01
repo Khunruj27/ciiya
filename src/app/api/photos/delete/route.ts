@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createClient } from '@supabase/supabase-js'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-import { createClient } from '@supabase/supabase-js'
 
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -33,137 +33,208 @@ function uniquePaths(paths: Array<string | null | undefined>) {
   )
 }
 
+
+function hasUnsafeStoragePath(path: string) {
+  const lowerPath = path.toLowerCase()
+
+  return (
+    path.includes('..') ||
+    path.includes('\\') ||
+    path.includes('//') ||
+    lowerPath.includes('%2e') ||
+    lowerPath.includes('%2f') ||
+    lowerPath.includes('%5c')
+  )
+}
+
 export async function DELETE(req: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
     const supabaseAdmin = getSupabaseAdmin()
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+   const {
+  data: { user },
+  error: authError,
+} = await supabase.auth.getUser()
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+if (authError) {
+  console.error(
+    '[photos/delete] authentication failed:',
+    authError.message
+  )
+
+  return NextResponse.json(
+    { error: 'Unable to verify authentication' },
+    { status: 500 }
+  )
+}
+
+if (!user) {
+  return NextResponse.json(
+    { error: 'Unauthorized' },
+    { status: 401 }
+  )
+}
 
     const body = await req.json().catch(() => null)
-    const photoId = String(body?.photoId || '').trim()
 
-    if (!photoId) {
-      return NextResponse.json({ error: 'photoId is required' }, { status: 400 })
+if (!body) {
+  return NextResponse.json(
+    { error: 'Invalid request body' },
+    { status: 400 }
+  )
+}
+
+const photoId = String(body.photoId || '').trim()
+
+if (!photoId) {
+  return NextResponse.json(
+    { error: 'photoId is required' },
+    { status: 400 }
+  )
+}
+
+if (photoId.length > 100) {
+  return NextResponse.json(
+    { error: 'Invalid photoId' },
+    { status: 400 }
+  )
+}
+
+    const {
+  data: photo,
+  error: photoError,
+} = await supabase
+  .from('photos')
+  .select(
+    `
+      id,
+      album_id,
+      owner_id,
+      storage_path,
+      original_path,
+      preview_path,
+      thumbnail_path,
+      sd_path,
+      hd_path,
+      uhd_path
+    `
+  )
+  .eq('id', photoId)
+  .eq('owner_id', user.id)
+  .maybeSingle()
+
+if (photoError) {
+  console.error(
+    '[photos/delete] photo lookup failed:',
+    photoError.message
+  )
+
+  return NextResponse.json(
+    { error: 'Unable to verify photo' },
+    { status: 500 }
+  )
+}
+
+if (!photo) {
+  return NextResponse.json(
+    { error: 'Photo not found' },
+    { status: 404 }
+  )
+}
+
+const albumPrefix = `${user.id}/${photo.album_id}/`
+
+const allowedPhotoPrefixes = [
+  `${albumPrefix}original/`,
+  `${albumPrefix}preview/`,
+  `${albumPrefix}thumbnail/`,
+  `${albumPrefix}thumbnails/`,
+  `${albumPrefix}sd/`,
+  `${albumPrefix}hd/`,
+  `${albumPrefix}uhd/`,
+]
+
+const candidatePaths = uniquePaths([
+  photo.storage_path,
+  photo.original_path,
+  photo.preview_path,
+  photo.thumbnail_path,
+  photo.sd_path,
+  photo.hd_path,
+  photo.uhd_path,
+])
+
+const invalidPath = candidatePaths.find(
+  (path) =>
+    hasUnsafeStoragePath(path) ||
+    !allowedPhotoPrefixes.some((prefix) =>
+      path.startsWith(prefix)
+    )
+)
+
+if (invalidPath) {
+  console.error(
+    '[photos/delete] invalid storage path detected:',
+    {
+      photoId: photo.id,
+      albumId: photo.album_id,
     }
+  )
 
-    const { data: photo, error: photoError } = await supabase
-      .from('photos')
-      .select(
-        `
-        id,
-        album_id,
-        owner_id,
-        storage_path,
-        original_path,
-        preview_path,
-        thumbnail_path,
-        sd_path,
-        hd_path,
-        uhd_path
-      `
-      )
-      .eq('id', photoId)
-      .eq('owner_id', user.id)
-      .single()
+  return NextResponse.json(
+    { error: 'Photo storage data is invalid' },
+    { status: 409 }
+  )
+}
 
-    if (photoError || !photo) {
-      return NextResponse.json({ error: 'Photo not found' }, { status: 404 })
-    }
+const pathsToRemove = candidatePaths
 
-    const { data: albumsUsingCover } = await supabase
+   let storageErrorMessage: string | null = null
+   let deletedFilesCount = 0
+
+    const { error: rpcError } = await supabaseAdmin.rpc(
+  'delete_photo_complete',
+  {
+    target_photo_id: photoId,
+    target_owner_id: user.id,
+  }
+)
+
+if (rpcError) {
+  console.error('Delete photo RPC error:', rpcError.message)
+
+  return NextResponse.json(
+    { error: 'Delete failed' },
+    { status: 500 }
+  )
+}
+
+ if (pathsToRemove.length > 0) {
+  const { error: storageError } =
+    await supabaseAdmin.storage
       .from('albums')
-      .select('id')
-      .eq('cover_photo_id', photoId)
-      .eq('owner_id', user.id)
-
-    if (albumsUsingCover && albumsUsingCover.length > 0) {
-      const albumIds = albumsUsingCover.map((album) => album.id)
-
-      const { error: coverResetError } = await supabase
-        .from('albums')
-        .update({
-          cover_photo_id: null,
-          cover_url: null,
-        })
-        .in('id', albumIds)
-        .eq('owner_id', user.id)
-
-      if (coverResetError) {
-        return NextResponse.json(
-          { error: coverResetError.message },
-          { status: 500 }
-        )
-      }
-    }
-
-    await supabase
-      .from('worker_logs')
-      .delete()
-      .eq('photo_id', photoId)
-      .eq('owner_id', user.id)
-
-    await supabase
-      .from('photo_jobs')
-      .delete()
-      .eq('photo_id', photoId)
-      .eq('owner_id', user.id)
-    
-    await supabase
-      .from('face_jobs')
-      .delete()
-      .eq('photo_id', photoId)
-
-    await supabase
-      .from('photo_faces')
-      .delete()
-      .eq('photo_id', photoId)
-
-    const pathsToRemove = uniquePaths([
-      photo.storage_path,
-      photo.original_path,
-      photo.preview_path,
-      photo.thumbnail_path,
-      photo.sd_path,
-      photo.hd_path,
-      photo.uhd_path,
-    ])
-
-    let storageErrorMessage: string | null = null
-
-    if (pathsToRemove.length > 0) {
-  const { error: storageError } = await supabaseAdmin.storage
-    .from('albums')
-    .remove(pathsToRemove)
+      .remove(pathsToRemove)
 
   if (storageError) {
     storageErrorMessage = storageError.message
-    console.error('Delete photo storage error:', storageError.message)
+
+    console.error(
+      'Delete photo storage error:',
+      storageError.message
+    )
+  } else {
+    deletedFilesCount = pathsToRemove.length
   }
 }
 
-    const { error: deleteError } = await supabase
-      .from('photos')
-      .delete()
-      .eq('id', photoId)
-      .eq('owner_id', user.id)
-
-    if (deleteError) {
-      return NextResponse.json({ error: deleteError.message }, { status: 500 })
+ const { error: recalculateError } =
+  await supabaseAdmin.rpc(
+    'recalculate_user_storage',
+    {
+      user_uuid: user.id,
     }
-
-    const { error: recalculateError } = await supabase.rpc(
-  'recalculate_user_storage',
-  {
-    user_uuid: user.id,
-  }
-)
+  )
 
 if (recalculateError) {
   console.error(
@@ -174,17 +245,15 @@ if (recalculateError) {
 
     return NextResponse.json({
       success: true,
-      deletedFiles: pathsToRemove.length,
+      deletedFiles: deletedFilesCount,
       storageWarning: storageErrorMessage,
     })
-  } catch (error) {
-    console.error('Delete photo error:', error)
+ } catch (error) {
+  console.error('Delete photo error:', error)
 
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : 'Delete failed',
-      },
-      { status: 500 }
-    )
-  }
+  return NextResponse.json(
+    { error: 'Delete failed' },
+    { status: 500 }
+  )
+}
 }

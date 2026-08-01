@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import AlbumsSearch from './albums-search'
 import DeleteAlbumButton from './delete-album-button'
 import AppIcon from '@/components/app-icon'
@@ -89,10 +90,13 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
                       >
                         <div className="relative h-[92px] w-[102px] shrink-0 overflow-hidden rounded-[22px] bg-slate-100">
                           {album.cover_url ? (
-                            <img
+                            <Image
                               src={album.cover_url}
                               alt={album.title || 'Album'}
-                              className="h-full w-full object-cover"
+                              fill
+                              sizes="102px"
+                              unoptimized
+                              className="object-cover"
                             />
                           ) : (
                             <div className="flex h-full items-center justify-center text-xs font-bold text-slate-400">

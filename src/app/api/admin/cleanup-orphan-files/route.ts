@@ -20,6 +20,23 @@ function getSupabaseAdmin() {
   })
 }
 
+function isAuthorizedAdminRequest(req: Request) {
+  const adminSecret = String(process.env.ADMIN_API_SECRET || '').trim()
+  const workerSecret = String(process.env.WORKER_SECRET || '').trim()
+  const requestSecret = String(
+    req.headers.get('x-admin-secret') ||
+      req.headers.get('x-worker-secret') ||
+      ''
+  ).trim()
+
+  if (!requestSecret) return false
+
+  return (
+    (adminSecret && requestSecret === adminSecret) ||
+    (workerSecret && requestSecret === workerSecret)
+  )
+}
+
 type StorageFile = {
   name: string
 }
@@ -57,8 +74,19 @@ async function listAllFiles(
   return allFiles
 }
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
+    if (!isAuthorizedAdminRequest(req)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Unauthorized',
+        },
+        {
+          status: 401,
+        }
+      )
+    }
     const supabase = getSupabaseAdmin()
 
     // =========================

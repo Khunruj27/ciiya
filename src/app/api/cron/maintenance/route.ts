@@ -44,13 +44,16 @@ async function resetStuckJobs(supabase: ReturnType<typeof getSupabaseAdmin>) {
   const photoStaleSince = minutesAgo(15)
   const faceStaleSince = minutesAgo(25)
 
-  const { data: photoJobs, error: photoError } = await supabase
+  const { data: photoJobs, error: photoError } =
+  await supabase
     .from('photo_jobs')
     .update({
       status: 'pending',
       progress: 0,
       started_at: null,
       finished_at: null,
+      worker_id: null,
+      claimed_by: null,
       error: 'Auto reset stale photo job',
       updated_at: new Date().toISOString(),
     })
@@ -67,6 +70,8 @@ async function resetStuckJobs(supabase: ReturnType<typeof getSupabaseAdmin>) {
       progress: 0,
       started_at: null,
       finished_at: null,
+      worker_id: null,
+      claimed_by: null,
       error: 'Auto reset stale face job',
       updated_at: new Date().toISOString(),
     })
@@ -82,81 +87,155 @@ async function resetStuckJobs(supabase: ReturnType<typeof getSupabaseAdmin>) {
   }
 }
 
-async function retryFailedJobs(supabase: ReturnType<typeof getSupabaseAdmin>) {
-  const { data: photoJobs } = await supabase
+async function retryFailedJobs(
+  supabase: ReturnType<typeof getSupabaseAdmin>
+) {
+  const {
+    data: photoJobs,
+    error: photoLoadError,
+  } = await supabase
     .from('photo_jobs')
     .select('id, photo_id')
     .eq('status', 'failed')
     .lt('retry_count', 3)
-    .order('updated_at', { ascending: true })
+    .order('updated_at', {
+      ascending: true,
+    })
     .limit(50)
 
-  const photoIds = (photoJobs || []).map((job) => job.id)
-  const affectedPhotoIds = (photoJobs || [])
-    .map((job) => job.photo_id)
-    .filter(Boolean)
+  if (photoLoadError) {
+    throw new Error(photoLoadError.message)
+  }
+
+  const photoIds =
+    (photoJobs ?? []).map((job) => job.id)
+
+  const affectedPhotoIds =
+    (photoJobs ?? [])
+      .map((job) => job.photo_id)
+      .filter(
+        (photoId): photoId is string =>
+          typeof photoId === 'string' &&
+          photoId.length > 0
+      )
 
   if (photoIds.length > 0) {
-    await supabase
-      .from('photo_jobs')
-      .update({
-        status: 'pending',
-        progress: 0,
-        started_at: null,
-        finished_at: null,
-        error: 'Auto retry failed photo job',
-        updated_at: new Date().toISOString(),
-      })
-      .in('id', photoIds)
+    const { error: photoRetryError } =
+      await supabase
+        .from('photo_jobs')
+        .update({
+          status: 'pending',
+          progress: 0,
+          started_at: null,
+          finished_at: null,
+          worker_id: null,
+          claimed_by: null,
+          error:
+            'Auto retry failed photo job',
+          updated_at:
+            new Date().toISOString(),
+        })
+        .in('id', photoIds)
+
+    if (photoRetryError) {
+      throw new Error(
+        photoRetryError.message
+      )
+    }
 
     if (affectedPhotoIds.length > 0) {
-      await supabase
-        .from('photos')
-        .update({
-          processing_status: 'pending',
-          processing_progress: 0,
-          updated_at: new Date().toISOString(),
-        })
-        .in('id', affectedPhotoIds)
+      const { error: photoStateError } =
+        await supabase
+          .from('photos')
+          .update({
+            processing_status: 'pending',
+            processing_progress: 0,
+            updated_at:
+              new Date().toISOString(),
+          })
+          .in('id', affectedPhotoIds)
+
+      if (photoStateError) {
+        throw new Error(
+          photoStateError.message
+        )
+      }
     }
   }
 
-  const { data: faceJobs } = await supabase
+  const {
+    data: faceJobs,
+    error: faceLoadError,
+  } = await supabase
     .from('face_jobs')
     .select('id, photo_id')
     .eq('status', 'failed')
     .lt('retry_count', 3)
-    .order('updated_at', { ascending: true })
+    .order('updated_at', {
+      ascending: true,
+    })
     .limit(50)
 
-  const faceIds = (faceJobs || []).map((job) => job.id)
-  const affectedFacePhotoIds = (faceJobs || [])
-    .map((job) => job.photo_id)
-    .filter(Boolean)
+  if (faceLoadError) {
+    throw new Error(faceLoadError.message)
+  }
+
+  const faceIds =
+    (faceJobs ?? []).map((job) => job.id)
+
+  const affectedFacePhotoIds =
+    (faceJobs ?? [])
+      .map((job) => job.photo_id)
+      .filter(
+        (photoId): photoId is string =>
+          typeof photoId === 'string' &&
+          photoId.length > 0
+      )
 
   if (faceIds.length > 0) {
-    await supabase
-      .from('face_jobs')
-      .update({
-        status: 'pending',
-        progress: 0,
-        started_at: null,
-        finished_at: null,
-        error: 'Auto retry failed face job',
-        updated_at: new Date().toISOString(),
-      })
-      .in('id', faceIds)
-
-    if (affectedFacePhotoIds.length > 0) {
+    const { error: faceRetryError } =
       await supabase
-        .from('photos')
+        .from('face_jobs')
         .update({
-          face_scan_status: 'pending',
-          face_scan_progress: 0,
-          face_scan_error: null,
-          updated_at: new Date().toISOString(),
+          status: 'pending',
+          progress: 0,
+          started_at: null,
+          finished_at: null,
+          worker_id: null,
+          claimed_by: null,
+          error:
+            'Auto retry failed face job',
+          updated_at:
+            new Date().toISOString(),
         })
-        .in('id', affectedFacePhotoIds)
+        .in('id', faceIds)
+
+    if (faceRetryError) {
+      throw new Error(
+        faceRetryError.message
+      )
+    }
+
+    if (
+      affectedFacePhotoIds.length > 0
+    ) {
+      const { error: faceStateError } =
+        await supabase
+          .from('photos')
+          .update({
+            face_scan_status: 'pending',
+            face_scan_progress: 0,
+            face_scan_error: null,
+            updated_at:
+              new Date().toISOString(),
+          })
+          .in('id', affectedFacePhotoIds)
+
+      if (faceStateError) {
+        throw new Error(
+          faceStateError.message
+        )
+      }
     }
   }
 

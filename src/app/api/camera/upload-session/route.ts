@@ -18,13 +18,26 @@ export async function POST(req: Request) {
   try {
     const supabase = await createServerSupabaseClient()
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+   let user = null
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+try {
+  const result = await supabase.auth.getUser()
+  user = result.data.user
+} catch (error) {
+  console.warn('[camera] auth getUser failed:', error)
+
+  return NextResponse.json(
+    {
+      error: 'Auth temporarily unavailable',
+      code: 'AUTH_FETCH_FAILED',
+    },
+    { status: 503 }
+  )
+}
+
+if (!user) {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+}
 
     const body = await req.json().catch(() => null)
 
@@ -58,28 +71,33 @@ export async function POST(req: Request) {
     await supabase
       .from('camera_upload_sessions')
       .update({
-        status: 'stopped',
-        updated_at: new Date().toISOString(),
-      })
+  status: 'stopped',
+  stopped_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+})
       .eq('album_id', albumId)
       .eq('owner_id', user.id)
       .eq('status', 'active')
 
-    const { data, error } = await supabase
-      .from('camera_upload_sessions')
-      .insert({
-        album_id: albumId,
-        owner_id: user.id,
-        preset_path: presetPath,
-        resize_mode: resizeMode,
-        auto_face_scan: Boolean(autoFaceScan),
-        auto_publish: Boolean(autoPublish),
-        status: 'active',
-        last_activity_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .select('*')
-      .single()
+    const now = new Date().toISOString()
+
+const { data, error } = await supabase
+  .from('camera_upload_sessions')
+  .insert({
+    album_id: albumId,
+    owner_id: user.id,
+    preset_path: presetPath,
+    resize_mode: resizeMode,
+    auto_face_scan: Boolean(autoFaceScan),
+    auto_publish: Boolean(autoPublish),
+    status: 'active',
+    started_at: now,
+    stopped_at: null,
+    last_activity_at: now,
+    updated_at: now,
+  })
+  .select('*')
+  .single()
 
     if (error || !data) {
       return NextResponse.json(
@@ -137,6 +155,14 @@ export async function GET(req: Request) {
       .limit(1)
       .maybeSingle()
 
+      console.log(
+  '[camera-upload-session]',
+  {
+    error,
+    data,
+  }
+)
+
     if (error) {
       return NextResponse.json(
         {
@@ -184,12 +210,18 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'Missing albumId' }, { status: 400 })
     }
 
-    const { error } = await supabase
-      .from('camera_upload_sessions')
-      .update({
-        status: 'stopped',
-        updated_at: new Date().toISOString(),
-      })
+    const now = new Date().toISOString()
+
+const { error } = await supabase
+  .from('camera_upload_sessions')
+  .update({
+    status: 'stopped',
+    stopped_at: now,
+    updated_at: now,
+  })
+  .eq('album_id', albumId)
+  .eq('owner_id', user.id)
+  .eq('status', 'active')
       .eq('album_id', albumId)
       .eq('owner_id', user.id)
       .eq('status', 'active')

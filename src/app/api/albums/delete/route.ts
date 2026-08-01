@@ -45,6 +45,18 @@ function uniquePaths(paths: Array<string | null | undefined>) {
   )
 }
 
+function hasUnsafeStoragePath(path: string) {
+  const lowerPath = path.toLowerCase()
+
+  return (
+    path.includes('..') ||
+    path.includes('\\') ||
+    lowerPath.includes('%2f') ||
+    lowerPath.includes('%5c') ||
+    path.includes('//')
+  )
+}
+
 function chunkArray<T>(items: T[], size: number) {
   const chunks: T[][] = []
 
@@ -111,7 +123,15 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => null)
-    const albumId = String(body?.albumId || '').trim()
+
+if (!body) {
+  return NextResponse.json(
+    { error: 'Invalid request body' },
+    { status: 400 }
+  )
+}
+
+const albumId = String(body.albumId || '').trim()
 
     if (!albumId) {
       return NextResponse.json(
@@ -119,6 +139,13 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
+
+    if (albumId.length > 100) {
+  return NextResponse.json(
+    { error: 'Invalid albumId' },
+    { status: 400 }
+  )
+}
 
     const { data: album, error: albumCheckError } = await supabase
       .from('albums')
@@ -167,17 +194,19 @@ export async function POST(req: NextRequest) {
       ])
     )
 
-    const folderPrefixes = [
-      `${user.id}/${albumId}/cover`,
-      `${user.id}/${albumId}/photos`,
-      `${user.id}/${albumId}/original`,
-      `${user.id}/${albumId}/preview`,
-      `${user.id}/${albumId}/thumbnail`,
-      `${user.id}/${albumId}/sd`,
-      `${user.id}/${albumId}/hd`,
-      `${user.id}/${albumId}/uhd`,
-      `${user.id}/${albumId}/presets`,
-    ]
+    const expectedPrefix = `${user.id}/${albumId}/`
+
+const folderPrefixes = [
+  `${expectedPrefix}cover`,
+  `${expectedPrefix}photos`,
+  `${expectedPrefix}original`,
+  `${expectedPrefix}preview`,
+  `${expectedPrefix}thumbnail`,
+  `${expectedPrefix}sd`,
+  `${expectedPrefix}hd`,
+  `${expectedPrefix}uhd`,
+  `${expectedPrefix}presets`,
+].filter((prefix) => prefix.startsWith(expectedPrefix))
 
     const storagePaths: string[] = []
 
@@ -186,7 +215,13 @@ export async function POST(req: NextRequest) {
       storagePaths.push(...paths)
     }
 
-    const pathsToRemove = uniquePaths([...dbPaths, ...storagePaths])
+   const allowedPrefix = `${user.id}/${albumId}/`
+
+ const pathsToRemove = uniquePaths([...dbPaths, ...storagePaths]).filter(
+  (path) =>
+    path.startsWith(allowedPrefix) &&
+    !hasUnsafeStoragePath(path)
+)
 
     let deletedStorageFiles = 0
     let storageWarning: string | null = null
@@ -205,10 +240,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (photoIds.length > 0) {
-      await supabaseAdmin
-        .from('worker_logs')
-        .delete()
-        .in('photo_id', photoIds)
+      await supabaseAdmin.from('worker_logs').delete().in('photo_id', photoIds)
     }
 
     await supabaseAdmin
@@ -217,6 +249,79 @@ export async function POST(req: NextRequest) {
       .eq('album_id', albumId)
       .eq('owner_id', user.id)
 
+    const { error: deleteCameraImportFilesError } = await supabaseAdmin
+      .from('camera_import_files')
+      .delete()
+      .eq('album_id', albumId)
+
+    if (deleteCameraImportFilesError) {
+      return NextResponse.json(
+        {
+          error: `camera_import_files: ${deleteCameraImportFilesError.message}`,
+        },
+        { status: 500 }
+      )
+    }
+
+    const { error: deleteCameraImportJobsError } = await supabaseAdmin
+      .from('camera_import_jobs')
+      .delete()
+      .eq('album_id', albumId)
+
+    if (deleteCameraImportJobsError) {
+      return NextResponse.json(
+        {
+          error: `camera_import_jobs: ${deleteCameraImportJobsError.message}`,
+        },
+        { status: 500 }
+      )
+    }
+
+    const { error: deleteCameraLiveImportsError } = await supabaseAdmin
+      .from('camera_live_imports')
+      .delete()
+      .eq('album_id', albumId)
+      .eq('owner_id', user.id)
+
+    if (deleteCameraLiveImportsError) {
+      return NextResponse.json(
+        {
+          error: `camera_live_imports: ${deleteCameraLiveImportsError.message}`,
+        },
+        { status: 500 }
+      )
+    }
+
+    const { error: deleteCameraSessionsError } = await supabaseAdmin
+      .from('camera_sessions')
+      .delete()
+      .eq('album_id', albumId)
+      .eq('user_id', user.id)
+
+    if (deleteCameraSessionsError) {
+      return NextResponse.json(
+        {
+          error: `camera_sessions: ${deleteCameraSessionsError.message}`,
+        },
+        { status: 500 }
+      )
+    }
+
+    const { error: deleteCameraUploadSessionsError } = await supabaseAdmin
+      .from('camera_upload_sessions')
+      .delete()
+      .eq('album_id', albumId)
+      .eq('owner_id', user.id)
+
+    if (deleteCameraUploadSessionsError) {
+      return NextResponse.json(
+        {
+          error: `camera_upload_sessions: ${deleteCameraUploadSessionsError.message}`,
+        },
+        { status: 500 }
+      )
+    }
+
     const { error: deleteJobsByAlbumError } = await supabaseAdmin
       .from('photo_jobs')
       .delete()
@@ -224,11 +329,16 @@ export async function POST(req: NextRequest) {
       .eq('owner_id', user.id)
 
     if (deleteJobsByAlbumError) {
-      return NextResponse.json(
-        { error: deleteJobsByAlbumError.message },
-        { status: 500 }
-      )
-    }
+  console.error(
+    '[albums/delete] delete photo jobs by album failed:',
+    deleteJobsByAlbumError.message
+  )
+
+  return NextResponse.json(
+    { error: 'Delete album failed' },
+    { status: 500 }
+  )
+}
 
     if (photoIds.length > 0) {
       const { error: deleteJobsByPhotoError } = await supabaseAdmin
@@ -242,6 +352,60 @@ export async function POST(req: NextRequest) {
           { status: 500 }
         )
       }
+    }
+
+    const { error: deleteFaceJobsByAlbumError } = await supabaseAdmin
+      .from('face_jobs')
+      .delete()
+      .eq('album_id', albumId)
+      .eq('owner_id', user.id)
+
+    if (deleteFaceJobsByAlbumError) {
+  console.error(deleteFaceJobsByAlbumError.message)
+
+  return NextResponse.json(
+    { error: 'Delete album failed' },
+    { status: 500 }
+  )
+}
+
+    if (photoIds.length > 0) {
+      const { error: deleteFaceJobsByPhotoError } = await supabaseAdmin
+        .from('face_jobs')
+        .delete()
+        .in('photo_id', photoIds)
+
+      if (deleteFaceJobsByPhotoError) {
+        return NextResponse.json(
+          { error: deleteFaceJobsByPhotoError.message },
+          { status: 500 }
+        )
+      }
+
+      const { error: deletePhotoFacesError } = await supabaseAdmin
+        .from('photo_faces')
+        .delete()
+        .in('photo_id', photoIds)
+
+      if (deletePhotoFacesError) {
+        return NextResponse.json(
+          { error: deletePhotoFacesError.message },
+          { status: 500 }
+        )
+      }
+    }
+
+    const { error: deleteFaceClustersError } = await supabaseAdmin
+      .from('face_clusters')
+      .delete()
+      .eq('album_id', albumId)
+      .eq('owner_id', user.id)
+
+    if (deleteFaceClustersError) {
+      return NextResponse.json(
+        { error: deleteFaceClustersError.message },
+        { status: 500 }
+      )
     }
 
     const { error: deletePhotosError } = await supabaseAdmin
@@ -258,38 +422,37 @@ export async function POST(req: NextRequest) {
     }
 
     const { error: albumError } = await supabaseAdmin
-  .from('albums')
-  .delete()
-  .eq('id', albumId)
-  .eq('owner_id', user.id)
+      .from('albums')
+      .delete()
+      .eq('id', albumId)
+      .eq('owner_id', user.id)
 
-if (albumError) {
-  return NextResponse.json({ error: albumError.message }, { status: 500 })
-}
+    if (albumError) {
+      return NextResponse.json({ error: albumError.message }, { status: 500 })
+    }
 
-const { error: recalculateError } = await supabaseAdmin.rpc(
-  'recalculate_user_storage',
-  {
-    user_uuid: user.id,
-  }
-)
+    const { error: recalculateError } = await supabaseAdmin.rpc(
+      'recalculate_user_storage',
+      {
+        user_uuid: user.id,
+      }
+    )
 
-if (recalculateError) {
-  console.error(
-    'Recalculate storage after album delete failed:',
-    recalculateError.message
-  )
-}
+    if (recalculateError) {
+      console.error(
+        'Recalculate storage after album delete failed:',
+        recalculateError.message
+      )
+    }
 
-return NextResponse.json({
-  success: true,
-  deletedStorageFiles,
-  deletedPhotoRows: photos.length,
-  deletedAlbumId: albumId,
-  storageWarning,
-  storageRecalculated: !recalculateError,
-})
-
+    return NextResponse.json({
+      success: true,
+      deletedStorageFiles,
+      deletedPhotoRows: photos.length,
+      deletedAlbumId: albumId,
+      storageWarning,
+      storageRecalculated: !recalculateError,
+    })
   } catch (error) {
     console.error('Delete album error:', error)
 

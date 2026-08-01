@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Image from 'next/image'
 import FaceSearchButton from './face-search-button'
 import FaceSearchPanel from './face-search-panel'
 
@@ -56,13 +57,16 @@ export default function ShareClient({
           if (!src) return null
 
           return (
-            <img
-              key={photo.id}
-              src={src}
-              alt=""
-              loading="lazy"
-              className="aspect-square object-cover"
-            />
+            <div key={photo.id} className="relative aspect-square">
+              <Image
+                src={src}
+                alt=""
+                fill
+                sizes="33vw"
+                loading="lazy"
+                className="object-cover"
+              />
+            </div>
           )
         })}
       </div>

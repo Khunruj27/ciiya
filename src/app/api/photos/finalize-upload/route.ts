@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
-import {createClient, type SupabaseClient,} from '@supabase/supabase-js'
-import { PLAN_LIMITS } from '@/lib/plans'
+import {
+  createClient,
+  type SupabaseClient,
+} from '@supabase/supabase-js'
+import { getUserStoragePlan } from '@/lib/get-user-storage-plan'
+import crypto from 'crypto'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -32,6 +36,35 @@ type PhotoRecord = {
 
 type SupabaseAdminClient = SupabaseClient
 
+function isValidWorkerSecret(providedSecret: string) {
+  const configuredSecret = String(
+    process.env.WORKER_SECRET || ''
+  ).trim()
+
+  const normalizedProvidedSecret = providedSecret.trim()
+
+  if (!configuredSecret || !normalizedProvidedSecret) {
+    return false
+  }
+
+  const configuredBuffer = Buffer.from(configuredSecret)
+  const providedBuffer = Buffer.from(normalizedProvidedSecret)
+
+  if (configuredBuffer.length !== providedBuffer.length) {
+    return false
+  }
+
+  const result = crypto.timingSafeEqual(
+  configuredBuffer,
+  providedBuffer
+)
+
+configuredBuffer.fill(0)
+providedBuffer.fill(0)
+
+return result
+}
+
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -53,20 +86,48 @@ function normalizeRequestedSize(value: string): RequestedSize {
   return 'hd'
 }
 
-function normalizePlanKey(value?: string | null): keyof typeof PLAN_LIMITS {
-  const plan = String(value || '').toLowerCase().trim()
+function hasUnsafeStoragePath(path: string) {
+  const lowerPath = path.toLowerCase()
 
-  if (plan === 'starter' || plan === '20gb') return 'starter'
-  if (plan === 'pro' || plan === 'pro-50gb' || plan === '50gb') return 'pro'
-  if (
-    plan === 'business' ||
-    plan === 'pro-100gb' ||
-    plan === '100gb'
-  ) {
-    return 'business'
+  return (
+    path.includes('..') ||
+    path.includes('\\') ||
+    path.includes('//') ||
+    lowerPath.includes('%2e') ||
+    lowerPath.includes('%2f') ||
+    lowerPath.includes('%5c')
+  )
+}
+
+async function storageObjectExists(
+  supabaseAdmin: SupabaseAdminClient,
+  storagePath: string,
+  bucket = 'albums'
+) {
+  const pathParts = storagePath.split('/')
+  const fileName = pathParts.pop()
+
+  if (!fileName || pathParts.length === 0) {
+    return false
   }
 
-  return 'free'
+  const folderPath = pathParts.join('/')
+
+  const { data, error } =
+  await supabaseAdmin.storage
+    .from(bucket)
+    .list(folderPath, {
+      limit: 100,
+      search: fileName,
+    })
+
+  if (error) {
+    throw new Error(
+      `Storage lookup failed: ${error.message}`
+    )
+  }
+
+  return data.some((item) => item.name === fileName)
 }
 
 function getPhotoJobPriority(params: {
@@ -92,7 +153,7 @@ function getPhotoJobPriority(params: {
 }
 
 async function ensurePhotoJob(params: {
-  supabaseAdmin: SupabaseAdminClient,
+  supabaseAdmin: SupabaseAdminClient
   photo: PhotoRecord
   fallbackOriginalPath?: string | null
   presetPath?: string | null
@@ -116,36 +177,65 @@ async function ensurePhotoJob(params: {
     source,
   } = params
 
-  const photoId = photo?.id
-  const albumId = photo?.album_id
-  const ownerId = photo?.owner_id || photo?.user_id || null
+  const photoId = photo.id
+  const albumId = photo.album_id
+  const ownerId =
+    photo.owner_id ||
+    photo.user_id ||
+    null
+
   const originalPath =
-    photo?.original_path || photo?.storage_path || fallbackOriginalPath || null
+    photo.original_path ||
+    photo.storage_path ||
+    fallbackOriginalPath ||
+    null
 
-  if (!photoId || !albumId || !ownerId || !originalPath) {
+  if (
+    !photoId ||
+    !albumId ||
+    !ownerId ||
+    !originalPath
+  ) {
     return {
       queued: false,
       jobId: null,
-      error: 'Missing photo_id, album_id, owner_id, or original_path',
+      error:
+        'Missing photo_id, album_id, owner_id, or original_path',
     }
   }
 
-  const { data: activeJob, error: activeJobError } = await supabaseAdmin
-    .from('photo_jobs')
-    .select('id,status')
-    .eq('photo_id', photoId)
-    .in('status', ['pending', 'processing'])
-    .maybeSingle()
+  const activeJobResult =
+    await supabaseAdmin
+      .from('photo_jobs')
+      .select('id,status')
+      .eq('photo_id', photoId)
+      .in('status', [
+        'pending',
+        'processing',
+      ])
+      .order('created_at', {
+        ascending: false,
+      })
+      .limit(1)
 
-  if (activeJobError) {
+  if (activeJobResult.error) {
+    console.error(
+      '[finalize-upload] active photo job lookup failed:',
+      activeJobResult.error.message
+    )
+
     return {
       queued: false,
       jobId: null,
-      error: activeJobError.message,
+      error:
+        'Unable to check existing photo job',
     }
   }
 
-if (activeJob?.id) {
+  const activeJob =
+    activeJobResult.data?.[0] || null
+
+  if (activeJob?.id) {
     return {
       queued: true,
       jobId: activeJob.id,
@@ -153,49 +243,109 @@ if (activeJob?.id) {
     }
   }
 
-  const { data: insertedJob, error: insertJobError } = await supabaseAdmin
-    .from('photo_jobs')
-    .insert({
-      photo_id: photoId,
-      album_id: albumId,
-      owner_id: ownerId,
-      original_path: originalPath,
-      preset_path: photo?.preset_path || presetPath || null,
-      size,
-      status: 'pending',
-      priority: jobPriority,
-      progress: 0,
-      retry_count: 0,
-      retries: 0,
-      started_at: null,
-      finished_at: null,
-      error: null,
-      payload: {
-        source,
-        fileHash,
-        originalName: fileName || photo?.filename || photo?.file_name || null,
-        publicUrl,
-        requestedSize: size,
-        presetPath: photo?.preset_path || presetPath || null,
-        jobPriority,
-      },
-    })
-    .select('id,status')
-    .single()
+  const resolvedPresetPath =
+    photo.preset_path ||
+    presetPath ||
+    null
 
-  if (insertJobError) {
+  const insertJobResult =
+    await supabaseAdmin
+      .from('photo_jobs')
+      .insert({
+        photo_id: photoId,
+        album_id: albumId,
+        owner_id: ownerId,
+        original_path: originalPath,
+        preset_path: resolvedPresetPath,
+        size,
+        status: 'pending',
+        priority: jobPriority,
+        progress: 0,
+        retry_count: 0,
+        retries: 0,
+        started_at: null,
+        finished_at: null,
+        error: null,
+        worker_id: null,
+        claimed_by: null,
+        payload: {
+          source,
+          fileHash,
+          originalName:
+            fileName ||
+            photo.filename ||
+            photo.file_name ||
+            null,
+          publicUrl,
+          requestedSize: size,
+          presetPath:
+            resolvedPresetPath,
+          jobPriority,
+        },
+        updated_at:
+          new Date().toISOString(),
+      })
+      .select('id,status')
+      .single()
+
+  if (
+    insertJobResult.error ||
+    !insertJobResult.data?.id
+  ) {
+    /*
+     * อีก Request อาจสร้าง Job สำเร็จ
+     * หลังจากที่ Request นี้ตรวจ Active Job ไปแล้ว
+     * จึงตรวจซ้ำก่อนถือว่า Enqueue ล้มเหลว
+     */
+    const concurrentJobResult =
+      await supabaseAdmin
+        .from('photo_jobs')
+        .select('id,status')
+        .eq('photo_id', photoId)
+        .in('status', [
+          'pending',
+          'processing',
+        ])
+        .order('created_at', {
+          ascending: false,
+        })
+        .limit(1)
+
+    const concurrentJob =
+      concurrentJobResult.data?.[0] ||
+      null
+
+    if (
+      !concurrentJobResult.error &&
+      concurrentJob?.id
+    ) {
+      return {
+        queued: true,
+        jobId: concurrentJob.id,
+        error: null,
+      }
+    }
+
+    console.error(
+      '[finalize-upload] create photo job failed:',
+      insertJobResult.error?.message ||
+        concurrentJobResult.error?.message ||
+        'No job returned'
+    )
+
     return {
       queued: false,
       jobId: null,
-      error: insertJobError.message,
+      error:
+        'Unable to create photo job',
     }
   }
 
   return {
-  queued: true,
-  jobId: insertedJob?.id || null,
-  error: null,
-}
+    queued: true,
+    jobId: insertJobResult.data.id,
+    error: null,
+  }
 }
 
 async function safeRecalculateStorage(
@@ -203,24 +353,43 @@ async function safeRecalculateStorage(
   userId: string
 ) {
   try {
-    await supabaseAdmin.rpc(
-'recalculate_user_storage',
-  {
-    user_uuid: userId,
-  }
-)
+    const { error } = await supabaseAdmin.rpc(
+      'recalculate_user_storage',
+      {
+        user_uuid: userId,
+      }
+    )
+
+    if (error) {
+      console.warn(
+        '[finalize-upload] recalculate storage skipped:',
+        error.message
+      )
+    }
   } catch (error) {
-    console.warn('[finalize-upload] recalculate storage skipped:', error)
+    console.warn(
+      '[finalize-upload] recalculate storage skipped:',
+      error
+    )
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
-    const workerSecret = req.headers.get('x-worker-secret')
+    const workerSecret = String(
+  req.headers.get('x-worker-secret') || ''
+).trim()
+
 const isWorkerRequest =
-  Boolean(process.env.WORKER_SECRET) &&
-  workerSecret === process.env.WORKER_SECRET
+  isValidWorkerSecret(workerSecret)
+
+  if (workerSecret && !isWorkerRequest) {
+  return NextResponse.json(
+    { error: 'Unauthorized' },
+    { status: 401 }
+  )
+}
 
     const {
   data: { user },
@@ -230,25 +399,56 @@ if (!user && !isWorkerRequest) {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 }
 
-    const body = await req.json()
+    const body = await req.json().catch(() => null)
+
+if (!body) {
+  return NextResponse.json(
+    { error: 'Invalid request body' },
+    { status: 400 }
+  )
+}
 
     const albumId = String(body.albumId || '').trim()
     const storagePath = String(body.storagePath || '').trim()
     const fileName = String(body.fileName || '').trim()
     const fileSizeBytes = Number(body.fileSizeBytes || 0)
+    const MAX_UPLOAD_BYTES = 200 * 1024 * 1024 // 200MB
 
-    const fileHash =
-  String(body.fileHash || '').trim() ||
+const providedFileHash = String(
+  body.fileHash || ''
+).trim()
+
+if (providedFileHash.length > 500) {
+  return NextResponse.json(
+    { error: 'Invalid file hash' },
+    { status: 400 }
+  )
+}
+
+const hashSource =
+  providedFileHash ||
   `${fileName}-${fileSizeBytes}-${storagePath}`
+
+const fileHash = /^[a-f0-9]{64}$/i.test(
+  hashSource
+)
+  ? hashSource.toLowerCase()
+  : crypto
+      .createHash('sha256')
+      .update(hashSource, 'utf8')
+      .digest('hex')
+
     const size = normalizeRequestedSize(String(body.size || 'hd').toLowerCase())
-    const categoryId = body.categoryId || null
+    const categoryId = body.categoryId
+  ? String(body.categoryId).trim().slice(0, 100)
+  : null
     const presetPath = body.presetPath ? String(body.presetPath).trim() : null
 
-    if (
+ if (
   !albumId ||
   !storagePath ||
   !fileName ||
-  !Number.isFinite(fileSizeBytes) ||
+  !Number.isSafeInteger(fileSizeBytes) ||
   fileSizeBytes <= 0
 ) {
       return NextResponse.json(
@@ -256,6 +456,26 @@ if (!user && !isWorkerRequest) {
         { status: 400 }
       )
     }
+
+    if (fileSizeBytes > MAX_UPLOAD_BYTES) {
+  return NextResponse.json(
+    { error: 'File too large' },
+    { status: 400 }
+  )
+}
+
+    if (
+  albumId.length > 100 ||
+  storagePath.length > 500 ||
+  fileName.length > 255 ||
+  fileHash.length > 255 ||
+  (presetPath && presetPath.length > 500)
+) {
+  return NextResponse.json(
+    { error: 'Invalid upload data' },
+    { status: 400 }
+  )
+}
 
      const supabaseAdmin = getSupabaseAdmin()
 
@@ -294,6 +514,89 @@ if (!ownerId) {
     { error: 'Missing album owner' },
     { status: 500 }
   )
+}
+
+const expectedOriginalPrefix =
+  `${ownerId}/${albumId}/original/`
+
+const expectedAlbumPresetPrefix =
+  `${ownerId}/${albumId}/presets/`
+
+const expectedUserPresetPrefix =
+  `${ownerId}/presets/`
+
+if (!storagePath.startsWith(expectedOriginalPrefix)) {
+  return NextResponse.json(
+    { error: 'Invalid storage path' },
+    { status: 400 }
+  )
+}
+
+if (
+  presetPath &&
+  !presetPath.startsWith(
+    expectedAlbumPresetPrefix
+  ) &&
+  !presetPath.startsWith(
+    expectedUserPresetPrefix
+  )
+) {
+  return NextResponse.json(
+    { error: 'Invalid preset path' },
+    { status: 400 }
+  )
+}
+
+if (hasUnsafeStoragePath(storagePath)) {
+  return NextResponse.json(
+    { error: 'Invalid storage path' },
+    { status: 400 }
+  )
+}
+
+if (presetPath && hasUnsafeStoragePath(presetPath)) {
+  return NextResponse.json(
+    { error: 'Invalid preset path' },
+    { status: 400 }
+  )
+}
+
+const originalFileExists = await storageObjectExists(
+  supabaseAdmin,
+  storagePath
+)
+
+if (!originalFileExists) {
+  return NextResponse.json(
+    { error: 'Uploaded file not found in storage' },
+    { status: 400 }
+  )
+}
+
+if (presetPath) {
+  const presetBucket =
+    presetPath.startsWith(
+      expectedUserPresetPrefix
+    )
+      ? 'presets'
+      : 'albums'
+
+  const presetFileExists =
+    await storageObjectExists(
+      supabaseAdmin,
+      presetPath,
+      presetBucket
+    )
+
+  if (!presetFileExists) {
+    return NextResponse.json(
+      {
+        error:
+          'Preset file not found in storage',
+      },
+      { status: 400 }
+    )
+  }
 }
 
     const jobPriority = getPhotoJobPriority({
@@ -369,15 +672,28 @@ if (!ownerId) {
           source: 'finalize-upload-duplicate-repair',
         })
 
-        await supabaseAdmin
-          .from('photos')
-          .update({
-            processing_status: queueResult.queued ? 'pending' : 'failed',
-            processing_progress: 0,
-            preset_path: existingPhoto.preset_path || presetPath || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', existingPhoto.id)
+        const { error: duplicateRepairUpdateError } =
+  await supabaseAdmin
+    .from('photos')
+    .update({
+      processing_status: queueResult.queued
+        ? 'pending'
+        : 'failed',
+      processing_progress: 0,
+      preset_path:
+        existingPhoto.preset_path ||
+        presetPath ||
+        null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', existingPhoto.id)
+
+if (duplicateRepairUpdateError) {
+  console.error(
+    '[finalize-upload] duplicate repair status update failed:',
+    duplicateRepairUpdateError.message
+  )
+}
       }
 
       return NextResponse.json({
@@ -405,70 +721,39 @@ if (!ownerId) {
 
     await safeRecalculateStorage(supabaseAdmin, ownerId)
 
-    let { data: usage } = await supabaseAdmin
-      .from('user_storage_usage')
-      .select('*')
-      .eq('user_id', ownerId)
-      .maybeSingle()
+const storagePlan = await getUserStoragePlan(ownerId)
 
-    if (!usage) {
-      const defaultPlan = 'free'
-const defaultLimit = PLAN_LIMITS[defaultPlan].storageBytes
+const currentUsed = Number(storagePlan.usedBytes)
+const currentLimit = Number(storagePlan.storageLimitBytes)
+const normalizedPlan = storagePlan.plan
 
-      await supabaseAdmin.from('user_storage_usage').upsert(
-        {
-          user_id: ownerId,
-          current_plan: defaultPlan,
-          used_bytes: 0,
-          storage_used_bytes: 0,
-          storage_limit_bytes: defaultLimit,
-          photo_count: 0,
-          photos_count: 0,
-          albums_count: 0,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id', ignoreDuplicates: true }
-      )
+if (
+  !Number.isSafeInteger(currentUsed) ||
+  currentUsed < 0 ||
+  !Number.isSafeInteger(currentLimit) ||
+  currentLimit < 0
+) {
+  throw new Error('Invalid storage quota data')
+}
 
-      const { data: ensuredUsage, error: ensuredUsageError } =
-        await supabaseAdmin
-          .from('user_storage_usage')
-          .select('*')
-          .eq('user_id', ownerId)
-          .single()
+const estimatedUploadBytes =
+  fileSizeBytes +
+  Math.round(fileSizeBytes * 0.35) +
+  Math.round(fileSizeBytes * 0.05)
 
-      if (ensuredUsageError || !ensuredUsage) {
-        return NextResponse.json(
-          {
-            error:
-              ensuredUsageError?.message ||
-              'Cannot initialize storage usage',
-          },
-          { status: 500 }
-        )
-      }
+const estimatedNextUsage =
+  currentUsed + estimatedUploadBytes
 
-      usage = ensuredUsage
-    }
+if (
+  !Number.isSafeInteger(estimatedUploadBytes) ||
+  !Number.isSafeInteger(estimatedNextUsage)
+) {
+  throw new Error(
+    'Storage calculation exceeds safe integer range'
+  )
+}
 
-    const currentUsed = Number(
-      usage.storage_used_bytes || usage.used_bytes || 0
-    )
-
-    const normalizedPlan = normalizePlanKey(usage.current_plan)
-
-const currentLimit = Number(
-  usage.storage_limit_bytes ||
-    PLAN_LIMITS[normalizedPlan].storageBytes ||
-    PLAN_LIMITS.free.storageBytes
-)
-
-    const estimatedUploadBytes =
-      fileSizeBytes +
-      Math.round(fileSizeBytes * 0.35) +
-      Math.round(fileSizeBytes * 0.05)
-
-   if (currentUsed + estimatedUploadBytes > currentLimit) {
+if (estimatedNextUsage > currentLimit) {
 
   return NextResponse.json(
   {
@@ -551,21 +836,29 @@ const currentLimit = Number(
     })
 
     if (!queueResult.queued) {
-      await supabaseAdmin
-        .from('photos')
-        .update({
-          processing_status: 'failed',
-          processing_progress: 0,
-          updated_at: new Date().toISOString(),
-          metadata: {
-            uploadedVia: 'api/photos/finalize-upload',
-            requestedSize: size,
-            presetPath,
-            jobPriority,
-            queueError: queueResult.error,
-          },
-        })
-        .eq('id', insertedPhoto.id)
+  const { error: queueFailureUpdateError } =
+    await supabaseAdmin
+      .from('photos')
+      .update({
+        processing_status: 'failed',
+        processing_progress: 0,
+        updated_at: new Date().toISOString(),
+        metadata: {
+          uploadedVia: 'api/photos/finalize-upload',
+          requestedSize: size,
+          presetPath,
+          jobPriority,
+          queueError: queueResult.error,
+        },
+      })
+      .eq('id', insertedPhoto.id)
+
+  if (queueFailureUpdateError) {
+    console.error(
+      '[finalize-upload] queue failure status update failed:',
+      queueFailureUpdateError.message
+    )
+  }
 
       return NextResponse.json({
         success: true,
@@ -580,16 +873,24 @@ const currentLimit = Number(
       })
     }
 
-    if (!album.cover_url && insertedPhoto.public_url) {
-      await supabaseAdmin
-        .from('albums')
-        .update({
-          cover_url: insertedPhoto.public_url,
-          cover_photo_id: insertedPhoto.id,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', albumId)
-    }
+   if (!album.cover_url && insertedPhoto.public_url) {
+  const { error: autoCoverError } =
+    await supabaseAdmin
+      .from('albums')
+      .update({
+        cover_url: insertedPhoto.public_url,
+        cover_photo_id: insertedPhoto.id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', albumId)
+
+  if (autoCoverError) {
+    console.error(
+      '[finalize-upload] automatic cover update failed:',
+      autoCoverError.message
+    )
+  }
+}
 
     await safeRecalculateStorage(supabaseAdmin, ownerId)
 
@@ -604,7 +905,10 @@ const currentLimit = Number(
       jobPriority,
     })
   } catch (error) {
-    console.error('Finalize upload error:', error)
+    console.error(
+  '[finalize-upload]',
+  error instanceof Error ? error.message : error
+)
 
     return NextResponse.json(
       {

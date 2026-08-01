@@ -1,48 +1,46 @@
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { getUserStoragePlan } from '@/lib/get-user-storage-plan'
 
-const FREE_LIMIT_BYTES = 5 * 1024 * 1024 * 1024
+export async function checkStorageLimit(
+  userId: string,
+  additionalBytes = 0
+) {
+  const normalizedUserId = userId.trim()
 
-export async function checkStorageLimit(userId: string) {
-  const supabase = await createServerSupabaseClient()
-
-  type StorageRow = {
-  file_size_bytes?: number | null
-}
-
-  const { data: storageRows = [], error } = await supabase
-    .from('photos')
-    .select('file_size_bytes')
-    .eq('owner_id', userId)
-
-  if (error) {
-    throw new Error(error.message)
+  if (!normalizedUserId) {
+    throw new Error('Invalid userId')
   }
 
-  const storageRowsTyped = storageRows as StorageRow[]
+  if (
+    !Number.isSafeInteger(additionalBytes) ||
+    additionalBytes < 0
+  ) {
+    throw new Error('Invalid additionalBytes')
+  }
 
-const usedBytes = storageRowsTyped.reduce(
-  (sum, row) => sum + Number(row.file_size_bytes ?? 0),
-  0
-)
+  const { usedBytes, limitBytes, remainingBytes } =
+    await getUserStoragePlan(normalizedUserId)
 
-  const { data: currentSubscription } = await supabase
-    .from('subscriptions')
-    .select(`
-      plan:plans(storage_limit_bytes)
-    `)
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .maybeSingle()
+  if (
+    !Number.isSafeInteger(usedBytes) ||
+    usedBytes < 0 ||
+    !Number.isSafeInteger(limitBytes) ||
+    limitBytes < 0
+  ) {
+    throw new Error('Invalid storage usage data')
+  }
 
-  const plan = Array.isArray(currentSubscription?.plan)
-    ? currentSubscription?.plan[0]
-    : currentSubscription?.plan
+  const nextUsedBytes = usedBytes + additionalBytes
 
-  const limitBytes = Number(plan?.storage_limit_bytes || FREE_LIMIT_BYTES)
+  if (!Number.isSafeInteger(nextUsedBytes)) {
+    throw new Error('Storage usage exceeds safe integer range')
+  }
 
   return {
     usedBytes,
     limitBytes,
-    isExceeded: usedBytes >= limitBytes,
+    remainingBytes,
+    additionalBytes,
+    nextUsedBytes,
+    isExceeded: nextUsedBytes > limitBytes,
   }
 }

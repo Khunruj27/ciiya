@@ -25,7 +25,13 @@ const GPHOTO_BIN = process.env.GPHOTO_BIN || 'gphoto2'
 const CAMERA_IMPORT_TEMP_DIR =
   process.env.CAMERA_IMPORT_TEMP_DIR || '.ciiya-camera-imports'
 
-const POLL_INTERVAL_MS = 1500
+const POLL_INTERVAL_MS = 7000
+const CAMERA_DETECT_CACHE_MS = 5000
+
+const sessionBaselines = new Map<string, Set<string>>()
+
+let lastHeartbeatAt = 0
+const HEARTBEAT_INTERVAL_MS = 30 * 1000
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   throw new Error('Missing Supabase environment variables')
@@ -55,6 +61,27 @@ type DetectedCamera = {
   port: string
 }
 
+let cachedCamera: DetectedCamera | null = null
+let lastCameraDetectedAt = 0
+
+async function getCachedCamera() {
+  const now = Date.now()
+
+  if (
+    cachedCamera &&
+    now - lastCameraDetectedAt < CAMERA_DETECT_CACHE_MS
+  ) {
+    return cachedCamera
+  }
+
+  const camera = await detectCamera()
+
+  cachedCamera = camera
+  lastCameraDetectedAt = now
+
+  return camera
+}
+
  type CameraFile = {
   cameraFileId: string
   filename: string
@@ -63,6 +90,54 @@ type DetectedCamera = {
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
+
+async function sendHeartbeat() {
+  const now = Date.now()
+
+  if (now - lastHeartbeatAt < HEARTBEAT_INTERVAL_MS) {
+    return
+  }
+
+  lastHeartbeatAt = now
+
+  try {
+    const workerId = `camera-worker-${process.pid}`
+    const seenAt = new Date().toISOString()
+
+    const { error } = await supabase.from('worker_heartbeats').upsert(
+      {
+        worker_id: workerId,
+        worker_name: workerId,
+        worker_type: 'camera',
+        status: 'online',
+        last_seen: seenAt,
+        last_seen_at: seenAt,
+        metadata: {
+          pid: process.pid,
+          node: process.version,
+          pollInterval: POLL_INTERVAL_MS,
+          detectCacheMs: CAMERA_DETECT_CACHE_MS,
+          gphotoBin: GPHOTO_BIN,
+        },
+        meta: {
+          pid: process.pid,
+          node: process.version,
+          pollInterval: POLL_INTERVAL_MS,
+          detectCacheMs: CAMERA_DETECT_CACHE_MS,
+          gphotoBin: GPHOTO_BIN,
+        },
+      },
+      { onConflict: 'worker_id' }
+    )
+
+    if (error) {
+      console.error('[CameraWorker] heartbeat failed:', error.message)
+    }
+  } catch (error) {
+    console.error('[CameraWorker] heartbeat error:', error)
+  }
+}
+
 
 async function expireInactiveSessions() {
   const timeoutAt = new Date(
@@ -155,19 +230,21 @@ function parseCameraFiles(stdout: string): CameraFile[] {
   return stdout
     .split('\n')
     .map((line) => line.trim())
-    .filter((line) => /^#\d+\s+/.test(line))
     .map((line) => {
-      const match = line.match(/^#(\d+)\s+(.+)$/)
+      if (!line.startsWith('#')) return null
 
-      if (!match) return null
+      const idMatch = line.match(/^#(\d+)/)
+      if (!idMatch?.[1]) return null
 
-      const cameraFileId = match[1]
-      const filename = match[2].trim()
-      const lower = filename.toLowerCase()
+      const cameraFileId = idMatch[1]
 
-      if (!lower.endsWith('.jpg') && !lower.endsWith('.jpeg')) {
-        return null
-      }
+      const withoutId = line.replace(/^#\d+\s+/, '').trim()
+      if (!withoutId) return null
+
+      const tokens = withoutId.split(/\s+/)
+      const filename = tokens[0]?.trim()
+
+      if (!filename) return null
 
       return {
         cameraFileId,
@@ -249,19 +326,49 @@ async function filterNewCameraFiles(
 
   const existingIds = new Set(
     (data || [])
-      .map((item) => item.camera_file_id)
+      .map((item) => String(item.camera_file_id || ''))
       .filter(Boolean)
   )
 
-  return files.filter(
-    (file) => !existingIds.has(file.cameraFileId)
-  )
+  return files.filter((file) => !existingIds.has(file.cameraFileId))
+}
+
+async function getBaselineFilteredFiles(
+  session: CameraUploadSession,
+  files: CameraFile[]
+) {
+  const baseline = sessionBaselines.get(session.id)
+
+  if (!baseline) {
+    sessionBaselines.set(
+      session.id,
+      new Set(files.map((file) => file.cameraFileId))
+    )
+
+    console.log(
+      `[camera-live-import-worker] baseline set album=${session.album_id} files=${files.length}`
+    )
+
+    return []
+  }
+
+  return files.filter((file) => !baseline.has(file.cameraFileId))
 }
 
 async function ensureTempDir() {
   await fs.mkdir(CAMERA_IMPORT_TEMP_DIR, {
     recursive: true,
   })
+}
+
+function isSupportedCameraFile(filename: string) {
+  const lower = filename.toLowerCase()
+
+  return (
+    lower.endsWith('.jpg') ||
+    lower.endsWith('.jpeg') ||
+    lower.endsWith('.jpe')
+  )
 }
 
 function getSafeLocalFileName(filename: string) {
@@ -377,14 +484,16 @@ async function finalizeCameraUpload(params: {
 }) {
   const { session, file, storagePath, fileSizeBytes } = params
 
-  const siteUrl =
+    const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
 
-  const res = await fetch(`${siteUrl}/api/photos/finalize-upload`, {
+  console.log('[camera-worker] finalize siteUrl=', siteUrl)
+  
+    const res = await fetch(`${siteUrl}/api/photos/finalize-upload`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-worker-secret': process.env.WORKER_SECRET || '',
+      'x-worker-secret': String(process.env.WORKER_SECRET || '').trim(),
     },
     body: JSON.stringify({
       albumId: session.album_id,
@@ -417,6 +526,11 @@ async function uploadLocalCameraFile(
   session: CameraUploadSession,
   file: CameraFile
 ) {
+
+  
+  let uploadedStoragePath: string | null = null
+  let fileBuffer: Buffer | null = null
+
   const { data: importRow, error: importError } = await supabase
     .from('camera_live_imports')
     .select('id, local_path, file_size_bytes, status')
@@ -442,16 +556,26 @@ async function uploadLocalCameraFile(
 }
 
   try {
-    await supabase
-      .from('camera_live_imports')
-      .update({
-        status: 'uploading',
-        progress: 70,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', importRow.id)
+    const { error: markUploadingError } =
+  await supabase
+    .from('camera_live_imports')
+    .update({
+      status: 'uploading',
+      progress: 70,
+      error: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', importRow.id)
 
-    const fileBuffer = await fs.readFile(importRow.local_path)
+if (markUploadingError) {
+  throw new Error(
+    `Unable to mark camera import as uploading: ${markUploadingError.message}`
+  )
+}
+
+    fileBuffer = await fs.readFile(
+  importRow.local_path
+)
     const fileSizeBytes = Number(importRow.file_size_bytes || fileBuffer.length)
 
     const safeFileName = getUploadSafeFileName(file.filename)
@@ -468,15 +592,24 @@ async function uploadLocalCameraFile(
       throw new Error(uploadError.message)
     }
 
-    await supabase
-      .from('camera_live_imports')
-      .update({
-        storage_path: storagePath,
-        status: 'finalizing',
-        progress: 85,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', importRow.id)
+    uploadedStoragePath = storagePath
+
+    const { error: markFinalizingError } =
+  await supabase
+    .from('camera_live_imports')
+    .update({
+      storage_path: storagePath,
+      status: 'finalizing',
+      progress: 85,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', importRow.id)
+
+if (markFinalizingError) {
+  throw new Error(
+    `Unable to save uploaded camera file state: ${markFinalizingError.message}`
+  )
+}
 
     await finalizeCameraUpload({
       session,
@@ -485,15 +618,27 @@ async function uploadLocalCameraFile(
       fileSizeBytes,
     })
 
-    await supabase
-      .from('camera_live_imports')
-      .update({
-        status: 'done',
-        progress: 100,
-        uploaded_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', importRow.id)
+    await fs.unlink(importRow.local_path).catch(() => {})
+
+    const { error: markDoneError } =
+  await supabase
+    .from('camera_live_imports')
+    .update({
+      status: 'done',
+      progress: 100,
+      error: null,
+      uploaded_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', importRow.id)
+
+if (markDoneError) {
+  throw new Error(
+    `Unable to complete camera import: ${markDoneError.message}`
+  )
+}
+
+uploadedStoragePath = null
 
     console.log(
   `[camera-live-import-worker] DONE album=${session.album_id} file=${file.filename}`
@@ -502,25 +647,21 @@ async function uploadLocalCameraFile(
     const message =
       error instanceof Error ? error.message : 'Upload/finalize failed'
 
-    const { data: failedRow } = await supabase
-      .from('camera_live_imports')
-      .select('storage_path')
-      .eq('album_id', session.album_id)
-      .eq('camera_file_id', file.cameraFileId)
-      .maybeSingle()
+    if (uploadedStoragePath) {
+  const { error: removeError } =
+    await supabase.storage
+      .from('albums')
+      .remove([uploadedStoragePath])
 
-    if (failedRow?.storage_path) {
-      const { error: removeError } = await supabase.storage
-        .from('albums')
-        .remove([failedRow.storage_path])
-
-      if (removeError) {
-        console.error(
-          `[camera-live-import-worker] cleanup uploaded file failed path=${failedRow.storage_path}:`,
-          removeError.message
-        )
-      }
-    }
+  if (removeError) {
+    console.error(
+      `[camera-live-import-worker] cleanup uploaded file failed path=${uploadedStoragePath}:`,
+      removeError.message
+    )
+  } else {
+    uploadedStoragePath = null
+  }
+}
 
     await supabase
       .from('camera_live_imports')
@@ -538,11 +679,15 @@ async function uploadLocalCameraFile(
       `[camera-live-import-worker] upload/finalize failed album=${session.album_id} filename=${file.filename}:`,
       message
     )
-  }
+
+    } finally {
+  fileBuffer?.fill(0)
+  fileBuffer = null
+}
 }
 
 async function processSession(session: CameraUploadSession) {
-  const camera = await detectCamera()
+  const camera = await getCachedCamera()
 
   if (!camera) {
     console.log(
@@ -555,60 +700,75 @@ async function processSession(session: CameraUploadSession) {
     `[camera-live-import-worker] camera connected model="${camera.model}" port="${camera.port}" album=${session.album_id}`
   )
 
-  const files = await listCameraJpgFiles()
+    const files = await listCameraJpgFiles()
 
-  if (files.length === 0) {
+  const supportedFiles = files.filter((file) =>
+    isSupportedCameraFile(file.filename)
+  )
+
+  if (supportedFiles.length === 0) {
     console.log(
-      `[camera-live-import-worker] no JPG files found album=${session.album_id}`
+      `[camera-live-import-worker] no supported JPG files found album=${session.album_id}`
     )
     return
   }
 
   console.log(
-    `[camera-live-import-worker] found ${files.length} JPG file(s): ${files
+    `[camera-live-import-worker] found ${supportedFiles.length} supported JPG file(s): ${supportedFiles
       .slice(0, 5)
       .map((file) => file.filename)
       .join(', ')}`
   )
-  
-  const newFiles = await filterNewCameraFiles(session, files)
 
-  if (newFiles.length > 0) {
+  const baselineNewFiles = await getBaselineFilteredFiles(
+  session,
+  supportedFiles
+)
+
+const newFiles = await filterNewCameraFiles(session, baselineNewFiles)
+
+  if (newFiles.length === 0) {
+    console.log(
+      `[camera-live-import-worker] no new JPG files album=${session.album_id}`
+    )
+    return
+  }
+
   await supabase
     .from('camera_upload_sessions')
     .update({
       last_activity_at: new Date().toISOString(),
     })
     .eq('id', session.id)
-}
 
-if (newFiles.length === 0) {
   console.log(
-    `[camera-live-import-worker] no new JPG files album=${session.album_id}`
+    `[camera-live-import-worker] album=${session.album_id} queueing ${newFiles.length} new JPG file(s)`
   )
-  return
-}
 
-console.log(
-  `[camera-live-import-worker] album=${session.album_id} queueing ${newFiles.length} new JPG file(s)`
-)
-
-for (const file of newFiles) {
+  for (const file of newFiles) {
   await queueCameraFile(session, file)
-}
-
-for (const file of newFiles) {
   await downloadCameraFile(session, file)
   await uploadLocalCameraFile(session, file)
+
+  
+
+  const baseline = sessionBaselines.get(session.id)
+
+  if (baseline) {
+   baseline.add(file.cameraFileId)
+  }
 }
 }
+
+
 
 async function main() {
   console.log('[camera-live-import-worker] started')
 
   while (true) {
-    try {
-      await expireInactiveSessions()
+  try {
+    await sendHeartbeat()
+    await expireInactiveSessions()
 
       const sessions = await loadActiveSessions()
 

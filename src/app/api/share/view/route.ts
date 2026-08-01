@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import {
+  getShareAuthCookieName,
+  hasValidSharePasswordAccess,
+  isAlbumPubliclyVisible,
+} from '@/lib/share-access'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -34,11 +39,13 @@ export async function POST(req: NextRequest) {
 
     const { data: album, error: albumError } = await supabase
       .from('albums')
-      .select('id, view_count')
+      .select(
+        'id, view_count, is_public, status, is_password_protected, password_hash'
+      )
       .eq('share_token', token)
       .maybeSingle()
 
-    if (albumError || !album) {
+    if (albumError || !album || !isAlbumPubliclyVisible(album)) {
       return NextResponse.json(
         {
           success: false,
@@ -46,6 +53,22 @@ export async function POST(req: NextRequest) {
         },
         {
           status: 404,
+        }
+      )
+    }
+
+    const shareCookie = req.cookies.get(
+      getShareAuthCookieName(album.id)
+    )?.value
+
+    if (!hasValidSharePasswordAccess(album, shareCookie)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Password required',
+        },
+        {
+          status: 401,
         }
       )
     }

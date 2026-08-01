@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 
 type Photo = {
   id: string
@@ -82,11 +83,16 @@ export default function AlbumManagement({
       <div className="grid grid-cols-3 gap-[2px] bg-slate-200">
         {photos.map((photo) => (
           <div key={photo.id} className="bg-white">
-            <img
-              src={photo.public_url}
-              alt="Album cover preview"
-              className="w-full aspect-square object-cover"
-            />
+            <div className="relative aspect-square w-full">
+              <Image
+                src={photo.public_url}
+                alt="Album cover preview"
+                fill
+                sizes="33vw"
+                unoptimized
+                className="object-cover"
+              />
+            </div>
 
             <div className="p-1 text-[10px] text-center text-slate-500 truncate">
               {photo.filename}

@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 
@@ -80,6 +81,7 @@ export default async function PersonPhotosPage({ params }: PageProps) {
     .eq('album_id', albumId)
     .or(`cluster_id.eq.${personId},person_cluster_id.eq.${personId}`)
     .order('confidence', { ascending: false })
+    .limit(200)
 
   if (facesError) {
     throw new Error(facesError.message)
@@ -211,6 +213,9 @@ export default async function PersonPhotosPage({ params }: PageProps) {
 
                 if (!imageUrl) return null
 
+                const isOriginalFallback =
+                  !photo.thumbnail_url && !photo.preview_url
+
                 return (
                   <Link
                     key={photo.id}
@@ -219,18 +224,23 @@ export default async function PersonPhotosPage({ params }: PageProps) {
                   >
                     <div className="relative aspect-[3/4] overflow-hidden rounded-[22px] bg-[#F2EEE9]">
                       {photo.blur_data_url ? (
-                        <img
+                        <Image
                           src={photo.blur_data_url}
                           alt=""
                           aria-hidden="true"
-                          className="absolute inset-0 h-full w-full scale-110 object-cover blur-2xl"
+                          fill
+                          unoptimized
+                          className="scale-110 object-cover blur-2xl"
                         />
                       ) : null}
 
-                      <img
+                      <Image
                         src={imageUrl}
                         alt={photo.filename || 'photo'}
-                        className="relative h-full w-full object-cover transition duration-500 group-active:scale-[1.03]"
+                        fill
+                        sizes="(max-width: 640px) 50vw, 220px"
+                        unoptimized={isOriginalFallback}
+                        className="object-cover transition duration-500 group-active:scale-[1.03]"
                       />
                     </div>
 

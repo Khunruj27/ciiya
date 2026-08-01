@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import NextImage from 'next/image'
 import {
   Grid2Icon,
   Grid3Icon,
@@ -15,8 +16,14 @@ import {
 type Photo = {
   id: string
   public_url: string
+
+  original_url?: string | null
   preview_url?: string | null
   thumbnail_url?: string | null
+  sd_url?: string | null
+  hd_url?: string | null
+  uhd_url?: string | null
+
   blur_data_url?: string | null
   filename?: string | null
   view_count?: number | null
@@ -36,11 +43,25 @@ type TouchPoint = {
 }
 
 function getDisplayImageUrl(photo: Photo) {
-  return photo.preview_url || photo.thumbnail_url || ''
+  return (
+    photo.preview_url ||
+    photo.hd_url ||
+    photo.uhd_url ||
+    photo.original_url ||
+    photo.public_url ||
+    photo.thumbnail_url ||
+    ''
+  )
 }
 
 function getThumbnailImageUrl(photo: Photo) {
-  return photo.thumbnail_url || photo.preview_url || ''
+  return (
+    photo.thumbnail_url ||
+    photo.preview_url ||
+    photo.hd_url ||
+    photo.public_url ||
+    ''
+  )
 }
 
 function getDistance(a: TouchPoint, b: TouchPoint) {
@@ -75,13 +96,6 @@ function preloadImage(src?: string | null) {
   img.src = src
 }
 
-function getInitialGridCols() {
-  if (typeof window === 'undefined') return 3
-
-  return getSafeGridCols(
-    Number(window.localStorage.getItem('public-gallery-cols') || 3)
-  )
-}
 
 const PhotoTile = memo(function PhotoTile({
   photo,
@@ -116,6 +130,8 @@ const PhotoTile = memo(function PhotoTile({
 
   const gridImage = imageSources[srcIndex] || ''
   const previewImage = getDisplayImageUrl(photo)
+  const isOriginalFallback =
+    Boolean(gridImage) && gridImage === photo.public_url
 
   function handleImageError() {
     if (srcIndex < imageSources.length - 1) {
@@ -144,20 +160,24 @@ const PhotoTile = memo(function PhotoTile({
     >
       <div className="relative h-full w-full overflow-hidden">
         {!loaded && photo.blur_data_url ? (
-          <img
+          <NextImage
             src={photo.blur_data_url}
             alt=""
             aria-hidden="true"
-            className="absolute inset-0 z-0 h-full w-full scale-110 object-cover blur-2xl"
+            fill
+            unoptimized
+            className="z-0 scale-110 object-cover blur-2xl"
           />
         ) : null}
 
         {gridImage ? (
-          <img
+          <NextImage
             key={`${photo.id}:${gridImage}`}
             src={gridImage}
+            fill
+            sizes="(max-width: 768px) 33vw, 25vw"
+            unoptimized={isOriginalFallback}
             loading={index < 12 ? 'eager' : 'lazy'}
-            decoding="async"
             alt={photo.filename || 'photo'}
             onLoad={() =>
               setImageState({
@@ -167,7 +187,7 @@ const PhotoTile = memo(function PhotoTile({
               })
             }
             onError={handleImageError}
-            className="relative z-10 h-full w-full object-cover transition-transform duration-300 will-change-transform group-hover:scale-[1.03]"
+            className="z-10 object-cover transition-transform duration-300 will-change-transform group-hover:scale-[1.03]"
           />
         ) : (
           <div className="absolute inset-0 z-0 bg-slate-200" />
@@ -235,6 +255,7 @@ export default function PublicGallery({ photos: initialPhotos }: Props) {
 
   const pinchStartDistance = useRef<number | null>(null)
   const startScale = useRef(1)
+  const preloadedImagesRef = useRef<Set<string>>(new Set())
 
   const popularPhotos = useMemo(() => {
     return [...photos].sort((a, b) => {
@@ -254,23 +275,51 @@ export default function PublicGallery({ photos: initialPhotos }: Props) {
   const activePhoto = activeIndex !== null ? displayPhotos[activeIndex] : null
   const activeImageUrl = activePhoto ? getDisplayImageUrl(activePhoto) : ''
 
+ useEffect(() => {
+  const frameId = window.requestAnimationFrame(() => {
+    const savedGridCols = getSafeGridCols(
+      Number(
+        window.localStorage.getItem(
+          'public-gallery-cols'
+        ) || 3
+      )
+    )
+
+    setGridCols((current) =>
+      current === savedGridCols
+        ? current
+        : savedGridCols
+    )
+  })
+
+  return () => {
+    window.cancelAnimationFrame(frameId)
+  }
+}, [])
+
   useEffect(() => {
-    if (typeof window === 'undefined') return
+  window.localStorage.setItem(
+    'public-gallery-cols',
+    String(gridCols)
+  )
+}, [gridCols])
 
-    window.localStorage.setItem('public-gallery-cols', String(gridCols))
-  }, [gridCols])
+useEffect(() => {
+  if (activeIndex === null) return
 
-  useEffect(() => {
-    if (activeIndex === null) return
+  const preloadIndexes = [activeIndex - 1, activeIndex + 1]
 
-    const preloadIndexes = [activeIndex - 1, activeIndex + 1]
+  preloadIndexes.forEach((photoIndex) => {
+    const photo = displayPhotos[photoIndex]
+    if (!photo) return
 
-    preloadIndexes.forEach((photoIndex) => {
-      const photo = displayPhotos[photoIndex]
-      if (!photo) return
-      preloadImage(getDisplayImageUrl(photo))
-    })
-  }, [activeIndex, displayPhotos])
+    const src = getDisplayImageUrl(photo)
+    if (!src || preloadedImagesRef.current.has(src)) return
+
+    preloadedImagesRef.current.add(src)
+    preloadImage(src)
+  })
+}, [activeIndex, displayPhotos])
 
   useEffect(() => {
     if (activeIndex === null) return

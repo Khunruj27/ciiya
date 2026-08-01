@@ -103,6 +103,7 @@ export default function UploadPhotoForm({
 
   const mountedRef = useRef(true)
   const uploadingRef = useRef(false)
+  const uploadLockRef = useRef(false)
 
   const [items, setItems] = useState<UploadItem[]>([])
   const [presetFile, setPresetFile] = useState<File | null>(null)
@@ -163,6 +164,10 @@ export default function UploadPhotoForm({
     if (!mountedRef.current) return
     setSuccessMsg(value)
   }
+
+  function isMounted() {
+  return mountedRef.current
+}
 
   const totalSelectedBytes = useMemo(() => {
     return items.reduce((sum, item) => sum + item.file.size, 0)
@@ -390,19 +395,25 @@ export default function UploadPhotoForm({
             })
              
             safeSetErrorMsg('Storage limit reached. Please upgrade your plan.')
-            router.push('/pricing')
-            return
+
+if (isMounted()) {
+  router.push('/pricing')
+}
+
+return
           }
         }
       }
     }
 
-    const workers = Array.from(
-      { length: Math.min(UPLOAD_CONCURRENCY, uploadItems.length) },
-      () => worker()
-    )
+    const workerCount = Math.max(
+  1,
+  Math.min(UPLOAD_CONCURRENCY, uploadItems.length)
+)
 
-    await Promise.all(workers)
+await Promise.allSettled(
+  Array.from({ length: workerCount }, () => worker())
+)
 
     return results
   }
@@ -410,6 +421,12 @@ export default function UploadPhotoForm({
   async function handleUpload() {
     safeSetErrorMsg('')
     safeSetSuccessMsg('')
+
+    if (uploadLockRef.current) {
+  return
+}
+
+uploadLockRef.current = true
 
     if (items.length === 0) {
       safeSetErrorMsg('Please select at least one JPG file')
@@ -419,16 +436,6 @@ export default function UploadPhotoForm({
     const uploadItems = items.filter(
       (item) => item.status === 'waiting' || item.status === 'error'
     )
-
-    onOptimisticUploads?.(
-  uploadItems.map((item) => ({
-    id: item.id,
-    fileName: item.file.name,
-    fileHash: `${item.file.name}-${item.file.size}-${item.file.lastModified}`,
-    progress: 5,
-    status: 'uploading',
-  }))
-)
 
     if (uploadItems.length === 0) {
       safeSetErrorMsg('No pending files to upload')
@@ -456,11 +463,24 @@ export default function UploadPhotoForm({
     }
 
     try {
-      safeSetUploading(true)
-      onUploadStarted?.()
+safeSetUploading(true)
 
-      const {
-        data: { user },
+if (isMounted()) {
+  onUploadStarted?.()
+
+  onOptimisticUploads?.(
+    uploadItems.map((item) => ({
+      id: item.id,
+      fileName: item.file.name,
+      fileHash: `${item.file.name}-${item.file.size}-${item.file.lastModified}`,
+      progress: 5,
+      status: 'uploading',
+    }))
+  )
+}
+
+  const {
+    data: { user },
         error: userError,
       } = await supabase.auth.getUser()
 
@@ -502,6 +522,10 @@ export default function UploadPhotoForm({
           : `Upload queued: ${successCount}/${uploadItems.length} file(s)`
       )
 
+      if (successCount === uploadItems.length) {
+        setPresetFile(null)
+      }
+
       if (errorCount > 0) {
         safeSetErrorMsg(
           `${errorCount} file(s) failed. You can press Start Upload again to retry.`
@@ -511,8 +535,9 @@ export default function UploadPhotoForm({
       safeSetErrorMsg(error instanceof Error ? error.message : 'Upload failed')
       safeSetCurrentFileName('')
     } finally {
-      safeSetUploading(false)
-    }
+  uploadLockRef.current = false
+  safeSetUploading(false)
+}
   }
 
   return (
@@ -528,16 +553,46 @@ export default function UploadPhotoForm({
     multiple
     accept=".jpg,.jpeg,image/jpeg"
     onChange={(e) => {
-      const selected = Array.from(e.target.files || [])
+     const selected = Array.from(e.target.files || []).filter(
 
-      const newItems: UploadItem[] = selected.map((file) => ({
-        id: makeItemId(file),
-        file,
-        progress: 0,
-        status: 'waiting',
-      }))
+  (file) => file.size > 0
 
-      setItems((prev) => [...prev, ...newItems])
+)
+
+setItems((prev) => {
+  const pending = prev.filter(
+    (item) =>
+      item.status === 'waiting' ||
+      item.status === 'uploading' ||
+      item.status === 'error'
+  )
+
+  const existingHashes = new Set(
+    pending.map((item) => getQuickFileHash(item.file))
+  )
+
+  const newItems: UploadItem[] = []
+
+  for (const file of selected) {
+    const hash = getQuickFileHash(file)
+
+    if (existingHashes.has(hash)) {
+      continue
+    }
+
+    existingHashes.add(hash)
+
+    newItems.push({
+      id: makeItemId(file),
+      file,
+      progress: 0,
+      status: 'waiting',
+    })
+  }
+
+  return [...pending, ...newItems]
+})
+
       setCurrentFileName('')
       setErrorMsg('')
       setSuccessMsg('')

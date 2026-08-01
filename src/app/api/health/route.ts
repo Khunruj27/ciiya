@@ -1,8 +1,16 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
+
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+function getRuntimeStatus(lastSeenAt?: string | null) {
+  if (!lastSeenAt) return 'offline'
+
+  const diffMs = Date.now() - new Date(lastSeenAt).getTime()
+  return diffMs > 2 * 60 * 1000 ? 'offline' : 'online'
+}
 
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -18,6 +26,24 @@ function getSupabaseAdmin() {
       autoRefreshToken: false,
     },
   })
+}
+
+function isAuthorizedHealthRequest(req: Request) {
+  const adminSecret = String(process.env.ADMIN_API_SECRET || '').trim()
+  const workerSecret = String(process.env.WORKER_SECRET || '').trim()
+
+  const requestSecret = String(
+    req.headers.get('x-admin-secret') ||
+      req.headers.get('x-worker-secret') ||
+      ''
+  ).trim()
+
+  if (!requestSecret) return false
+
+  return (
+    (adminSecret && requestSecret === adminSecret) ||
+    (workerSecret && requestSecret === workerSecret)
+  )
 }
 
 async function countStatus(
@@ -70,16 +96,36 @@ async function getWorkerHealth(
     }
   }
 
-  return {
-    ok: (data?.length || 0) > 0,
-    online: data?.length || 0,
-    workers: data || [],
-    error: null,
-  }
+  const workers = (data || []).map((row) => ({
+  ...row,
+  runtime_status: getRuntimeStatus(row.last_seen_at || null),
+}))
+
+const onlineWorkers = workers.filter(
+  (worker) => worker.runtime_status === 'online'
+)
+
+return {
+  ok: onlineWorkers.length > 0,
+  online: onlineWorkers.length,
+  workers,
+  error: null,
+}
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const startedAt = Date.now()
+
+  const authorized = isAuthorizedHealthRequest(req)
+
+if (!authorized) {
+  return NextResponse.json({
+    success: true,
+    status: 'ok',
+    service: 'ciiya',
+    checkedAt: new Date().toISOString(),
+  })
+}
 
   try {
     const supabase = getSupabaseAdmin()
@@ -161,13 +207,15 @@ export async function GET() {
       },
     })
   } catch (error) {
+    console.error('[health] failed:', error)
+    
     return NextResponse.json(
       {
         success: false,
         status: 'down',
         checkedAt: new Date().toISOString(),
         latencyMs: Date.now() - startedAt,
-        error: error instanceof Error ? error.message : 'Health check failed',
+        error: 'Health check failed',
       },
       { status: 500 }
     )

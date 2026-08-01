@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import {
+  createClient,
+  type SupabaseClient,
+} from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,22 +29,26 @@ async function requireAdmin() {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user?.email) {
+  const email = user?.email?.toLowerCase()
+
+  if (!email) {
     return {
       ok: false,
       status: 401,
       error: 'Unauthorized',
+      userEmail: null,
     }
   }
 
   const adminEmails = getAdminEmails()
-  const isAdmin = adminEmails.includes(user.email.toLowerCase())
+  const isAdmin = adminEmails.includes(email)
 
   if (!isAdmin) {
     return {
       ok: false,
       status: 403,
       error: 'Forbidden',
+      userEmail: email,
     }
   }
 
@@ -48,10 +56,11 @@ async function requireAdmin() {
     ok: true,
     status: 200,
     error: null,
+    userEmail: email,
   }
 }
 
-function getSupabaseAdmin() {
+function getSupabaseAdmin(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -116,8 +125,12 @@ async function resetStuckJobs(params: {
     .update({
       status: 'pending',
       progress: 0,
+      retry_count: 0,
+      retries: 0,
       started_at: null,
       finished_at: null,
+      worker_id: null,
+      claimed_by: null,
       error: params.message,
       updated_at: new Date().toISOString(),
     })
@@ -161,6 +174,8 @@ async function retryFailedJobs(params: {
       progress: 0,
       started_at: null,
       finished_at: null,
+      worker_id: null,
+      claimed_by: null,
       error: params.message,
       updated_at: new Date().toISOString(),
     })
@@ -254,7 +269,7 @@ export async function POST(req: NextRequest) {
       supabase,
       action,
       count,
-      userEmail: null,
+      userEmail: admin.userEmail,
     })
 
     return NextResponse.json({

@@ -31,11 +31,36 @@ export async function POST(req: NextRequest) {
       .from('plans')
       .select('id, name, price_thb, storage_limit_bytes, stripe_price_id')
       .eq('id', targetPlanId)
+      .eq('is_active', true)
       .single()
 
     if (planError || !targetPlan) {
       return NextResponse.json({ error: 'Target plan not found' }, { status: 404 })
     }
+
+    const { data: usage } = await supabase
+  .from('user_storage_usage')
+  .select('storage_used_bytes, used_bytes')
+  .eq('user_id', user.id)
+  .maybeSingle()
+
+const usedBytes = Number(
+  usage?.storage_used_bytes ??
+  usage?.used_bytes ??
+  0
+)
+
+if (usedBytes > Number(targetPlan.storage_limit_bytes || 0)) {
+  return NextResponse.json(
+    {
+      error:
+        'Storage usage exceeds target plan capacity.',
+    },
+    {
+      status: 400,
+    }
+  )
+}
 
     const { data: subscription, error: subError } = await supabase
       .from('subscriptions')

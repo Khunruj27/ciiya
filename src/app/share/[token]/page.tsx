@@ -1,8 +1,16 @@
+import { cookies } from 'next/headers'
+import Image from 'next/image'
 import PublicGalleryInfinite from '@/components/public-gallery-infinite'
 import ShareViewTracker from '@/components/share-view-tracker'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import ScrollToTopButton from '@/components/scroll-to-top-button'
 import SelfieFaceSearch from '@/components/selfie-face-search'
+import SharePasswordGate from '@/components/share-password-gate'
+import {
+  getShareAuthCookieName,
+  hasValidSharePasswordAccess,
+  isAlbumPubliclyVisible,
+} from '@/lib/share-access'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -27,13 +35,17 @@ export default async function SharePage({ params }: PageProps) {
       cover_url,
       share_token,
       view_count,
-      created_at
+      created_at,
+      is_public,
+      status,
+      is_password_protected,
+      password_hash
       `
     )
     .eq('share_token', token)
     .maybeSingle()
 
-  if (albumError || !album) {
+  if (albumError || !album || !isAlbumPubliclyVisible(album)) {
     return (
       <main className="min-h-screen bg-[#F5F5F7] px-4 py-10 text-black">
         <div className="mx-auto max-w-[430px] rounded-[36px] bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
@@ -53,6 +65,13 @@ export default async function SharePage({ params }: PageProps) {
     )
   }
 
+  const cookieStore = await cookies()
+  const shareCookie = cookieStore.get(getShareAuthCookieName(album.id))?.value
+
+  if (!hasValidSharePasswordAccess(album, shareCookie)) {
+    return <SharePasswordGate token={token} albumTitle={album.title} />
+  }
+
   const { count: photoCountResult } = await supabase
     .from('photos')
     .select('id', {
@@ -67,19 +86,31 @@ export default async function SharePage({ params }: PageProps) {
   const { data: photos, error: photosError } = await supabase
     .from('photos')
     .select(
-      `
-      id,
-      album_id,
-      filename,
-      public_url,
-      preview_url,
-      thumbnail_url,
-      blur_data_url,
-      created_at,
-      view_count,
-      processing_status
-      `
-    )
+  `
+  id,
+  album_id,
+  filename,
+  public_url,
+  original_url,
+  preview_url,
+  thumbnail_url,
+  sd_url,
+  hd_url,
+  uhd_url,
+  blur_data_url,
+  storage_path,
+  original_path,
+  preview_path,
+  thumbnail_path,
+  sd_path,
+  hd_path,
+  uhd_path,
+  selected_size,
+  created_at,
+  view_count,
+  processing_status
+  `
+)
     .eq('album_id', album.id)
     .eq('processing_status', 'done')
     .not('preview_url', 'is', null)
@@ -105,16 +136,18 @@ export default async function SharePage({ params }: PageProps) {
 
       {/* HERO */}
       <section className="overflow-hidden rounded-[34px] border border-black/5 bg-white p-2">
-        <div className="relative h-[280px] overflow-hidden rounded-[28px] bg-[#F2EEE9]">
+        <div className="relative h-[250px] overflow-hidden rounded-[28px] bg-[#F2EEE9]">
           <div className="relative overflow-hidden rounded-[10px] bg-black shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
-            <div className="relative h-[240px]">
+            <div className="relative h-[220px]">
               {album.cover_url ? (
-                <img
+                <Image
                   src={album.cover_url}
                   alt={album.title || 'Album cover'}
-                  loading="eager"
-                  decoding="async"
-                  className="h-full w-full object-cover"
+                  fill
+                  sizes="430px"
+                  priority
+                  unoptimized
+                  className="object-cover"
                 />
               ) : (
                 <div className="h-full w-full bg-gradient-to-br from-[#72D8FF] via-[#5B8CFF] to-[#315BFF]" />
@@ -158,7 +191,7 @@ export default async function SharePage({ params }: PageProps) {
       Photos
     </p>
     <p className="mt-1 text-[26px] font-black leading-none tracking-[-0.05em]">
-      {photos.length}
+      {photoCount}
     </p>
   </div>
 
@@ -175,7 +208,7 @@ export default async function SharePage({ params }: PageProps) {
       {/* CONTENT */}
       <section className="px-4 pb-12 pt-5">
         <div className="mx-auto max-w-[430px] space-y-5">
-          <SelfieFaceSearch albumId={album.id} />
+         <SelfieFaceSearch albumId={album.id} token={token} />
 
           {visiblePhotos.length > 0 ? (
             <PublicGalleryInfinite

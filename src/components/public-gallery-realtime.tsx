@@ -8,9 +8,15 @@ type Photo = {
   id: string
   album_id: string
   filename: string | null
+
   public_url: string
+  original_url?: string | null
   preview_url: string | null
   thumbnail_url: string | null
+  sd_url?: string | null
+  hd_url?: string | null
+  uhd_url?: string | null
+
   created_at: string
   view_count?: number | null
   processing_status?: string | null
@@ -116,19 +122,23 @@ function rememberProcessedId(photoId: string) {
         const { data, error } = await supabase
           .from('photos')
           .select(
-            `
-            id,
-            album_id,
-            filename,
-            public_url,
-            preview_url,
-            thumbnail_url,
-            blur_data_url,
-            created_at,
-            view_count,
-            processing_status
-            `
-          )
+  `
+  id,
+  album_id,
+  filename,
+  public_url,
+  original_url,
+  preview_url,
+  thumbnail_url,
+  sd_url,
+  hd_url,
+  uhd_url,
+  blur_data_url,
+  created_at,
+  view_count,
+  processing_status
+  `
+)
           .in('id', ids)
           .eq('processing_status', 'done')
           .not('public_url', 'is', null)
@@ -175,14 +185,14 @@ function rememberProcessedId(photoId: string) {
 
       quietTimerRef.current = setTimeout(() => {
         flushStableUpdate()
-      }, 3000)
+      }, 1200)
 
       if (!isWaitingRef.current) {
         isWaitingRef.current = true
 
         maxTimerRef.current = setTimeout(() => {
           flushStableUpdate()
-        }, 9000)
+        }, 5000)
       }
     }
 
@@ -226,7 +236,7 @@ function rememberProcessedId(photoId: string) {
   clearTimers()
   pendingIds.clear()
   processedIds.clear()
-  supabase.removeChannel(channel)
+  void supabase.removeChannel(channel)
 }
   }, [albumId, onPhotosDone, router])
 

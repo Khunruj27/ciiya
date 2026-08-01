@@ -27,9 +27,7 @@ async function syncSubscription(stripeSubscriptionId: string) {
 
   const subscription = (await stripe.subscriptions.retrieve(
     stripeSubscriptionId,
-    {
-      expand: ['items.data.price'],
-    }
+    { expand: ['items.data.price'] }
   )) as StripeSubscriptionWithPeriod
 
   const priceId = subscription.items?.data?.[0]?.price?.id
@@ -37,13 +35,11 @@ async function syncSubscription(stripeSubscriptionId: string) {
   const stripeCustomerId =
     typeof subscription.customer === 'string' ? subscription.customer : null
 
-  const currentPeriodEnd = subscription.current_period_end
-
   if (!priceId || !userId) return
 
   const { data: plan, error: planError } = await supabase
     .from('plans')
-    .select('id')
+    .select('id, slug, storage_limit_bytes')
     .eq('stripe_price_id', priceId)
     .single()
 
@@ -57,17 +53,46 @@ async function syncSubscription(stripeSubscriptionId: string) {
     .update({ status: 'canceled' })
     .eq('user_id', userId)
     .eq('status', 'active')
+    .neq('stripe_subscription_id', subscription.id)
 
-  await supabase.from('subscriptions').insert({
-    user_id: userId,
-    plan_id: plan.id,
-    status: subscription.status || 'active',
-    stripe_customer_id: stripeCustomerId,
-    stripe_subscription_id: subscription.id,
-    current_period_end: currentPeriodEnd
-      ? new Date(currentPeriodEnd * 1000).toISOString()
-      : null,
-  })
+  const { error: subError } = await supabase
+    .from('subscriptions')
+    .upsert(
+      {
+        user_id: userId,
+        plan_id: plan.id,
+        status: subscription.status || 'active',
+        stripe_customer_id: stripeCustomerId,
+        stripe_subscription_id: subscription.id,
+        current_period_end: subscription.current_period_end
+          ? new Date(subscription.current_period_end * 1000).toISOString()
+          : null,
+      },
+      {
+        onConflict: 'stripe_subscription_id',
+      }
+    )
+
+  if (subError) {
+    console.error('Upsert subscription failed:', subError.message)
+    return
+  }
+
+  const { error: usageError } = await supabase
+  .from('user_storage_usage')
+  .upsert(
+    {
+      user_id: userId,
+      current_plan: plan.slug,
+      storage_limit_bytes: Number(plan.storage_limit_bytes || 0),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id' }
+  )
+
+if (usageError) {
+  console.error('Update user_storage_usage failed:', usageError.message)
+}
 }
 
 export async function POST(req: Request) {

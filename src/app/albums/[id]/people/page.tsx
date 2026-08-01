@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 
@@ -51,6 +52,7 @@ export default async function AlbumPeoplePage({ params }: PageProps) {
     .select('id, label, face_count, preview_photo_id, created_at')
     .eq('album_id', albumId)
     .order('face_count', { ascending: false })
+    .limit(100)
 
   if (clustersError) throw new Error(clustersError.message)
 
@@ -176,6 +178,8 @@ export default async function AlbumPeoplePage({ params }: PageProps) {
                   photo?.preview_url ||
                   photo?.public_url ||
                   null
+                const isOriginalFallback =
+                  !photo?.thumbnail_url && !photo?.preview_url
 
                 return (
                   <Link
@@ -185,19 +189,24 @@ export default async function AlbumPeoplePage({ params }: PageProps) {
                   >
                     <div className="relative aspect-square overflow-hidden rounded-[24px] bg-[#F2EEE9]">
                       {photo?.blur_data_url ? (
-                        <img
+                        <Image
                           src={photo.blur_data_url}
                           alt=""
                           aria-hidden="true"
-                          className="absolute inset-0 h-full w-full scale-110 object-cover blur-2xl"
+                          fill
+                          unoptimized
+                          className="scale-110 object-cover blur-2xl"
                         />
                       ) : null}
 
                       {imageUrl ? (
-                        <img
+                        <Image
                           src={imageUrl}
                           alt={person.label || `Person ${index + 1}`}
-                          className="relative h-full w-full object-cover transition duration-500 group-active:scale-[1.03]"
+                          fill
+                          sizes="(max-width: 640px) 50vw, 220px"
+                          unoptimized={isOriginalFallback}
+                          className="object-cover transition duration-500 group-active:scale-[1.03]"
                         />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center text-[34px]">

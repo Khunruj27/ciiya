@@ -306,10 +306,12 @@ create table if not exists public.photo_jobs (
 
   retry_count integer default 0,
   retries integer default 0,
+  
 
   worker_id text,
+claimed_by text,
 
-  payload jsonb default '{}'::jsonb,
+payload jsonb default '{}'::jsonb,
   metadata jsonb default '{}'::jsonb,
   meta jsonb default '{}'::jsonb,
 
@@ -325,6 +327,8 @@ alter table public.photo_jobs
   add column if not exists size text default 'hd',
   add column if not exists retry_count integer default 0,
   add column if not exists retries integer default 0,
+  add column if not exists worker_id text,
+  add column if not exists claimed_by text,
   add column if not exists metadata jsonb default '{}'::jsonb,
   add column if not exists meta jsonb default '{}'::jsonb,
   add column if not exists updated_at timestamptz default now();
@@ -361,7 +365,11 @@ create table if not exists public.face_jobs (
   finished_at timestamptz,
 
   retry_count integer default 0,
-  retries integer default 0,
+ retries integer default 0,
+
+worker_id text,
+claimed_by text,
+
 
   payload jsonb default '{}'::jsonb,
   metadata jsonb default '{}'::jsonb,
@@ -379,6 +387,8 @@ alter table public.face_jobs
   add column if not exists priority integer default 100,
   add column if not exists retry_count integer default 0,
   add column if not exists retries integer default 0,
+  add column if not exists worker_id text,
+  add column if not exists claimed_by text,
   add column if not exists payload jsonb default '{}'::jsonb,
   add column if not exists metadata jsonb default '{}'::jsonb,
   add column if not exists meta jsonb default '{}'::jsonb,
@@ -703,9 +713,7 @@ begin
 end;
 $$;
 
-grant execute on function public.claim_photo_jobs(integer, integer, integer) to authenticated;
 grant execute on function public.claim_photo_jobs(integer, integer, integer) to service_role;
-grant execute on function public.claim_face_jobs(integer, integer, integer) to authenticated;
 grant execute on function public.claim_face_jobs(integer, integer, integer) to service_role;
 
 -- =========================================================
@@ -944,7 +952,8 @@ create policy "albums_public_share_select"
 on public.albums
 for select
 using (
-  share_token is not null
+  is_public = true
+  and share_token is not null
   and coalesce(status, 'active') = 'active'
 );
 
@@ -1123,25 +1132,32 @@ using (bucket_id = 'albums');
 create policy "album_storage_auth_upload"
 on storage.objects
 for insert
+to authenticated
 with check (
   bucket_id = 'albums'
-  and auth.role() = 'authenticated'
+  and (storage.foldername(name))[1] = auth.uid()::text
 );
 
 create policy "album_storage_auth_update"
 on storage.objects
 for update
+to authenticated
 using (
   bucket_id = 'albums'
-  and auth.role() = 'authenticated'
+  and (storage.foldername(name))[1] = auth.uid()::text
+)
+with check (
+  bucket_id = 'albums'
+  and (storage.foldername(name))[1] = auth.uid()::text
 );
 
 create policy "album_storage_auth_delete"
 on storage.objects
 for delete
+to authenticated
 using (
   bucket_id = 'albums'
-  and auth.role() = 'authenticated'
+  and (storage.foldername(name))[1] = auth.uid()::text
 );
 
 -- =========================================================

@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export function GET() {
   return NextResponse.json(
     {
       success: false,
@@ -17,7 +17,7 @@ export async function GET() {
   )
 }
 
-export async function POST() {
+export function POST() {
   return NextResponse.json(
     {
       success: false,

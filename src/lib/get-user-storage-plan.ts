@@ -1,83 +1,83 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { PLAN_LIMITS, type PlanKey } from '@/lib/plans'
 
-export const DEFAULT_FREE_STORAGE_BYTES = 5 * 1024 * 1024 * 1024
+function normalizePlanKey(value?: string | null): PlanKey {
+  const plan = String(value || '').toLowerCase().trim()
+
+  if (plan === 'starter' || plan === '20gb') return 'starter'
+  if (plan === 'pro' || plan === 'pro-50gb' || plan === '50gb') return 'pro'
+
+  if (
+    plan === 'business' ||
+    plan === 'pro-100gb' ||
+    plan === '100gb'
+  ) {
+    return 'business'
+  }
+
+  return 'free'
+}
+
+function parseStorageBytes(
+  value: unknown,
+  fieldName: string,
+  fallback: number
+) {
+  const resolvedValue = value ?? fallback
+  const parsedValue = Number(resolvedValue)
+
+  if (
+    !Number.isSafeInteger(parsedValue) ||
+    parsedValue < 0
+  ) {
+    throw new Error(`Invalid ${fieldName}`)
+  }
+
+  return parsedValue
+}
 
 export async function getUserStoragePlan(userId: string) {
+  const normalizedUserId = userId.trim()
+
+  if (!normalizedUserId) {
+    throw new Error('Invalid userId')
+  }
+
   const supabase = await createServerSupabaseClient()
 
-  const { data: currentSubscription } = await supabase
-    .from('subscriptions')
-    .select(`
-      id,
-      status,
-      plan:plans(
-        id,
-        name,
-        storage_limit_bytes
-      )
-    `)
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .order('created_at', { ascending: false })
-    .limit(1)
+  const { data, error } = await supabase
+    .from('user_storage_usage')
+    .select(
+      'current_plan, storage_limit_bytes, storage_used_bytes, used_bytes'
+    )
+    .eq('user_id', normalizedUserId)
     .maybeSingle()
 
-  const subscribedPlan = Array.isArray(currentSubscription?.plan)
-    ? currentSubscription.plan[0]
-    : currentSubscription?.plan
-
-  const { data: photos, error: photosError } = await supabase
-    .from('photos')
-    .select(`
-      original_size_bytes,
-      preview_size_bytes,
-      thumbnail_size_bytes,
-      file_size_bytes
-    `)
-    .eq('owner_id', userId)
-
-  if (photosError) {
-    throw new Error(photosError.message)
+  if (error) {
+    throw new Error(`Failed to load user storage plan: ${error.message}`)
   }
 
-  const usedBytes = (photos ?? []).reduce((sum, photo) => {
-    const separatedTotal =
-      Number(photo.original_size_bytes || 0) +
-      Number(photo.preview_size_bytes || 0) +
-      Number(photo.thumbnail_size_bytes || 0)
+  const plan = normalizePlanKey(data?.current_plan || 'free')
+  const defaultStorageLimit = PLAN_LIMITS[plan].storageBytes
 
-    return sum + (separatedTotal || Number(photo.file_size_bytes || 0))
-  }, 0)
+  const usedBytes = parseStorageBytes(
+    data?.storage_used_bytes ?? data?.used_bytes,
+    'storage usage',
+    0
+  )
 
-  if (subscribedPlan?.storage_limit_bytes) {
-    return {
-      planName: subscribedPlan.name || 'Current Plan',
-      storageLimitBytes: Number(subscribedPlan.storage_limit_bytes),
-      usedBytes,
-      remainingBytes: Math.max(
-        Number(subscribedPlan.storage_limit_bytes) - usedBytes,
-        0
-      ),
-    }
-  }
-
-  const { data: freePlan } = await supabase
-    .from('plans')
-    .select('name, storage_limit_bytes')
-    .ilike('name', 'Free%')
-    .eq('is_active', true)
-    .order('sort_order', { ascending: true })
-    .limit(1)
-    .maybeSingle()
-
-  const storageLimitBytes = Number(
-    freePlan?.storage_limit_bytes || DEFAULT_FREE_STORAGE_BYTES
+  const storageLimitBytes = parseStorageBytes(
+    data?.storage_limit_bytes,
+    'storage limit',
+    defaultStorageLimit
   )
 
   return {
-    planName: freePlan?.name || 'Free 5GB',
-    storageLimitBytes,
+    plan,
+    planName: PLAN_LIMITS[plan].name,
     usedBytes,
+    limitBytes: storageLimitBytes,
+    storageLimitBytes,
     remainingBytes: Math.max(storageLimitBytes - usedBytes, 0),
   }
 }

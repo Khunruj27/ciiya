@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import {
   DndContext,
   PointerSensor,
@@ -57,12 +58,15 @@ function SortablePhotoCard({ photo }: { photo: PhotoItem }) {
         type="button"
         {...attributes}
         {...listeners}
-        className="block w-full cursor-grab active:cursor-grabbing"
+        className="relative block aspect-square w-full cursor-grab active:cursor-grabbing"
       >
-        <img
+        <Image
           src={photo.public_url}
           alt={photo.filename || 'photo'}
-          className="aspect-square w-full object-cover"
+          fill
+          sizes="(max-width: 640px) 50vw, 25vw"
+          unoptimized
+          className="object-cover"
         />
       </button>
 

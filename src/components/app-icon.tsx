@@ -1,3 +1,5 @@
+import Image from 'next/image'
+
 type Props = {
   name: string
   size?: number
@@ -10,7 +12,7 @@ export default function AppIcon({
   className = '',
 }: Props) {
   return (
-    <img
+    <Image
       src={`/icons/${name}.svg`}
       alt={name}
       width={size}

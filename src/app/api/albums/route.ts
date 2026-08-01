@@ -64,16 +64,22 @@ export async function POST(req: NextRequest) {
     }
 
     const { data, error } = await supabase
-      .from('albums')
-      .insert({
-        owner_id: user.id,
-        user_id: user.id,
-        title,
-        description: description || null,
-        share_token: createShareToken(),
-      })
-      .select('*')
-      .single()
+  .from('albums')
+  .insert({
+    owner_id: user.id,
+    user_id: user.id,
+    title,
+    description:
+      description || null,
+    share_token: createShareToken(),
+    status: 'active',
+    is_public: true,
+    allow_download: true,
+    allow_original_download: false,
+    download_size: 'hd',
+  })
+  .select('*')
+  .single()
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })

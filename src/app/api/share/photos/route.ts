@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import {
+  getShareAuthCookieName,
+  hasValidSharePasswordAccess,
+  isAlbumPubliclyVisible,
+} from '@/lib/share-access'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -22,24 +27,28 @@ export async function GET(req: NextRequest) {
 
     const { data: album, error: albumError } = await supabase
       .from('albums')
-      .select('id, status')
+      .select('id, status, is_public, is_password_protected, password_hash')
       .eq('share_token', token)
       .maybeSingle()
 
-    if (albumError || !album) {
+    if (albumError || !album || !isAlbumPubliclyVisible(album)) {
       return NextResponse.json(
         { error: albumError?.message || 'Shared album not found' },
         { status: 404 }
       )
     }
 
-    if (
-      album.status &&
-      album.status !== 'active' &&
-      album.status !== 'published' &&
-      album.status !== 'public'
-    ) {
-      return NextResponse.json({ error: 'Shared album is not available' }, { status: 403 })
+    const safeAlbum = album
+
+    const shareCookie = req.cookies.get(
+      getShareAuthCookieName(safeAlbum.id)
+    )?.value
+
+    if (!hasValidSharePasswordAccess(safeAlbum, shareCookie)) {
+      return NextResponse.json(
+        { error: 'Password required' },
+        { status: 401 }
+      )
     }
 
     let query = supabase
@@ -56,7 +65,7 @@ export async function GET(req: NextRequest) {
         view_count,
         processing_status
       `)
-      .eq('album_id', album.id)
+      .eq('album_id', safeAlbum.id)
       .eq('processing_status', 'done')
       .not('preview_url', 'is', null)
       .not('thumbnail_url', 'is', null)

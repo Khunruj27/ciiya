@@ -4,6 +4,11 @@ import {
   type SupabaseClient,
 } from '@supabase/supabase-js'
 import sharp from 'sharp'
+import {
+  getShareAuthCookieName,
+  hasValidSharePasswordAccess,
+  isAlbumPubliclyVisible,
+} from '@/lib/share-access'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -13,15 +18,22 @@ type SupabaseAdminClient = SupabaseClient
 
 type AlbumRecord = {
   id: string
+  share_token?: string | null
+  is_public?: boolean | null
   allow_download?: boolean | null
   allow_original_download?: boolean | null
   download_size?: string | null
   status?: string | null
+  is_password_protected?: boolean | null
+  password_hash?: string | null
 }
 
 type PhotoRecord = {
   id: string
   album_id: string
+  owner_id?: string | null
+  user_id?: string | null
+  mime_type?: string | null
   filename?: string | null
   file_name?: string | null
   storage_path?: string | null
@@ -61,6 +73,45 @@ function normalizeAlbumDownloadSize(value: unknown): DownloadSize {
   return 'hd'
 }
 
+function hasUnsafeStoragePath(path: string) {
+  const lowerPath = path.toLowerCase()
+
+  return (
+    path.includes('..') ||
+    path.includes('\\') ||
+    path.includes('//') ||
+    lowerPath.includes('%2e') ||
+    lowerPath.includes('%2f') ||
+    lowerPath.includes('%5c')
+  )
+}
+
+function isAllowedPhotoStoragePath(
+  path: string,
+  ownerId: string,
+  albumId: string
+) {
+  if (hasUnsafeStoragePath(path)) {
+    return false
+  }
+
+  const albumPrefix = `${ownerId}/${albumId}/`
+
+  const allowedPrefixes = [
+    `${albumPrefix}original/`,
+    `${albumPrefix}preview/`,
+    `${albumPrefix}thumbnail/`,
+    `${albumPrefix}thumbnails/`,
+    `${albumPrefix}sd/`,
+    `${albumPrefix}hd/`,
+    `${albumPrefix}uhd/`,
+  ]
+
+  return allowedPrefixes.some((prefix) =>
+    path.startsWith(prefix)
+  )
+}
+
 function getWidthBySize(size: DownloadSize) {
   if (size === 'sd') return 2000
   if (size === 'uhd') return 4000
@@ -93,19 +144,87 @@ function makeOutputPath(
   return `generated/${size}/${name}.jpg`
 }
 
-function getSafeFilename(photo: PhotoRecord, size: DownloadSize) {
+function getSafeContentType(
+  value?: string | null
+) {
+  const normalizedValue = String(value || '')
+    .trim()
+    .toLowerCase()
+
+  if (normalizedValue === 'image/png') {
+    return 'image/png'
+  }
+
+  if (normalizedValue === 'image/webp') {
+    return 'image/webp'
+  }
+
+  return 'image/jpeg'
+}
+
+function getSafeFilename(
+  photo: PhotoRecord,
+  size: DownloadSize
+) {
   const rawName =
-    photo.filename || photo.file_name || `ciiya-photo-${photo.id}.jpg`
+    photo.filename ||
+    photo.file_name ||
+    `ciiya-photo-${photo.id}.jpg`
 
-  const baseName = rawName.replace(/\.[^/.]+$/, '')
+  const baseName =
+    rawName.replace(/\.[^/.]+$/, '')
 
-  const safeBase = baseName
-    .replace(/[^a-zA-Z0-9-_ก-๙]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
+  const cleanedBaseName = baseName
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .replace(/[\\/:"*?<>|]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
     .slice(0, 120)
 
-  return `${safeBase || 'ciiya-photo'}-${size}.jpg`
+  let extension = 'jpg'
+
+  if (size === 'original') {
+    const contentType =
+      getSafeContentType(photo.mime_type)
+
+    if (contentType === 'image/png') {
+      extension = 'png'
+    }
+
+    if (contentType === 'image/webp') {
+      extension = 'webp'
+    }
+  }
+
+  return `${
+    cleanedBaseName || 'ciiya-photo'
+  }-${size}.${extension}`
+}
+
+function getDownloadContentDisposition(
+  filename: string
+) {
+  const asciiFallback = filename
+    .normalize('NFKD')
+    .replace(/[^\x20-\x7e]/g, '-')
+    .replace(/["\\]/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 150)
+
+  const encodedFilename =
+    encodeURIComponent(filename)
+      .replace(/['()*]/g, (character) =>
+        `%${character
+          .charCodeAt(0)
+          .toString(16)
+          .toUpperCase()}`
+      )
+
+  return (
+    `attachment; filename="${
+      asciiFallback || 'ciiya-photo.jpg'
+    }"; filename*=UTF-8''${encodedFilename}`
+  )
 }
 
 async function generateResizedBuffer(params: {
@@ -142,13 +261,17 @@ async function getOrCreateGeneratedBuffer(params: {
     })
 
     generatingMap.set(cacheKey, generatingPromise)
+
+    void generatingPromise.finally(() => {
+      if (generatingMap.get(cacheKey) === generatingPromise) {
+        generatingMap.delete(cacheKey)
+      }
+    })
   }
 
-  try {
-    return await generatingPromise
-  } finally {
-    generatingMap.delete(cacheKey)
-  }
+  const generatedBuffer = await generatingPromise
+
+  return Buffer.from(generatedBuffer)
 }
 
 async function downloadStorageFile(
@@ -165,16 +288,24 @@ async function downloadStorageFile(
 }
 
 async function incrementDownloadCount(
-  supabase: ReturnType<typeof getSupabaseAdmin>,
-  photoId: string,
-  currentCount: number | null
+  supabase: ReturnType<
+    typeof getSupabaseAdmin
+  >,
+  photoId: string
 ) {
-  await supabase
-    .from('photos')
-    .update({
-      download_count: Number(currentCount || 0) + 1,
-    })
-    .eq('id', photoId)
+  const { error } = await supabase.rpc(
+    'increment_photo_download_count',
+    {
+      target_photo_id: photoId,
+    }
+  )
+
+  if (error) {
+    console.error(
+      '[photos/download] increment count failed:',
+      error.message
+    )
+  }
 }
 
 async function saveGeneratedSize(params: {
@@ -215,16 +346,55 @@ async function saveGeneratedSize(params: {
     updatePayload.uhd_url = urlData.publicUrl
   }
 
-  await supabase.from('photos').update(updatePayload).eq('id', photoId)
+  const { error: updateError } = await supabase
+  .from('photos')
+  .update(updatePayload)
+  .eq('id', photoId)
+
+if (updateError) {
+  console.error(
+    '[photos/download] generated path update failed:',
+    updateError.message
+  )
+
+  const { error: cleanupError } = await supabase.storage
+    .from(BUCKET)
+    .remove([path])
+
+  if (cleanupError) {
+    console.error(
+      '[photos/download] generated file rollback failed:',
+      cleanupError.message
+    )
+  }
+
+  throw new Error('Failed to save generated image')
+}
 }
 
 export async function GET(req: NextRequest) {
   try {
-    const photoId = req.nextUrl.searchParams.get('photoId')
+const photoId = String(
+  req.nextUrl.searchParams.get('photoId') || ''
+).trim()
 
-    if (!photoId) {
-      return NextResponse.json({ error: 'Missing photoId' }, { status: 400 })
-    }
+const token = String(
+  req.nextUrl.searchParams.get('token') || ''
+).trim()
+
+if (!photoId || !token) {
+  return NextResponse.json(
+    { error: 'Missing photoId or token' },
+    { status: 400 }
+  )
+}
+
+if (photoId.length > 100 || token.length > 255) {
+  return NextResponse.json(
+    { error: 'Invalid download request' },
+    { status: 400 }
+  )
+}
 
     const supabase = getSupabaseAdmin()
 
@@ -234,7 +404,10 @@ export async function GET(req: NextRequest) {
         `
         id,
         album_id,
+        owner_id,
+        user_id,
         filename,
+        mime_type,
         file_name,
         storage_path,
         original_path,
@@ -244,24 +417,40 @@ export async function GET(req: NextRequest) {
         hd_path,
         uhd_path,
         download_count,
-        albums!inner (
+        albums!photos_album_id_fkey (
           id,
+          share_token,
+          is_public,
           allow_download,
           allow_original_download,
           download_size,
-          status
-        )
+          status,
+          is_password_protected,
+          password_hash
+         )
       `
       )
       .eq('id', photoId)
       .maybeSingle()
 
-    if (error || !photo) {
-      return NextResponse.json(
-        { error: error?.message || 'Photo not found' },
-        { status: 404 }
-      )
-    }
+if (error) {
+  console.error(
+    '[photos/download] photo lookup failed:',
+    error.message
+  )
+
+  return NextResponse.json(
+    { error: 'Download failed' },
+    { status: 500 }
+  )
+}
+
+if (!photo) {
+  return NextResponse.json(
+    { error: 'Photo not found' },
+    { status: 404 }
+  )
+}
 
     const album = Array.isArray(photo.albums) ? photo.albums[0] : photo.albums
 
@@ -269,9 +458,76 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Album not found' }, { status: 404 })
     }
 
+    if (
+  !isAlbumPubliclyVisible(album) ||
+  album.share_token !== token
+) {
+  return NextResponse.json({ error: 'Invalid share link' }, { status: 404 })
+}
+
+    const shareCookie = req.cookies.get(
+      getShareAuthCookieName(album.id)
+    )?.value
+
+    if (!hasValidSharePasswordAccess(album, shareCookie)) {
+      return NextResponse.json({ error: 'Password required' }, { status: 401 })
+    }
+
     if (album.allow_download === false) {
       return NextResponse.json({ error: 'Download is disabled' }, { status: 403 })
     }
+
+    const ownerId =
+  photo.owner_id ||
+  photo.user_id ||
+  null
+
+if (!ownerId) {
+  console.error(
+    '[photos/download] missing photo owner:',
+    photo.id
+  )
+
+  return NextResponse.json(
+    { error: 'Photo not found' },
+    { status: 404 }
+  )
+}
+
+const candidatePaths = [
+  photo.storage_path,
+  photo.original_path,
+  photo.preview_path,
+  photo.thumbnail_path,
+  photo.sd_path,
+  photo.hd_path,
+  photo.uhd_path,
+].filter(
+  (path): path is string =>
+    typeof path === 'string' &&
+    path.trim().length > 0
+)
+
+const hasInvalidPath = candidatePaths.some(
+  (path) =>
+    !isAllowedPhotoStoragePath(
+      path,
+      ownerId,
+      photo.album_id
+    )
+)
+
+if (hasInvalidPath) {
+  console.error(
+    '[photos/download] invalid storage path:',
+    photo.id
+  )
+
+  return NextResponse.json(
+    { error: 'Photo not found' },
+    { status: 404 }
+  )
+}
 
     const size = normalizeAlbumDownloadSize(album.download_size)
     
@@ -285,6 +541,11 @@ export async function GET(req: NextRequest) {
 
     const width = getWidthBySize(size)
     const filename = getSafeFilename(photo, size)
+    const contentDisposition =
+  getDownloadContentDisposition(filename)
+    const originalContentType = getSafeContentType(
+  photo.mime_type
+)
 
     if (size === 'original') {
       const originalPath = getOriginalPath(photo)
@@ -296,40 +557,73 @@ export async function GET(req: NextRequest) {
         )
       }
 
-      const originalBuffer = await downloadStorageFile(supabase, originalPath)
+const originalBuffer = await downloadStorageFile(
+  supabase,
+  originalPath
+)
 
-      await incrementDownloadCount(supabase, photo.id, photo.download_count)
+try {
+  await incrementDownloadCount(
+  supabase,
+  photo.id
+)
 
-      return new NextResponse(new Uint8Array(originalBuffer), {
-        status: 200,
-        headers: {
-          'Content-Type': 'image/jpeg',
-          'Content-Disposition': `attachment; filename="${filename}"`,
-          'Cache-Control': 'no-store',
-        },
-      })
+  const responseBody = Uint8Array.from(
+  originalBuffer
+)
+
+  return new NextResponse(responseBody, {
+    status: 200,
+    headers: {
+      'Content-Type': originalContentType,
+      'Content-Disposition':
+          contentDisposition,
+      'Cache-Control': 'no-store',
+    },
+  })
+} finally {
+  originalBuffer.fill(0)
+}
     }
 
     const existingPath = getExistingSizePath(photo, size)
 
-    if (existingPath) {
-      try {
-        const existingBuffer = await downloadStorageFile(supabase, existingPath)
+if (existingPath) {
+  let existingBuffer: Buffer | null = null
 
-        await incrementDownloadCount(supabase, photo.id, photo.download_count)
+  try {
+    existingBuffer = await downloadStorageFile(
+      supabase,
+      existingPath
+    )
 
-        return new NextResponse(new Uint8Array(existingBuffer), {
-          status: 200,
-          headers: {
-            'Content-Type': 'image/jpeg',
-            'Content-Disposition': `attachment; filename="${filename}"`,
-            'Cache-Control': 'no-store',
-          },
-        })
-      } catch {
-        // ถ้า path มีใน DB แต่ไฟล์หาย ให้ generate ใหม่จาก original ต่อด้านล่าง
-      }
-    }
+    await incrementDownloadCount(
+  supabase,
+  photo.id
+)
+
+   const responseBody = Uint8Array.from(
+  existingBuffer
+)
+
+    return new NextResponse(responseBody, {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/jpeg',
+        'Content-Disposition':
+             contentDisposition,
+        'Cache-Control': 'no-store',
+      },
+    })
+  } catch (error) {
+    console.warn(
+      '[photos/download] stored generated file unavailable, regenerating:',
+      error instanceof Error ? error.message : error
+    )
+  } finally {
+    existingBuffer?.fill(0)
+  }
+}
 
     const originalPath = getOriginalPath(photo)
 
@@ -340,40 +634,64 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const originalBuffer = await downloadStorageFile(supabase, originalPath)
+const originalBuffer = await downloadStorageFile(
+  supabase,
+  originalPath
+)
 
-    const resizedBuffer = await getOrCreateGeneratedBuffer({
-      cacheKey: `${photo.id}:${size}`,
-      originalBuffer,
-      width,
-    })
+let resizedBuffer: Buffer | null = null
 
-    const generatedPath = makeOutputPath(originalPath, size)
+try {
+  resizedBuffer = await getOrCreateGeneratedBuffer({
+    cacheKey: `${photo.id}:${size}`,
+    originalBuffer,
+    width,
+  })
 
-    await saveGeneratedSize({
-      supabase,
-      photoId: photo.id,
-      size,
-      path: generatedPath,
-      buffer: resizedBuffer,
-    })
+  const generatedPath = makeOutputPath(
+    originalPath,
+    size
+  )
 
-    await incrementDownloadCount(supabase, photo.id, photo.download_count)
+  await saveGeneratedSize({
+    supabase,
+    photoId: photo.id,
+    size,
+    path: generatedPath,
+    buffer: resizedBuffer,
+  })
 
-    return new NextResponse(new Uint8Array(resizedBuffer), {
-      status: 200,
-      headers: {
-        'Content-Type': 'image/jpeg',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-        'Cache-Control': 'no-store',
-      },
-    })
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : 'Download failed',
-      },
-      { status: 500 }
-    )
-  }
+  await incrementDownloadCount(
+  supabase,
+  photo.id
+)
+
+  const responseBody = Uint8Array.from(
+  resizedBuffer
+)
+
+  return new NextResponse(responseBody, {
+    status: 200,
+    headers: {
+      'Content-Type': 'image/jpeg',
+      'Content-Disposition':
+           contentDisposition,
+      'Cache-Control': 'no-store',
+    },
+  })
+} finally {
+  originalBuffer.fill(0)
+  resizedBuffer?.fill(0)
+}
+} catch (error) {
+  console.error(
+    '[photos/download] unexpected error:',
+    error
+  )
+
+  return NextResponse.json(
+    { error: 'Download failed' },
+    { status: 500 }
+  )
+}
 }

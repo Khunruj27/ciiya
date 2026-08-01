@@ -1,0 +1,57 @@
+# Dependencies and build outputs
+node_modules
+.next
+out
+dist
+coverage
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Editor and operating-system files
+.DS_Store
+**/.DS_Store
+__MACOSX
+**/__MACOSX
+.vscode
+.idea
+
+# TypeScript and framework caches
+*.tsbuildinfo
+.next-cache
+.turbo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Temporary files
+tmp
+temp
+tmpfile*
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# Supabase local runtime files
+supabase/.branches
+supabase/.temp
+
+# Local uploads and generated archives
+uploads
+*.zip
+
+# Documentation not required by worker runtime
+AGENTS.md
+CLAUDE.md

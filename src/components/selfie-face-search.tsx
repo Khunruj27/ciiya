@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import NextImage from 'next/image'
 
 type SearchResult = {
   faceId: string
@@ -51,7 +52,13 @@ function loadImageFromFile(file: File): Promise<HTMLImageElement> {
   })
 }
 
-export default function SelfieFaceSearch({ albumId }: { albumId: string }) {
+export default function SelfieFaceSearch({
+  albumId,
+  token,
+}: {
+  albumId: string
+  token: string
+}) {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
@@ -90,9 +97,10 @@ export default function SelfieFaceSearch({ albumId }: { albumId: string }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          albumId,
-          descriptor,
-        }),
+  albumId,
+  token,
+  descriptor,
+}),
       })
 
       const searchData = await searchRes.json()
@@ -185,18 +193,24 @@ export default function SelfieFaceSearch({ albumId }: { albumId: string }) {
 
                 if (!imageUrl) return null
 
+                const isOriginalFallback =
+                  !item.photo?.preview_url && !item.photo?.thumbnail_url
+
                 return (
                   <a
                     key={item.faceId}
-                    href={item.photo?.public_url || imageUrl}
+                    href={imageUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="relative overflow-hidden rounded-2xl"
+                    className="relative aspect-square overflow-hidden rounded-2xl"
                   >
-                    <img
+                    <NextImage
                       src={imageUrl}
                       alt={item.photo?.filename || 'Matched photo'}
-                      className="aspect-square w-full object-cover"
+                      fill
+                      sizes="(max-width: 768px) 50vw, 25vw"
+                      unoptimized={isOriginalFallback}
+                      className="object-cover"
                     />
 
                     <div className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-1 text-xs text-white">

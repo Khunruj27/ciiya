@@ -7,13 +7,16 @@
   },
   "scripts": {
   "dev": "next dev --webpack",
-  "build": "next build --webpack",
-  "start": "next start",
-  "lint": "eslint",
+"build": "next build --webpack",
+"start": "next start",
+"lint": "eslint",
+"typecheck": "tsc --noEmit",
 
-  "worker:photos": "tsx workers/photo-worker.ts",
-  "worker:faces": "tsx workers/face-worker.ts",
-  "worker:camera": "tsx workers/camera-live-import-worker.ts",
+ "worker:photos": "tsx workers/photo-worker.ts",
+"worker:faces": "tsx workers/face-worker.ts",
+"worker:camera": "tsx workers/camera-live-import-worker.ts",
+"worker:queue-consistency": "tsx workers/queue-consistency-worker.ts",
+"worker:storage-consistency": "tsx workers/storage-consistency-worker.ts",
 
   "cleanup:orphans": "tsx scripts/cleanup-orphan-files.ts",
   "cleanup:jobs": "tsx scripts/cleanup-old-jobs.ts",

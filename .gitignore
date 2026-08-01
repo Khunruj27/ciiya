@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# camera live-import worker local cache
+.ciiya-camera-imports/
+tmpfile*
+
+# supabase CLI local state
+supabase/.temp/

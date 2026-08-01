@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import NextImage from 'next/image'
 
 type FaceApiModule = typeof import('@vladmandic/face-api')
 
@@ -25,6 +26,7 @@ type FaceSearchResult = {
 
 type Props = {
   albumId: string
+  token?: string
 }
 
 async function loadFaceModels() {
@@ -136,7 +138,7 @@ async function extractDescriptor(file: File) {
   }
 }
 
-export default function AlbumFaceSearch({ albumId }: Props) {
+export default function AlbumFaceSearch({ albumId, token = '' }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null)
 
   const [loading, setLoading] = useState(false)
@@ -157,16 +159,21 @@ export default function AlbumFaceSearch({ albumId }: Props) {
 
       setPreviewUrl(result.previewUrl)
 
+      if (!token) {
+  throw new Error('Missing share token')
+}
+
       const res = await fetch('/api/faces/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          albumId,
-          descriptor: result.descriptor,
-          limit: 80,
-        }),
+  albumId,
+  token,
+  descriptor: result.descriptor,
+  limit: 80,
+}),
       })
 
       const json = await res.json()
@@ -218,11 +225,15 @@ export default function AlbumFaceSearch({ albumId }: Props) {
 
         {previewUrl && (
           <div className="mt-4 flex items-center gap-3">
-            <img
-              src={previewUrl}
-              alt="preview"
-              className="h-16 w-16 rounded-2xl object-cover"
-            />
+            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl">
+              <NextImage
+                src={previewUrl}
+                alt="preview"
+                fill
+                unoptimized
+                className="object-cover"
+              />
+            </div>
 
             <div className="text-xs text-slate-500">
               {loading ? 'กำลังค้นหา...' : `พบ ${matches.length} รูป`}
@@ -249,12 +260,15 @@ export default function AlbumFaceSearch({ albumId }: Props) {
                   href={item.photo?.imageUrl || imageUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="overflow-hidden rounded-2xl bg-slate-100"
+                  className="relative block aspect-square overflow-hidden rounded-2xl bg-slate-100"
                 >
-                  <img
+                  <NextImage
                     src={imageUrl}
                     alt={item.photo?.filename || 'match'}
-                    className="aspect-square w-full object-cover"
+                    fill
+                    unoptimized
+                    sizes="33vw"
+                    className="object-cover"
                   />
                 </a>
               )

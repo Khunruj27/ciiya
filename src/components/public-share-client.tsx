@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Image from 'next/image'
 import PublicFaceFilter from '@/components/public-face-filter'
 
 type Photo = {
@@ -41,12 +42,14 @@ export default function PublicShareClient({ token, photos }: Props) {
             <button
               key={photo.id}
               type="button"
-              className="group aspect-square overflow-hidden bg-slate-100"
+              className="group relative aspect-square overflow-hidden bg-slate-100"
             >
-              <img
+              <Image
                 src={src}
                 alt={photo.file_name || 'Photo'}
-                className="h-full w-full object-cover transition duration-300 group-active:scale-95"
+                fill
+                sizes="(max-width: 640px) 33vw, (max-width: 1024px) 20vw, 16vw"
+                className="object-cover transition duration-300 group-active:scale-95"
                 loading="lazy"
               />
             </button>

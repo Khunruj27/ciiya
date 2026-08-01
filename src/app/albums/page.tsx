@@ -21,10 +21,26 @@ export default async function AlbumsPage() {
   if (!user) redirect('/login')
 
   const { data: albumsData } = await supabase
-    .from('albums')
-    .select('*')
-    .eq('owner_id', user.id)
-    .order('created_at', { ascending: false })
+  .from('albums')
+  .select(
+    `
+    id,
+    owner_id,
+    user_id,
+    title,
+    description,
+    cover_url,
+    share_token,
+    photo_count,
+    view_count,
+    share_count,
+    status,
+    created_at,
+    updated_at
+    `
+  )
+  .eq('owner_id', user.id)
+  .order('created_at', { ascending: false })
 
   const albums = albumsData ?? []
   const albumIds = albums.map((a) => a.id)
@@ -125,12 +141,14 @@ export default async function AlbumsPage() {
                     <Link href={`/albums/${album.id}`} className="flex min-w-0 gap-3">
                       <div className="relative h-[86px] w-[96px] shrink-0 overflow-hidden rounded-[18px] bg-slate-100">
                         {album.cover_url ? (
-                          <img
+                          <Image
                             src={album.cover_url}
                             loading="lazy"
-                            decoding="async"
                             alt={album.title || 'Album cover'}
-                            className="h-full w-full object-cover"
+                            fill
+                            sizes="96px"
+                            unoptimized
+                            className="object-cover"
                           />
                         ) : (
                           <div className="flex h-full items-center justify-center text-xs text-slate-400">
@@ -180,24 +198,31 @@ export default async function AlbumsPage() {
         <div className="inline-flex items-center gap-5 rounded-full bg-white/88 border border-black/5 px-4 py-3 backdrop-blur-xl">
           <Link
             href="/albums"
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-[#F0B1DE]"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-[#ebebeb]"
           >
-            <AppIcon name="album" size={24} />
+            <AppIcon name="album bold" size={22} />
+          </Link>
+
+           <Link
+            href="/portfolio"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-black"
+          >
+            <AppIcon name="portfolio" size={22} />
           </Link>
 
           <button className="flex h-11 w-11 items-center justify-center rounded-full text-black">
-            <AppIcon name="magic-wand" size={24} />
+            <AppIcon name="magic-wand" size={22} />
           </button>
 
           <button className="flex h-11 w-11 items-center justify-center rounded-full text-black">
-            <AppIcon name="bell" size={23} />
+            <AppIcon name="bell" size={20} />
           </button>
 
           <Link
             href="/me"
             className="flex h-11 w-11 items-center justify-center rounded-full text-black"
           >
-            <AppIcon name="user-1" size={24} />
+            <AppIcon name="user-1" size={22} />
           </Link>
         </div>
       </nav>

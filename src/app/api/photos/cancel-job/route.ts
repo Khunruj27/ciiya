@@ -20,31 +20,62 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const body = await req.json()
+const body = await req.json().catch(() => null)
 
-    const photoId = String(
-      body.photoId || ''
-    ).trim()
+if (
+  !body ||
+  typeof body !== 'object' ||
+  Array.isArray(body)
+) {
+  return NextResponse.json(
+    { error: 'Invalid request body' },
+    { status: 400 }
+  )
+}
 
-    if (!photoId) {
-      return NextResponse.json(
-        { error: 'Missing photoId' },
-        { status: 400 }
-      )
-    }
+const photoId = String(
+  body.photoId || ''
+).trim()
 
-    const { data: job } = await supabase
-      .from('photo_jobs')
-      .select(`
-        id,
-        owner_id,
-        status
-      `)
-      .eq('photo_id', photoId)
-      .eq('owner_id', user.id)
-      .maybeSingle()
+if (!photoId) {
+  return NextResponse.json(
+    { error: 'Missing photoId' },
+    { status: 400 }
+  )
+}
 
-    if (!job) {
+if (photoId.length > 100) {
+  return NextResponse.json(
+    { error: 'Invalid photoId' },
+    { status: 400 }
+  )
+}
+
+const { data: job, error: jobError } =
+  await supabase
+    .from('photo_jobs')
+    .select(`
+      id,
+      owner_id,
+      status
+    `)
+    .eq('photo_id', photoId)
+    .eq('owner_id', user.id)
+    .maybeSingle()
+
+if (jobError) {
+  console.error(
+    '[photos/cancel-job] job lookup failed:',
+    jobError.message
+  )
+
+  return NextResponse.json(
+    { error: 'Cancel failed' },
+    { status: 500 }
+  )
+}
+
+if (!job) {
       return NextResponse.json(
         { error: 'Job not found' },
         { status: 404 }
@@ -58,36 +89,93 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    await supabase
-      .from('photo_jobs')
-      .update({
-        status: 'cancelled',
-        cancelled_at:
-          new Date().toISOString(),
-      })
-      .eq('id', job.id)
+const cancelledAt = new Date().toISOString()
 
-    await supabase
-      .from('photos')
-      .update({
-        processing_status:
-          'cancelled',
-      })
-      .eq('id', photoId)
+const {
+  data: cancelledJob,
+  error: cancelJobError,
+} = await supabase
+  .from('photo_jobs')
+  .update({
+    status: 'cancelled',
+    cancelled_at: cancelledAt,
+  })
+  .eq('id', job.id)
+  .eq('owner_id', user.id)
+  .neq('status', 'done')
+  .select('id')
+  .maybeSingle()
+
+if (cancelJobError) {
+  console.error(
+    '[photos/cancel-job] job update failed:',
+    cancelJobError.message
+  )
+
+  return NextResponse.json(
+    { error: 'Cancel failed' },
+    { status: 500 }
+  )
+}
+
+if (!cancelledJob) {
+  return NextResponse.json(
+    { error: 'Job already completed' },
+    { status: 400 }
+  )
+}
+
+const {
+  data: cancelledPhoto,
+  error: cancelPhotoError,
+} = await supabase
+  .from('photos')
+  .update({
+    processing_status: 'cancelled',
+    updated_at: cancelledAt,
+  })
+  .eq('id', photoId)
+  .eq('owner_id', user.id)
+  .select('id')
+  .maybeSingle()
+
+if (cancelPhotoError) {
+  console.error(
+    '[photos/cancel-job] photo update failed:',
+    cancelPhotoError.message
+  )
+
+  return NextResponse.json(
+    { error: 'Cancel failed' },
+    { status: 500 }
+  )
+}
+
+if (!cancelledPhoto) {
+  console.error(
+    '[photos/cancel-job] owned photo not found after job cancellation:',
+    photoId
+  )
+
+  return NextResponse.json(
+    { error: 'Cancel failed' },
+    { status: 500 }
+  )
+}
 
     return NextResponse.json({
       success: true,
       cancelled: true,
     })
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Cancel failed',
-      },
-      { status: 500 }
-    )
-  }
+} catch (error) {
+  console.error(
+    '[photos/cancel-job] unexpected error:',
+    error
+  )
+
+  return NextResponse.json(
+    { error: 'Cancel failed' },
+    { status: 500 }
+  )
+}
 }

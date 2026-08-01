@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import {
+  getShareAuthCookieName,
+  hasValidSharePasswordAccess,
+  isAlbumPubliclyVisible,
+} from '@/lib/share-access'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -7,7 +12,7 @@ export const dynamic = 'force-dynamic'
 const MAX_FACES_TO_SCAN = 5000
 const DEFAULT_RESULT_LIMIT = 80
 const MAX_RESULT_LIMIT = 200
-const MATCH_THRESHOLD = 0.6
+const MATCH_THRESHOLD = Number(process.env.FACE_SEARCH_THRESHOLD || 0.55)
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000
 const RATE_LIMIT_MAX_REQUESTS = 20
@@ -24,7 +29,6 @@ type RateLimitEntry = {
 type PhotoRecord = {
   id?: string | null
   public_url?: string | null
-  original_url?: string | null
   preview_url?: string | null
   thumbnail_url?: string | null
   image_url?: string | null
@@ -184,14 +188,15 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
 
     const albumId = String(body.albumId || '').trim()
+    const token = String(body.token || '').trim()
     const descriptor = normalizeDescriptor(body.descriptor)
 
     const rawLimit = Number(body.limit || DEFAULT_RESULT_LIMIT)
     const resultLimit = Math.min(Math.max(rawLimit, 1), MAX_RESULT_LIMIT)
 
-    if (!albumId || descriptor.length === 0) {
+    if (!albumId) {
       return NextResponse.json(
-        { error: 'albumId and descriptor are required' },
+        { error: 'albumId is required' },
         {
           status: 400,
           headers: rateLimitHeaders(rate),
@@ -199,7 +204,70 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    if (!token) {
+      return NextResponse.json(
+        { error: 'share token is required' },
+        {
+          status: 400,
+          headers: rateLimitHeaders(rate),
+        }
+      )
+    }
+
+    if (descriptor.length === 0) {
+      return NextResponse.json(
+        { error: 'descriptor is required' },
+        {
+          status: 400,
+          headers: rateLimitHeaders(rate),
+        }
+      )
+    }
+
+    if (descriptor.length !== 128) {
+  return NextResponse.json(
+    { error: 'invalid descriptor length' },
+    {
+      status: 400,
+      headers: rateLimitHeaders(rate),
+    }
+  )
+}
+
     const supabase = getSupabaseAdmin()
+
+    const { data: album, error: albumError } = await supabase
+      .from('albums')
+      .select(
+        'id, share_token, is_public, status, is_password_protected, password_hash'
+      )
+      .eq('id', albumId)
+      .eq('share_token', token)
+      .maybeSingle()
+
+    if (albumError || !album || !isAlbumPubliclyVisible(album)) {
+      return NextResponse.json(
+        { error: 'Invalid share link' },
+        {
+          status: 404,
+          headers: rateLimitHeaders(rate),
+        }
+      )
+    }
+
+    const shareCookie = req.cookies.get(
+      getShareAuthCookieName(album.id)
+    )?.value
+
+    if (!hasValidSharePasswordAccess(album, shareCookie)) {
+      return NextResponse.json(
+        { error: 'Password required' },
+        {
+          status: 401,
+          headers: rateLimitHeaders(rate),
+        }
+      )
+    }
 
     const { data: facesData, error } = await supabase
       .from('photo_faces')
@@ -217,7 +285,6 @@ export async function POST(req: NextRequest) {
         photos:photo_id (
           id,
           public_url,
-          original_url,
           preview_url,
           thumbnail_url,
           image_url,
@@ -256,7 +323,6 @@ export async function POST(req: NextRequest) {
         const imageUrl =
           photo?.preview_url ||
           photo?.public_url ||
-          photo?.original_url ||
           photo?.image_url ||
           null
 
@@ -264,7 +330,6 @@ export async function POST(req: NextRequest) {
           photo?.thumbnail_url ||
           photo?.preview_url ||
           photo?.public_url ||
-          photo?.original_url ||
           photo?.image_url ||
           null
 
@@ -285,7 +350,6 @@ export async function POST(req: NextRequest) {
             id: photo?.id,
             filename: photo?.filename || photo?.file_name || 'photo',
             public_url: photo?.public_url || null,
-            original_url: photo?.original_url || null,
             preview_url: photo?.preview_url || null,
             thumbnail_url: photo?.thumbnail_url || null,
             image_url: imageUrl,

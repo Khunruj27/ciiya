@@ -1,8 +1,14 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import AppIcon from '@/components/app-icon'
 import { formatBytes, clampPercent } from '@/lib/format-bytes'
+import { PLAN_LIMITS } from '@/lib/plans'
+import BillingPortalButton from '@/components/billing-portal-button'
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export default async function MePage() {
   const supabase = await createServerSupabaseClient()
@@ -33,41 +39,45 @@ export default async function MePage() {
   const { data: storageUsage } = await supabase
     .from('user_storage_usage')
     .select(`
-      storage_used_bytes,
-      storage_limit_bytes,
-      photo_count,
-      photos_count,
-      albums_count
-    `)
+  current_plan,
+  storage_used_bytes,
+  used_bytes,
+  storage_limit_bytes,
+  photo_count,
+  photos_count,
+  albums_count
+`)
     .eq('user_id', user.id)
-    .maybeSingle()
-
-  const { data: currentSubscription } = await supabase
-    .from('subscriptions')
-    .select(`
-      id,
-      stripe_customer_id,
-      plan:plans(*)
-    `)
-    .eq('user_id', user.id)
-    .eq('status', 'active')
-    .limit(1)
     .maybeSingle()
 
   const region = user.user_metadata?.region || ''
   const province = user.user_metadata?.province || ''
 
-  const currentPlan = Array.isArray(currentSubscription?.plan)
-    ? currentSubscription?.plan[0]
-    : currentSubscription?.plan
+    function normalizePlanKey(value?: string | null): keyof typeof PLAN_LIMITS {
+  const plan = String(value || '').toLowerCase().trim()
 
-  const totalBytes = Number(storageUsage?.storage_used_bytes || 0)
+  if (plan === 'starter' || plan === '20gb') return 'starter'
+  if (plan === 'pro' || plan === 'pro-50gb' || plan === '50gb') return 'pro'
+  if (plan === 'business' || plan === 'pro-100gb' || plan === '100gb') {
+    return 'business'
+  }
 
-  const storageLimitBytes = Number(
-    storageUsage?.storage_limit_bytes ||
-      currentPlan?.storage_limit_bytes ||
-      5 * 1024 * 1024 * 1024
-  )
+  return 'free'
+}
+
+const storagePlanKey = normalizePlanKey(storageUsage?.current_plan || 'free')
+
+const totalBytes = Number(
+  storageUsage?.storage_used_bytes ||
+    storageUsage?.used_bytes ||
+    0
+)
+
+const storageLimitBytes = Number(
+  storageUsage?.storage_limit_bytes ||
+    PLAN_LIMITS[storagePlanKey].storageBytes ||
+    PLAN_LIMITS.free.storageBytes
+)
 
   const usagePercent = clampPercent(
     storageLimitBytes > 0 ? (totalBytes / storageLimitBytes) * 100 : 0
@@ -109,7 +119,7 @@ export default async function MePage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#FAF7F4] px-5 pt-[max(60px,env(safe-area-inset-top))] pb-[max(120px,calc(env(safe-area-inset-bottom)+40px))] text-[#1C0617]">
+    <main className="min-h-screen bg-[#F9F9F9] px-5 pt-[max(60px,env(safe-area-inset-top))] pb-[max(120px,calc(env(safe-area-inset-bottom)+40px))] text-[#1C0617]">
       <div className="mx-auto w-full max-w-[390px]">
         {/* HEADER */}
         <section className="flex items-center justify-between px-1">
@@ -126,12 +136,14 @@ export default async function MePage() {
           className="mt-6 block rounded-[34px] border border-black/5 bg-white p-4"
         >
           <div className="flex flex-col items-center text-center">
-            <div className="h-28 w-28 overflow-hidden rounded-full bg-[#F2EEE9] ring-4 ring-[#FAF7F4]">
+            <div className="relative h-28 w-28 overflow-hidden rounded-full bg-[#F2EEE9] ring-4 ring-[#FAF7F4]">
               {avatarUrl ? (
-                <img
+                <Image
                   src={avatarUrl}
                   alt={displayName}
-                  className="h-full w-full object-cover"
+                  fill
+                  sizes="112px"
+                  className="object-cover"
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-4xl font-black text-[#B8AEB4]">
@@ -230,12 +242,7 @@ export default async function MePage() {
                 Manage Plan
               </Link>
 
-              <button
-                type="button"
-                className="flex h-12 items-center justify-center rounded-full border border-black/5 bg-[#D0F578] px-4 text-sm font-black text-[#1C0617]"
-              >
-                Billing
-              </button>
+              <BillingPortalButton />
             </div>
           </div>
         </section>
@@ -257,12 +264,15 @@ export default async function MePage() {
               (latestAlbums || []).map((album, index) => (
                 <Link key={album.id} href={`/albums/${album.id}`}>
                   <div className="flex items-center gap-3 px-4 py-3.5">
-                    <div className="h-15 w-15 h-[60px] w-[60px] overflow-hidden rounded-[20px] bg-[#F2EEE9]">
+                    <div className="relative h-15 w-15 h-[60px] w-[60px] overflow-hidden rounded-[20px] bg-[#F2EEE9]">
                       {album.cover_url ? (
-                        <img
+                        <Image
                           src={album.cover_url}
                           alt={album.title || 'Album'}
-                          className="h-full w-full object-cover"
+                          fill
+                          sizes="60px"
+                          unoptimized
+                          className="object-cover"
                         />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center text-xs font-bold text-[#B8AEB4]">
@@ -335,6 +345,13 @@ export default async function MePage() {
           </Link>
 
           <Link
+            href="/portfolio"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-black"
+          >
+            <AppIcon name="portfolio" size={21} />
+          </Link>
+
+          <Link
             href="/ai-retouch"
             className="flex h-11 w-11 items-center justify-center rounded-full text-black"
           >
@@ -345,14 +362,14 @@ export default async function MePage() {
             href="/notifications"
             className="flex h-11 w-11 items-center justify-center rounded-full text-black"
           >
-            <AppIcon name="bell" size={23} />
+            <AppIcon name="bell" size={20} />
           </Link>
 
           <Link
             href="/me"
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-[#F0B1DE]"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-[#ededed]"
           >
-            <AppIcon name="user-1" size={22} />
+            <AppIcon name="user" size={17} />
           </Link>
         </div>
       </nav>

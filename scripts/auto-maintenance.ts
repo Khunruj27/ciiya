@@ -1,38 +1,83 @@
-import { exec } from 'child_process'
+import { spawn } from 'node:child_process'
 
-function run(command: string) {
-  return new Promise<void>((resolve) => {
-    console.log(`\n[AutoMaintenance] ${command}`)
+type Step = {
+  name: string
+  command: string
+  args: string[]
+  optional?: boolean
+}
 
-    exec(command, (error, stdout, stderr) => {
-      if (stdout) console.log(stdout)
-      if (stderr) console.error(stderr)
+const steps: Step[] = [
+  {
+    name: 'System Health Check',
+    command: 'npm',
+    args: ['run', 'health:check'],
+  },
+  {
+    name: 'Retry Failed Jobs',
+    command: 'npm',
+    args: ['run', 'retry:failed'],
+  },
+  {
+    name: 'Storage Cleanup Dry Run',
+    command: 'npm',
+    args: ['run', 'storage:cleanup'],
+  },
+  {
+    name: 'Maintenance Cleanup Dry Run',
+    command: 'npm',
+    args: ['run', 'maintenance:cleanup'],
+  },
+]
 
-      if (error) {
-        console.error(error)
+function runStep(step: Step) {
+  return new Promise<void>((resolve, reject) => {
+    console.log('\n==============================')
+    console.log(step.name)
+    console.log('==============================')
+
+    const child = spawn(step.command, step.args, {
+      stdio: 'inherit',
+      shell: true,
+      env: {
+        ...process.env,
+      },
+    })
+
+    child.on('exit', (code) => {
+      if (code === 0 || step.optional) {
+        resolve()
+        return
       }
 
-      resolve()
+      reject(new Error(`${step.name} failed with exit code ${code}`))
+    })
+
+    child.on('error', (error) => {
+      if (step.optional) {
+        console.warn(`[maintenance] optional step failed: ${error.message}`)
+        resolve()
+        return
+      }
+
+      reject(error)
     })
   })
 }
 
 async function main() {
-  console.log('=================================')
-  console.log('CIIYA AUTO MAINTENANCE START')
-  console.log('=================================')
+  console.log('\nCIIYA AUTO MAINTENANCE STARTED')
 
-  await run('tsx scripts/reset-stuck-jobs.ts')
+  for (const step of steps) {
+    await runStep(step)
+  }
 
-  await run('tsx scripts/retry-failed-jobs.ts')
-
-  await run('tsx scripts/cleanup-orphan-files.ts')
-
-  await run('tsx scripts/system-health-check.ts')
-
-  console.log('=================================')
+  console.log('\n==============================')
   console.log('CIIYA AUTO MAINTENANCE DONE')
-  console.log('=================================')
+  console.log('==============================')
 }
 
-main().catch(console.error)
+main().catch((error) => {
+  console.error('\n[maintenance] failed:', error)
+  process.exit(1)
+})

@@ -8,9 +8,24 @@ type Photo = {
   id: string
   album_id: string
   filename: string | null
+
   public_url: string
+  original_url?: string | null
   preview_url: string | null
   thumbnail_url: string | null
+  sd_url?: string | null
+  hd_url?: string | null
+  uhd_url?: string | null
+
+  storage_path?: string | null
+  original_path?: string | null
+  preview_path?: string | null
+  thumbnail_path?: string | null
+  sd_path?: string | null
+  hd_path?: string | null
+  uhd_path?: string | null
+  selected_size?: string | null
+
   created_at: string
   view_count?: number | null
   processing_status?: string | null

@@ -1,5 +1,7 @@
 export function formatStorage(bytes: number): string {
-  if (!bytes) return '0 GB'
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 GB'
+  }
 
   const gb = bytes / (1024 * 1024 * 1024)
 
@@ -8,5 +10,6 @@ export function formatStorage(bytes: number): string {
   }
 
   const mb = bytes / (1024 * 1024)
+
   return `${mb.toFixed(0)} MB`
 }

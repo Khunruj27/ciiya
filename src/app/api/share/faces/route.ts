@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import {
+  getShareAuthCookieName,
+  hasValidSharePasswordAccess,
+  isAlbumPubliclyVisible,
+} from '@/lib/share-access'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -31,12 +36,20 @@ export async function GET(req: NextRequest) {
     const supabase = getSupabaseAdmin()
 
     const { data: album, error: albumError } = await supabase
-      .from('albums')
-      .select('id')
-      .eq('share_token', token)
-      .single()
+  .from('albums')
+  .select('id, is_public, status, is_password_protected, password_hash')
+  .eq('share_token', token)
+  .maybeSingle()
 
-    if (albumError || !album) {
+    if (albumError || !album || !isAlbumPubliclyVisible(album)) {
+      return NextResponse.json({ clusters: [] })
+    }
+
+    const shareCookie = req.cookies.get(
+      getShareAuthCookieName(album.id)
+    )?.value
+
+    if (!hasValidSharePasswordAccess(album, shareCookie)) {
       return NextResponse.json({ clusters: [] })
     }
 
@@ -53,8 +66,6 @@ export async function GET(req: NextRequest) {
           id,
           thumbnail_url,
           preview_url,
-          public_url,
-          original_url,
           image_url,
           filename,
           file_name
@@ -93,8 +104,6 @@ export async function GET(req: NextRequest) {
       const imageUrl =
         photo?.thumbnail_url ||
         photo?.preview_url ||
-        photo?.public_url ||
-        photo?.original_url ||
         photo?.image_url ||
         null
 

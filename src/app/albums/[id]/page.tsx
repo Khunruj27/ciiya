@@ -9,7 +9,6 @@ import AppIcon from '@/components/app-icon'
 import AlbumCameraStatus from '@/components/album-camera-status'
 import UploadPhotoModal from '@/components/upload-photo-modal'
 import AlbumPhotoGridPreview from '@/components/album-photo-grid-preview'
-import AlbumProcessingQueue from '@/components/album-processing-queue'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -18,23 +17,39 @@ type PageProps = {
   params: Promise<{ id: string }>
 }
 
-type AlbumQueueItem = {
-  id: string
-  photo_id?: string | null
-  filename: string
-  type: 'upload' | 'photo' | 'face'
-  status: string
-  progress: number
-  created_at: string
-}
-
 export default async function AlbumDetailPage({ params }: PageProps) {
   const { id } = await params
   const supabase = await createServerSupabaseClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+    let user = null
+
+  try {
+    const result = await supabase.auth.getUser()
+    user = result.data.user
+  } catch (error) {
+    console.warn('[album detail] auth getUser failed:', error)
+
+    return (
+      <main className="min-h-screen bg-[#FAF7F4] px-6 py-10 text-[#1C0617]">
+        <div className="mx-auto max-w-[393px] rounded-[28px] bg-white p-6 text-center border border-black/5">
+          <h1 className="text-[24px] font-black">
+            Connection interrupted
+          </h1>
+
+          <p className="mt-3 text-[14px] font-semibold leading-6 text-[#8E8E93]">
+            Cannot connect to the server right now. Please refresh this page.
+          </p>
+
+          <Link
+            href={`/albums/${id}`}
+            className="mt-5 inline-flex h-11 items-center justify-center rounded-full bg-[#1C0617] px-5 text-[13px] font-black text-white"
+          >
+            Refresh
+          </Link>
+        </div>
+      </main>
+    )
+  }
 
   if (!user) redirect('/login')
 
@@ -66,19 +81,24 @@ export default async function AlbumDetailPage({ params }: PageProps) {
   const { data: photosData, error: photosError } = await supabase
   .from('photos')
   .select(
-    `
-    *,
-    preview_url,
-    thumbnail_url,
-    sd_url,
-    hd_url,
-    uhd_url,
-    processing_status,
-    processing_progress,
-    face_scan_status,
-    face_scan_progress
-    `
-  )
+  `
+  id,
+  album_id,
+  owner_id,
+  filename,
+  file_name,
+  original_path,
+  public_url,
+  preview_url,
+  thumbnail_url,
+  hd_url,
+  uhd_url,
+  blur_data_url,
+  processing_status,
+  processing_progress,
+  created_at
+  `
+)
   .eq('album_id', id)
   .eq('owner_id', user.id)
   .order('created_at', { ascending: false })
@@ -102,132 +122,55 @@ export default async function AlbumDetailPage({ params }: PageProps) {
     .eq('album_id', id)
     .order('created_at', { ascending: true })
 
-  if (categoriesError) throw new Error(categoriesError.message)
+  if (categoriesError) {
+  console.error(
+    '[AlbumDetailPage] categories fetch failed:',
+    categoriesError.message
+  )
+}
 
-  const categories = categoriesData ?? []
+const categories = categoriesError ? [] : categoriesData ?? []
 
     const { data: cameraImportsData } = await supabase
     .from('camera_live_imports')
     .select('id, filename, status, progress, created_at')
     .eq('album_id', id)
-    .in('status', ['pending', 'imported', 'uploading', 'finalizing'])
+    .in('status', ['imported', 'uploading', 'finalizing'])
     .order('created_at', { ascending: false })
-    .limit(8)
+    .limit(24)
 
-  const { data: photoJobsData } = await supabase
-  .from('photo_jobs')
-  .select('id, photo_id, original_path, status, progress, created_at')
-    .eq('album_id', id)
-    .in('status', ['pending', 'processing'])
-    .order('created_at', { ascending: false })
-    .limit(8)
-
-  const { data: faceJobsData } = await supabase
-  .from('face_jobs')
-  .select('id, photo_id, image_path, status, progress, created_at')
-    .eq('album_id', id)
-    .in('status', ['pending', 'processing'])
-    .order('created_at', { ascending: false })
-    .limit(8)
-
-    const activePhotoItems = photos
-    .filter(
-      (photo) =>
-        ['pending', 'processing'].includes(
-          String(photo.processing_status || '')
-        ) ||
-        ['pending', 'processing'].includes(
-          String(photo.face_scan_status || '')
-        )
+const existingPhotoNames = new Set(
+  photos
+    .map((photo) =>
+      String(
+        photo.filename ||
+          photo.file_name ||
+          photo.original_path?.split('/').pop() ||
+          ''
+      ).toLowerCase()
     )
-    .slice(0, 8)
+    .filter(Boolean)
+)
 
-  const cameraQueueItems: AlbumQueueItem[] = (cameraImportsData || []).map(
-  (item) => ({
+const cameraProcessingGridItems = (cameraImportsData || [])
+  .filter((item) =>
+    ['imported', 'uploading', 'finalizing'].includes(
+      String(item.status || '').toLowerCase()
+    )
+  )
+  .filter(
+    (item) =>
+      !existingPhotoNames.has(
+        String(item.filename || '').toLowerCase()
+      )
+  )
+  .map((item) => ({
     id: item.id,
-    photo_id: null,
     filename: item.filename || 'Camera photo',
-    type: 'upload',
-    status: String(item.status || 'pending'),
+    status: String(item.status || 'imported'),
     progress: Number(item.progress || 0),
     created_at: String(item.created_at || new Date().toISOString()),
-  })
-)
-
-const photoJobQueueItems: AlbumQueueItem[] = (photoJobsData || []).map(
-  (item) => ({
-    id: item.id,
-    photo_id: item.photo_id || null,
-    filename: item.original_path?.split('/').pop() || 'Processing photo',
-    type: 'photo',
-    status: String(item.status || 'processing'),
-    progress: Number(item.progress || 0),
-    created_at: String(item.created_at || new Date().toISOString()),
-  })
-)
-
-const faceJobQueueItems: AlbumQueueItem[] = (faceJobsData || []).map(
-  (item) => ({
-    id: item.id,
-    photo_id: item.photo_id || null,
-    filename: item.image_path?.split('/').pop() || 'Face scan',
-    type: 'face',
-    status: String(item.status || 'processing'),
-    progress: Number(item.progress || 0),
-    created_at: String(item.created_at || new Date().toISOString()),
-  })
-)
-
-const photoStatusQueueItems: AlbumQueueItem[] = activePhotoItems.map((photo) => {
-  const isFaceScan = ['pending', 'processing'].includes(
-    String(photo.face_scan_status || '')
-  )
-
-  return {
-    id: photo.id,
-    photo_id: photo.id,
-    filename:
-      photo.filename ||
-      photo.file_name ||
-      photo.original_path?.split('/').pop() ||
-      'Photo',
-    type: isFaceScan ? 'face' : 'photo',
-    status: isFaceScan
-      ? String(photo.face_scan_status || 'processing')
-      : String(photo.processing_status || 'processing'),
-    progress: isFaceScan
-      ? Number(photo.face_scan_progress || 0)
-      : Number(photo.processing_progress || 0),
-    created_at: String(photo.created_at || new Date().toISOString()),
-  }
-})
-
-const queueItems: AlbumQueueItem[] = [
-  ...cameraQueueItems,
-  ...photoJobQueueItems,
-  ...faceJobQueueItems,
-  ...photoStatusQueueItems,
-]
-  .filter((item, index, array) => {
-    const itemKey = item.photo_id
-      ? `${item.type}-photo-${item.photo_id}`
-      : `${item.type}-${item.id}`
-
-    return (
-      index ===
-      array.findIndex((other) => {
-        const otherKey = other.photo_id
-          ? `${other.type}-photo-${other.photo_id}`
-          : `${other.type}-${other.id}`
-
-        return otherKey === itemKey
-      })
-    )
-  })
-  .sort(
-    (a, b) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  )
+  }))
 
   return (
   <main className="min-h-screen bg-[#FAF7F4] text-[#1C0617] text-black">
@@ -293,7 +236,6 @@ const queueItems: AlbumQueueItem[] = [
 
 <AlbumCameraStatus albumId={album.id} />
 
-<AlbumProcessingQueue items={queueItems} />
 
         {/* ACTION BAR */}
         <section className="pt-5">
@@ -324,9 +266,13 @@ const queueItems: AlbumQueueItem[] = [
               </div>
             </div>
 
-            {photos.length > 0 ? (
-              <AlbumPhotoGridPreview photos={photos} />
-            ) : (
+            {photos.length > 0 || cameraProcessingGridItems.length > 0 ? (
+  <AlbumPhotoGridPreview
+  albumId={album.id}
+  photos={photos}
+  cameraProcessingItems={cameraProcessingGridItems}
+/>
+) : (
               <div className="rounded-[26px] bg-[#F6F7FA] px-6 py-12 text-center">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm">
                   <AppIcon name="album" size={60} className="opacity-30" />

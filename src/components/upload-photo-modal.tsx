@@ -33,9 +33,11 @@ export default function UploadPhotoModal({
 
 
   function openModal() {
-    setPortalHost(document.body)
-    setOpen(true)
-  }
+  if (typeof document === 'undefined') return
+
+  setPortalHost(document.body)
+  setOpen(true)
+}
 
   function closeModal() {
     setOpen(false)

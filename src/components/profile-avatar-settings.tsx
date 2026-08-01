@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import Image from 'next/image'
 
 type Props = {
   email?: string | null
@@ -47,14 +48,16 @@ export default function ProfileAvatarSettings({
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-sm font-bold text-slate-700 ring-1 ring-black/5"
+        className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-sm font-bold text-slate-700 ring-1 ring-black/5"
         title="Change profile photo"
       >
         {avatarUrl ? (
-          <img
+          <Image
             src={avatarUrl}
             alt="Profile"
-            className="h-full w-full object-cover"
+            fill
+            sizes="48px"
+            className="object-cover"
           />
         ) : (
           initial

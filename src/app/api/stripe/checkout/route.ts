@@ -44,6 +44,24 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const { data: activeSubscription } = await supabase
+  .from('subscriptions')
+  .select('id')
+  .eq('user_id', user.id)
+  .eq('status', 'active')
+  .maybeSingle()
+
+if (activeSubscription) {
+  return NextResponse.json(
+    {
+      error: 'You already have an active subscription.',
+    },
+    {
+      status: 400,
+    }
+  )
+}
+
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
 
@@ -57,30 +75,53 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .maybeSingle()
 
-    if (existingSub?.stripe_customer_id) {
-      customerId = String(existingSub.stripe_customer_id)
-    } else {
-  const customer = await stripe.customers.create({
+  if (existingSub?.stripe_customer_id) {
+  customerId = String(existingSub.stripe_customer_id)
+} else {
+  const customers = await stripe.customers.list({
     email: user.email,
-    metadata: {
-      user_id: user.id,
-    },
+    limit: 1,
   })
 
-  customerId = customer.id
-
-  const { error: customerSaveError } = await supabase
-    .from('subscriptions')
-    .upsert(
-      {
+  if (customers.data.length > 0) {
+    customerId = customers.data[0].id
+  } else {
+    const customer = await stripe.customers.create({
+      email: user.email,
+      metadata: {
         user_id: user.id,
-        stripe_customer_id: customerId,
-        status: 'inactive',
       },
-      {
-        onConflict: 'user_id',
-      }
-    )
+    })
+
+    customerId = customer.id
+  }
+
+  // Note: there is no unique constraint on `user_id` (a user can have
+  // several historical subscription rows keyed by stripe_subscription_id),
+  // so we cannot upsert on that column. Update the most recent row instead,
+  // or insert a fresh one if none exists yet.
+  const { data: mostRecentSub } = await supabase
+    .from('subscriptions')
+    .select('id')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const customerSaveError = mostRecentSub?.id
+    ? (
+        await supabase
+          .from('subscriptions')
+          .update({ stripe_customer_id: customerId })
+          .eq('id', mostRecentSub.id)
+      ).error
+    : (
+        await supabase.from('subscriptions').insert({
+          user_id: user.id,
+          stripe_customer_id: customerId,
+          status: 'inactive',
+        })
+      ).error
 
   if (customerSaveError) {
     console.error(

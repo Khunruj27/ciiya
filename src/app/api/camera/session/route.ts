@@ -27,13 +27,26 @@ export async function GET(req: Request) {
   try {
     const supabase = await createServerSupabaseClient()
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+   let user = null
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+try {
+  const result = await supabase.auth.getUser()
+  user = result.data.user
+} catch (error) {
+  console.warn('[camera] auth getUser failed:', error)
+
+  return NextResponse.json(
+    {
+      error: 'Auth temporarily unavailable',
+      code: 'AUTH_FETCH_FAILED',
+    },
+    { status: 503 }
+  )
+}
+
+if (!user) {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+}
 
     const { searchParams } = new URL(req.url)
     const albumId = searchParams.get('albumId')
@@ -76,7 +89,8 @@ export async function GET(req: Request) {
       `)
       .eq('album_id', albumId)
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
+      .eq('status', 'connected')
+      .order('connected_at', { ascending: false })
       .limit(1)
       .maybeSingle<CameraSessionRow>()
 

@@ -16,13 +16,24 @@ export async function POST() {
 
     const { data: subscription, error } = await supabase
       .from('subscriptions')
-      .select('stripe_customer_id')
+      .select('stripe_customer_id,status')
       .eq('user_id', user.id)
       .maybeSingle()
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+
+    if (!subscription?.status || subscription.status !== 'active') {
+  return NextResponse.json(
+    {
+      error: 'No active subscription.',
+    },
+    {
+      status: 400,
+    }
+  )
+}
 
     if (!subscription?.stripe_customer_id) {
       return NextResponse.json(

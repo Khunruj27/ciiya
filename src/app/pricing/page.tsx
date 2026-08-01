@@ -3,6 +3,9 @@ import Link from 'next/link'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import UpgradePlanList from '@/components/upgrade-plan-list'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function PricingPage() {
   const supabase = await createServerSupabaseClient()
 
@@ -28,25 +31,32 @@ export default async function PricingPage() {
 
   if (storageUsageError) throw new Error(storageUsageError.message)
 
-  const currentPlanSlug =
-    storageUsage?.current_plan ||
-    plans?.find(
-      (plan) =>
-        Number(plan.storage_limit_bytes) ===
-        Number(storageUsage?.storage_limit_bytes || 0)
-    )?.slug ||
-    'free'
+  const { data: activeSubscription } = await supabase
+  .from('subscriptions')
+  .select(`
+    plan_id,
+    stripe_subscription_id,
+    plan:plans (
+      storage_limit_bytes
+    )
+  `)
+  .eq('user_id', user.id)
+  .eq('status', 'active')
+  .order('created_at', { ascending: false })
+  .limit(1)
+  .maybeSingle()
 
-  const currentPlan = plans?.find((plan) => plan.slug === currentPlanSlug)
+const activePlan = Array.isArray(activeSubscription?.plan)
+  ? activeSubscription?.plan[0]
+  : activeSubscription?.plan
 
-  const currentSubscription = currentPlan
-    ? {
-        plan_id: currentPlan.id,
-        status: 'active',
-        current_period_end: null,
-        storage_limit_bytes: Number(currentPlan.storage_limit_bytes || 0),
-      }
-    : null
+const currentSubscription = activeSubscription
+  ? {
+      plan_id: activeSubscription.plan_id,
+      stripe_subscription_id: activeSubscription.stripe_subscription_id,
+      storage_limit_bytes: Number(activePlan?.storage_limit_bytes || 0),
+    }
+  : null
 
   const totalBytes = Number(
     storageUsage?.storage_used_bytes ?? storageUsage?.used_bytes ?? 0

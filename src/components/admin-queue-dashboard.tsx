@@ -39,11 +39,36 @@ type QueueStats = {
   success: boolean
   photoJobs: Record<string, number>
   faceJobs: Record<string, number>
+  cameraJobs: Record<string, number>
+  recentPhotoJobs?: FailedJob[]
+  recentFaceJobs?: FailedJob[]
+  cameraSessions?: CameraSessionMonitorItem[]
   workers?: WorkerHeartbeat[]
   recentErrors?: WorkerLog[]
   failedPhotoJobs?: FailedJob[]
   failedFaceJobs?: FailedJob[]
   checkedAt: string
+  recentCameraImports?: RecentCameraImport[]
+  recentTimeline?: WorkerLog[]
+  performanceAnalytics?: PerformanceAnalytics
+  uploadRecoveryWatch?: UploadRecoveryWatch
+}
+
+type CameraSessionMonitorItem = {
+  id: string
+  album_id: string | null
+  owner_id: string | null
+  status: string | null
+  resize_mode: string | null
+  created_at: string | null
+  updated_at: string | null
+  last_activity_at: string | null
+  started_at: string | null
+  stopped_at: string | null
+  counts?: Record<string, number>
+  latest_import_filename?: string | null
+  latest_import_at?: string | null
+  total_imports?: number
 }
 
 type CleanupResult = {
@@ -57,6 +82,61 @@ type CleanupResult = {
   deletedCount: number
   limit: number
   sample: string[]
+}
+
+type RecentCameraImport = {
+  id: string
+  album_id: string | null
+  filename: string | null
+  status: string | null
+  progress: number | null
+  error: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+type PerformanceAnalytics = {
+  windowMinutes: number
+  photoAvgSeconds: number | null
+  faceAvgSeconds: number | null
+  cameraAvgSeconds: number | null
+  totalDone: number
+  throughputPerMinute: number
+}
+
+type UploadRecoveryWatch = {
+  stuckMinutes: number
+  stuckPhotos: {
+    id: string
+    album_id: string | null
+    filename: string | null
+    processing_status: string | null
+    processing_progress: number | null
+    created_at: string | null
+    updated_at: string | null
+  }[]
+  stuckJobs: {
+    id: string
+    photo_id: string | null
+    album_id: string | null
+    status: string | null
+    progress: number | null
+    retry_count: number | null
+    error: string | null
+    created_at: string | null
+    started_at: string | null
+    updated_at: string | null
+  }[]
+  failedPhotos: {
+    id: string
+    album_id: string | null
+    filename: string | null
+    processing_status: string | null
+    processing_progress: number | null
+    created_at: string | null
+    updated_at: string | null
+  }[]
+  
 }
 
 function isWorkerOnline(worker: WorkerHeartbeat) {
@@ -73,6 +153,47 @@ function formatDate(value?: string | null) {
   if (!value) return '-'
 
   return new Date(value).toLocaleString()
+}
+
+function getWorkerHealth(workers: WorkerHeartbeat[] = []) {
+  const now = Date.now()
+
+  const getAgeSeconds = (value?: string | null) => {
+    if (!value) return null
+
+    const time = new Date(value).getTime()
+
+    if (!Number.isFinite(time)) return null
+
+    return Math.max(0, Math.round((now - time) / 1000))
+  }
+
+  const normalized = workers.map((worker) => {
+    const lastSeen = worker.last_seen_at || worker.last_seen || null
+    const ageSeconds = getAgeSeconds(lastSeen)
+
+    const online =
+      String(worker.status || '').toLowerCase() === 'online' &&
+      ageSeconds !== null &&
+      ageSeconds <= 180
+
+    return {
+      ...worker,
+      lastSeen,
+      ageSeconds,
+      online,
+    }
+  })
+
+  const onlineCount = normalized.filter((worker) => worker.online).length
+  const totalCount = normalized.length
+
+  return {
+    workers: normalized,
+    onlineCount,
+    totalCount,
+    allOnline: totalCount > 0 && onlineCount === totalCount,
+  }
 }
 
 function QueueCard({
@@ -141,6 +262,814 @@ function QueueCard({
           <p className="text-xs font-medium text-red-700">Failed</p>
           <p className="mt-1 text-2xl font-black text-red-800">{failed}</p>
         </div>
+      </div>
+    </div>
+  )
+}
+
+
+function WorkerHealthSummary({ stats }: { stats: QueueStats }) {
+  const health = getWorkerHealth(stats.workers || [])
+
+  const pendingTotal =
+    (stats.photoJobs?.pending || 0) +
+    (stats.faceJobs?.pending || 0) +
+    (stats.cameraJobs?.pending || 0)
+
+  const activeTotal =
+    (stats.photoJobs?.processing || 0) +
+    (stats.faceJobs?.processing || 0) +
+    (stats.cameraJobs?.imported || 0) +
+    (stats.cameraJobs?.uploading || 0) +
+    (stats.cameraJobs?.finalizing || 0)
+
+  const failedTotal =
+    (stats.photoJobs?.failed || 0) +
+    (stats.faceJobs?.failed || 0) +
+    (stats.cameraJobs?.failed || 0)
+
+  return (
+    <div className="rounded-[30px] border border-black/5 bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+            System Health
+          </p>
+
+          <h2 className="mt-1 text-[26px] font-black tracking-[-0.05em] text-[#1C0617]">
+            {health.allOnline && failedTotal === 0
+              ? 'All systems operational'
+              : 'Attention needed'}
+          </h2>
+
+          <p className="mt-2 text-[13px] font-semibold text-[#8E8E93]">
+            Last check:{' '}
+            {stats.checkedAt ? new Date(stats.checkedAt).toLocaleString() : '-'}
+          </p>
+        </div>
+
+        <div
+          className={[
+            'rounded-full px-4 py-2 text-[12px] font-black uppercase',
+            health.allOnline && failedTotal === 0
+              ? 'bg-[#D0F578] text-[#1C0617]'
+              : 'bg-red-50 text-red-600',
+          ].join(' ')}
+        >
+          {health.onlineCount}/{health.totalCount || 0} workers online
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
+        {health.workers.length > 0 ? (
+          health.workers.map((worker) => (
+            <div
+              key={worker.worker_id || worker.worker_name || worker.worker_type || 'worker'}
+              className="rounded-[22px] bg-[#FAF7F4] p-4"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="truncate text-[13px] font-black text-[#1C0617]">
+                  {worker.worker_type || worker.worker_name || worker.worker_id}
+                </p>
+
+                <span
+                  className={[
+                    'h-2.5 w-2.5 rounded-full',
+                    worker.online ? 'bg-[#60D394]' : 'bg-red-500',
+                  ].join(' ')}
+                />
+              </div>
+
+              <p className="mt-2 text-[11px] font-semibold text-[#8E8E93]">
+                {worker.online ? 'Online' : 'Offline'} ·{' '}
+                {worker.ageSeconds !== null
+                  ? `${worker.ageSeconds}s ago`
+                  : 'No heartbeat'}
+              </p>
+            </div>
+          ))
+        ) : (
+          <div className="rounded-[22px] bg-[#FAF7F4] p-4 md:col-span-3">
+            <p className="text-[13px] font-bold text-[#8E8E93]">
+              No worker heartbeat records
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-5 grid grid-cols-3 gap-3">
+        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
+          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+            Pending
+          </p>
+          <p className="mt-1 text-[24px] font-black text-[#1C0617]">
+            {pendingTotal}
+          </p>
+        </div>
+
+        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
+          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+            Active
+          </p>
+          <p className="mt-1 text-[24px] font-black text-[#1C0617]">
+            {activeTotal}
+          </p>
+        </div>
+
+        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
+          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+            Failed
+          </p>
+          <p className="mt-1 text-[24px] font-black text-[#1C0617]">
+            {failedTotal}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function LiveAlertCard({ stats }: { stats: QueueStats }) {
+  const alerts: {
+    level: 'success' | 'warning' | 'danger'
+    title: string
+    detail: string
+  }[] = []
+
+  const workers = stats.workers || []
+  const onlineWorkers = workers.filter(isWorkerOnline).length
+
+  if (workers.length > 0 && onlineWorkers < workers.length) {
+    alerts.push({
+      level: 'danger',
+      title: 'Worker Offline',
+      detail: `${workers.length - onlineWorkers} worker(s) offline`,
+    })
+  }
+
+  if ((stats.photoJobs?.failed || 0) > 0) {
+    alerts.push({
+      level: 'danger',
+      title: 'Photo Queue Failed',
+      detail: `${stats.photoJobs.failed} failed job(s)`,
+    })
+  }
+
+  if ((stats.faceJobs?.failed || 0) > 0) {
+    alerts.push({
+      level: 'danger',
+      title: 'Face Queue Failed',
+      detail: `${stats.faceJobs.failed} failed job(s)`,
+    })
+  }
+
+  if ((stats.cameraJobs?.failed || 0) > 0) {
+    alerts.push({
+      level: 'danger',
+      title: 'Camera Queue Failed',
+      detail: `${stats.cameraJobs.failed} failed job(s)`,
+    })
+  }
+
+  if ((stats.cameraJobs?.pending || 0) >= 20) {
+    alerts.push({
+      level: 'warning',
+      title: 'Camera Queue High',
+      detail: `${stats.cameraJobs.pending} pending`,
+    })
+  }
+
+  if (alerts.length === 0) {
+    alerts.push({
+      level: 'success',
+      title: 'System Healthy',
+      detail: 'No active alerts',
+    })
+  }
+
+  return (
+    <div className="rounded-[30px] border border-black/5 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+            Monitoring
+          </p>
+
+          <h2 className="mt-1 text-[24px] font-black text-[#1C0617]">
+            Live Alerts
+          </h2>
+        </div>
+
+        <span className="rounded-full bg-[#F6F7FA] px-3 py-1 text-[11px] font-black text-[#8E8E93]">
+          {alerts.length}
+        </span>
+      </div>
+
+      <div className="mt-5 space-y-3">
+        {alerts.map((alert, index) => (
+          <div
+            key={index}
+            className={[
+              'flex items-start gap-3 rounded-[20px] p-4',
+              alert.level === 'danger'
+                ? 'bg-red-50'
+                : alert.level === 'warning'
+                ? 'bg-yellow-50'
+                : 'bg-green-50',
+            ].join(' ')}
+          >
+            <div
+              className={[
+                'mt-1 h-3 w-3 rounded-full',
+                alert.level === 'danger'
+                  ? 'bg-red-500'
+                  : alert.level === 'warning'
+                  ? 'bg-yellow-500'
+                  : 'bg-green-500',
+              ].join(' ')}
+            />
+
+            <div>
+              <p className="text-[13px] font-black text-[#1C0617]">
+                {alert.title}
+              </p>
+
+              <p className="mt-1 text-[12px] font-semibold text-[#666]">
+                {alert.detail}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SystemOverviewCard({ stats }: { stats: QueueStats }) {
+  const photoFailed = stats.photoJobs?.failed || 0
+  const faceFailed = stats.faceJobs?.failed || 0
+  const cameraFailed = stats.cameraJobs?.failed || 0
+
+  const photoActive = stats.photoJobs?.processing || 0
+  const faceActive = stats.faceJobs?.processing || 0
+  const cameraActive =
+    (stats.cameraJobs?.pending || 0) +
+    (stats.cameraJobs?.imported || 0) +
+    (stats.cameraJobs?.uploading || 0) +
+    (stats.cameraJobs?.finalizing || 0)
+
+  const workers = stats.workers || []
+  const onlineWorkers = workers.filter(isWorkerOnline).length
+  const allWorkersOnline =
+    workers.length > 0 && onlineWorkers === workers.length
+
+  const items = [
+    {
+      label: 'Database',
+      healthy: true,
+      value: 'Connected',
+    },
+    {
+      label: 'Photo Worker',
+      healthy: allWorkersOnline,
+      value: `${onlineWorkers}/${workers.length || 0}`,
+    },
+    {
+      label: 'Photo Queue',
+      healthy: photoFailed === 0,
+      value: photoActive > 0 ? `${photoActive} active` : 'Clear',
+    },
+    {
+      label: 'Face Queue',
+      healthy: faceFailed === 0,
+      value: faceActive > 0 ? `${faceActive} active` : 'Clear',
+    },
+    {
+      label: 'Camera Queue',
+      healthy: cameraFailed === 0,
+      value: cameraActive > 0 ? `${cameraActive} active` : 'Clear',
+    },
+    {
+      label: 'Errors',
+      healthy: (stats.recentErrors || []).length === 0,
+      value: `${stats.recentErrors?.length || 0}`,
+    },
+  ]
+
+  return (
+    <div className="rounded-[30px] border border-black/5 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+            Monitoring
+          </p>
+
+          <h2 className="mt-1 text-[24px] font-black tracking-[-0.04em] text-[#1C0617]">
+            System Overview
+          </h2>
+        </div>
+
+        <span className="rounded-full bg-[#D0F578] px-3 py-1 text-[11px] font-black text-[#1C0617]">
+          Live
+        </span>
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
+        {items.map((item) => (
+          <div
+            key={item.label}
+            className="rounded-[22px] bg-[#FAF7F4] p-4"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[12px] font-black text-[#1C0617]">
+                {item.label}
+              </p>
+
+              <span
+                className={[
+                  'h-2.5 w-2.5 rounded-full',
+                  item.healthy ? 'bg-[#60D394]' : 'bg-red-500',
+                ].join(' ')}
+              />
+            </div>
+
+            <p className="mt-2 text-[11px] font-semibold text-[#8E8E93]">
+              {item.healthy ? 'Healthy' : 'Attention'} · {item.value}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function LivePerformanceCard({ stats }: { stats: QueueStats }) {
+  const photoActive = stats.photoJobs?.processing || 0
+  const faceActive = stats.faceJobs?.processing || 0
+  const cameraActive =
+    (stats.cameraJobs?.pending || 0) +
+    (stats.cameraJobs?.imported || 0) +
+    (stats.cameraJobs?.uploading || 0) +
+    (stats.cameraJobs?.finalizing || 0)
+
+  const totalDone =
+    (stats.photoJobs?.done || 0) +
+    (stats.faceJobs?.done || 0) +
+    (stats.cameraJobs?.done || 0)
+
+  const totalFailed =
+    (stats.photoJobs?.failed || 0) +
+    (stats.faceJobs?.failed || 0) +
+    (stats.cameraJobs?.failed || 0)
+
+  const maxValue = Math.max(photoActive, faceActive, cameraActive, 1)
+
+  const rows = [
+    {
+      label: 'Photo',
+      value: photoActive,
+      width: `${Math.round((photoActive / maxValue) * 100)}%`,
+    },
+    {
+      label: 'Face',
+      value: faceActive,
+      width: `${Math.round((faceActive / maxValue) * 100)}%`,
+    },
+    {
+      label: 'Camera',
+      value: cameraActive,
+      width: `${Math.round((cameraActive / maxValue) * 100)}%`,
+    },
+  ]
+
+  return (
+    <div className="rounded-[30px] border border-black/5 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+            Performance
+          </p>
+
+          <h2 className="mt-1 text-[24px] font-black tracking-[-0.04em] text-[#1C0617]">
+            Live Processing Load
+          </h2>
+        </div>
+
+        <span className="rounded-full bg-[#F6F7FA] px-3 py-1 text-[11px] font-black text-[#8E8E93]">
+          Auto refresh
+        </span>
+      </div>
+
+      <div className="mt-5 space-y-4">
+        {rows.map((row) => (
+          <div key={row.label}>
+            <div className="mb-1 flex items-center justify-between text-[12px] font-bold text-[#1C0617]">
+              <span>{row.label}</span>
+              <span>{row.value} active</span>
+            </div>
+
+            <div className="h-3 overflow-hidden rounded-full bg-[#FAF7F4]">
+              <div
+                className="h-full rounded-full bg-[#D0F578] transition-all duration-300"
+                style={{ width: row.width }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-5 grid grid-cols-2 gap-3">
+        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
+          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+            Total Done
+          </p>
+          <p className="mt-1 text-[24px] font-black text-[#1C0617]">
+            {totalDone}
+          </p>
+        </div>
+
+        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
+          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+            Failed
+          </p>
+          <p className="mt-1 text-[24px] font-black text-[#1C0617]">
+            {totalFailed}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function UploadRecoveryWatchCard({
+  data,
+}: {
+  data?: UploadRecoveryWatch
+}) {
+  const stuckPhotos = data?.stuckPhotos || []
+  const stuckJobs = data?.stuckJobs || []
+  const failedPhotos = data?.failedPhotos || []
+  const hasIssue =
+    stuckPhotos.length > 0 || stuckJobs.length > 0 || failedPhotos.length > 0
+
+  return (
+    <div className="rounded-[30px] border border-black/5 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+            Recovery
+          </p>
+
+          <h2 className="mt-1 text-[24px] font-black text-[#1C0617]">
+            Upload Recovery Watch
+          </h2>
+        </div>
+
+        <span
+          className={[
+            'rounded-full px-3 py-1 text-[11px] font-black uppercase',
+            hasIssue
+              ? 'bg-yellow-50 text-yellow-700'
+              : 'bg-[#D0F578] text-[#1C0617]',
+          ].join(' ')}
+        >
+          {hasIssue ? 'Check' : 'Clear'}
+        </span>
+      </div>
+
+      <p className="mt-2 text-[12px] font-semibold text-[#8E8E93]">
+        Detect pending / processing items older than {data?.stuckMinutes || 10}{' '}
+        minutes. Read only.
+      </p>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
+        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
+          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+            Stuck Photos
+          </p>
+          <p className="mt-1 text-[26px] font-black text-[#1C0617]">
+            {stuckPhotos.length}
+          </p>
+        </div>
+
+        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
+          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+            Stuck Jobs
+          </p>
+          <p className="mt-1 text-[26px] font-black text-[#1C0617]">
+            {stuckJobs.length}
+          </p>
+        </div>
+
+        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
+          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+            Failed Photos
+          </p>
+          <p className="mt-1 text-[26px] font-black text-[#1C0617]">
+            {failedPhotos.length}
+          </p>
+        </div>
+      </div>
+
+      {hasIssue ? (
+        <div className="mt-5 space-y-2">
+          {[...stuckPhotos, ...failedPhotos].slice(0, 8).map((item) => (
+            <div
+              key={item.id}
+              className="rounded-[18px] bg-[#FAF7F4] p-3"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-black text-[#1C0617]">
+                    {item.filename || item.id}
+                  </p>
+                  <p className="mt-1 text-[11px] font-semibold text-[#8E8E93]">
+                    Album: {item.album_id || '-'}
+                  </p>
+                </div>
+
+                <span className="shrink-0 rounded-full bg-white px-3 py-1 text-[11px] font-black uppercase text-[#1C0617]">
+                  {item.processing_status || 'unknown'}
+                </span>
+              </div>
+
+              <p className="mt-2 text-[11px] font-semibold text-[#8E8E93]">
+                Updated: {formatDate(item.updated_at)}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function RecentCameraImports({
+  items = [],
+}: {
+  items?: RecentCameraImport[]
+}) {
+  return (
+    <div className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+            Camera
+          </p>
+          <h2 className="mt-1 text-[22px] font-black tracking-[-0.04em] text-[#1C0617]">
+            Recent Imports
+          </h2>
+        </div>
+
+        <span className="rounded-full bg-[#F6F7FA] px-3 py-1 text-[11px] font-black text-[#8E8E93]">
+          {items.length} latest
+        </span>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        {items.length > 0 ? (
+          items.map((item) => (
+            <div
+              key={item.id}
+              className="rounded-[18px] border border-black/5 bg-[#FAF7F4] p-3"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-black text-[#1C0617]">
+                    {item.filename || 'Untitled file'}
+                  </p>
+
+                  <p className="mt-1 truncate text-[11px] font-semibold text-[#8E8E93]">
+                    Album: {item.album_id || '-'}
+                  </p>
+                </div>
+
+                <span className="shrink-0 rounded-full bg-white px-3 py-1 text-[11px] font-black uppercase text-[#1C0617]">
+                  {item.status || 'unknown'}
+                </span>
+              </div>
+
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+                <div
+                  className="h-full rounded-full bg-[#D0F578]"
+                  style={{
+                    width: `${Math.max(0, Math.min(100, Number(item.progress || 0)))}%`,
+                  }}
+                />
+              </div>
+
+              <div className="mt-2 flex items-center justify-between text-[11px] font-semibold text-[#8E8E93]">
+                <span>{Number(item.progress || 0)}%</span>
+                <span>
+                  {item.created_at
+                    ? new Date(item.created_at).toLocaleString()
+                    : '-'}
+                </span>
+              </div>
+
+              {item.error ? (
+                <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-[11px] font-bold text-red-600">
+                  {item.error}
+                </p>
+              ) : null}
+            </div>
+          ))
+        ) : (
+          <div className="rounded-[20px] bg-[#FAF7F4] px-4 py-8 text-center">
+            <p className="text-[13px] font-bold text-[#8E8E93]">
+              No recent camera imports
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function PerformanceAnalyticsCard({
+  data,
+}: {
+  data?: PerformanceAnalytics
+}) {
+  const formatSeconds = (value?: number | null) => {
+    if (value === null || value === undefined) return '-'
+    return `${value}s`
+  }
+
+  return (
+    <div className="rounded-[30px] border border-black/5 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+            Analytics
+          </p>
+
+          <h2 className="mt-1 text-[24px] font-black text-[#1C0617]">
+            Performance Analytics
+          </h2>
+        </div>
+
+        <span className="rounded-full bg-[#F6F7FA] px-3 py-1 text-[11px] font-black text-[#8E8E93]">
+          Last {data?.windowMinutes || 60} min
+        </span>
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-4">
+        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
+          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+            Camera
+          </p>
+          <p className="mt-1 text-[24px] font-black text-[#1C0617]">
+            {formatSeconds(data?.cameraAvgSeconds)}
+          </p>
+        </div>
+
+        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
+          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+            Photo
+          </p>
+          <p className="mt-1 text-[24px] font-black text-[#1C0617]">
+            {formatSeconds(data?.photoAvgSeconds)}
+          </p>
+        </div>
+
+        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
+          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+            Face
+          </p>
+          <p className="mt-1 text-[24px] font-black text-[#1C0617]">
+            {formatSeconds(data?.faceAvgSeconds)}
+          </p>
+        </div>
+
+        <div className="rounded-[22px] bg-[#D0F578] p-4">
+          <p className="text-[11px] font-black uppercase text-[#344318]">
+            Throughput
+          </p>
+          <p className="mt-1 text-[24px] font-black text-[#1C0617]">
+            {data?.throughputPerMinute ?? 0}/min
+          </p>
+        </div>
+      </div>
+
+      <p className="mt-4 text-[12px] font-semibold text-[#8E8E93]">
+        Completed jobs in window: {data?.totalDone || 0}
+      </p>
+    </div>
+  )
+}
+
+function CameraSessionMonitor({
+  sessions = [],
+}: {
+  sessions?: CameraSessionMonitorItem[]
+}) {
+  return (
+    <div className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+            Camera
+          </p>
+          <h2 className="mt-1 text-[22px] font-black tracking-[-0.04em] text-[#1C0617]">
+            Live Sessions
+          </h2>
+        </div>
+
+        <span className="rounded-full bg-[#F6F7FA] px-3 py-1 text-[11px] font-black text-[#8E8E93]">
+          {sessions.length} sessions
+        </span>
+      </div>
+
+      <div className="mt-4 space-y-3">
+        {sessions.length > 0 ? (
+          sessions.map((session) => {
+            const active = session.status === 'active'
+            const counts = session.counts || {}
+
+            return (
+              <div
+                key={session.id}
+                className="rounded-[22px] border border-black/5 bg-[#FAF7F4] p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px] font-black text-[#1C0617]">
+                      Album: {session.album_id || '-'}
+                    </p>
+
+                    <p className="mt-1 text-[11px] font-semibold text-[#8E8E93]">
+                      Resize: {(session.resize_mode || 'original').toUpperCase()}
+                    </p>
+                  </div>
+
+                  <span
+                    className={[
+                      'shrink-0 rounded-full px-3 py-1 text-[11px] font-black uppercase',
+                      active
+                        ? 'bg-[#D0F578] text-[#1C0617]'
+                        : 'bg-white text-[#8E8E93]',
+                    ].join(' ')}
+                  >
+                    {session.status || 'unknown'}
+                  </span>
+                </div>
+
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <div className="rounded-2xl bg-white p-3">
+                    <p className="text-[10px] font-black uppercase text-[#8E8E93]">
+                      Pending
+                    </p>
+                    <p className="mt-1 text-[20px] font-black text-[#1C0617]">
+                      {counts.pending || 0}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl bg-white p-3">
+                    <p className="text-[10px] font-black uppercase text-[#8E8E93]">
+                      Active
+                    </p>
+                    <p className="mt-1 text-[20px] font-black text-[#1C0617]">
+                      {(counts.imported || 0) +
+                        (counts.uploading || 0) +
+                        (counts.finalizing || 0)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl bg-white p-3">
+                    <p className="text-[10px] font-black uppercase text-[#8E8E93]">
+                      Done
+                    </p>
+                    <p className="mt-1 text-[20px] font-black text-[#1C0617]">
+                      {counts.done || 0}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 text-[11px] font-semibold text-[#8E8E93]">
+                  <p>
+                    Latest:{' '}
+                    {session.latest_import_filename || 'No import yet'}
+                  </p>
+                  <p>
+                    Last activity:{' '}
+                    {formatDate(
+                      session.latest_import_at ||
+                        session.last_activity_at ||
+                        session.updated_at
+                    )}
+                  </p>
+                </div>
+              </div>
+            )
+          })
+        ) : (
+          <div className="rounded-[20px] bg-[#FAF7F4] px-4 py-8 text-center">
+            <p className="text-[13px] font-bold text-[#8E8E93]">
+              No camera sessions found
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -290,6 +1219,57 @@ function FailedJobsCard({
   )
 }
 
+function RecentJobsCard({
+  title,
+  jobs,
+}: {
+  title: string
+  jobs: FailedJob[]
+}) {
+  return (
+    <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-black/5">
+      <h2 className="text-lg font-bold text-slate-900">{title}</h2>
+
+      <div className="mt-4 space-y-3">
+        {jobs.length === 0 ? (
+          <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+            No recent jobs.
+          </div>
+        ) : (
+          jobs.map((job) => (
+            <div key={job.id} className="rounded-2xl bg-slate-50 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold text-slate-900">
+                    {job.id}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Photo: {job.photo_id || '-'}
+                  </p>
+                </div>
+
+                <span className="shrink-0 rounded-full bg-white px-3 py-1 text-[11px] font-bold uppercase text-slate-700">
+                  {job.status || 'unknown'}
+                </span>
+              </div>
+
+              <p className="mt-2 text-[11px] text-slate-400">
+                {formatDate(job.finished_at || job.started_at || job.created_at)}
+              </p>
+
+              {job.error ? (
+                <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-[11px] font-bold text-red-600">
+                  {job.error}
+                </p>
+              ) : null}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
 function RecentErrorsCard({ logs }: { logs: WorkerLog[] }) {
   return (
     <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-black/5">
@@ -327,6 +1307,66 @@ function RecentErrorsCard({ logs }: { logs: WorkerLog[] }) {
   )
 }
 
+function WorkerTimeline({ logs }: { logs: WorkerLog[] }) {
+  return (
+    <div className="rounded-[30px] border border-black/5 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+            Activity
+          </p>
+
+          <h2 className="mt-1 text-[22px] font-black text-[#1C0617]">
+            Worker Timeline
+          </h2>
+        </div>
+
+        <span className="rounded-full bg-[#D0F578] px-3 py-1 text-[11px] font-black">
+          LIVE
+        </span>
+      </div>
+
+      <div className="mt-5 space-y-3">
+        {logs.length === 0 ? (
+          <div className="rounded-2xl bg-[#FAF7F4] p-6 text-center text-[#8E8E93]">
+            No activity
+          </div>
+        ) : (
+          logs.map((log, index) => (
+            <div key={log.id || index} className="flex gap-3">
+              <div className="mt-1 h-2.5 w-2.5 rounded-full bg-[#D0F578]" />
+
+              <div className="flex-1 rounded-2xl bg-[#FAF7F4] p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[12px] font-black text-[#1C0617]">
+                    {log.worker_type || 'worker'}
+                  </p>
+
+                  <span className="shrink-0 text-[11px] text-[#8E8E93]">
+                    {formatDate(log.created_at)}
+                  </span>
+                </div>
+
+                <p className="mt-2 line-clamp-3 text-[12px] text-[#555]">
+                  {log.message || 'No message'}
+                </p>
+
+                {log.photo_id || log.album_id ? (
+                  <p className="mt-2 truncate text-[10px] font-semibold text-[#8E8E93]">
+                    {log.photo_id ? `Photo: ${log.photo_id}` : ''}
+                    {log.photo_id && log.album_id ? ' · ' : ''}
+                    {log.album_id ? `Album: ${log.album_id}` : ''}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function AdminQueueDashboard() {
   const [stats, setStats] = useState<QueueStats | null>(null)
   const [cleanupResult, setCleanupResult] = useState<CleanupResult | null>(null)
@@ -351,10 +1391,17 @@ export default function AdminQueueDashboard() {
   }, [stats])
 
   const totalFailed =
-    (stats?.photoJobs?.failed || 0) + (stats?.faceJobs?.failed || 0)
+  (stats?.photoJobs?.failed || 0) +
+  (stats?.faceJobs?.failed || 0) +
+  (stats?.cameraJobs?.failed || 0)
 
-  const totalProcessing =
-    (stats?.photoJobs?.processing || 0) + (stats?.faceJobs?.processing || 0)
+const totalProcessing =
+  (stats?.photoJobs?.processing || 0) +
+  (stats?.faceJobs?.processing || 0) +
+  (stats?.cameraJobs?.uploading || 0) +
+  (stats?.cameraJobs?.finalizing || 0) +
+  (stats?.cameraJobs?.imported || 0) +
+  (stats?.cameraJobs?.pending || 0)
 
   const onlineWorkers = stats?.workers?.filter(isWorkerOnline).length || 0
   const totalWorkers = stats?.workers?.length || 0
@@ -691,7 +1738,13 @@ useEffect(() => {
             Cannot load queue stats.
           </div>
         ) : (
-          <>
+         <>
+  <LiveAlertCard stats={stats} />
+  <SystemOverviewCard stats={stats} />
+  <LivePerformanceCard stats={stats} />
+  <PerformanceAnalyticsCard data={stats.performanceAnalytics} />
+  <UploadRecoveryWatchCard data={stats.uploadRecoveryWatch} />
+  <WorkerHealthSummary stats={stats} />
             <div className="rounded-[24px] bg-white p-4 text-sm text-slate-500 shadow-sm ring-1 ring-black/5">
               Last checked:{' '}
               <span className="font-semibold text-slate-800">
@@ -699,12 +1752,29 @@ useEffect(() => {
               </span>
             </div>
 
-            <div className="grid gap-5 lg:grid-cols-2">
-              <QueueCard title="Photo Resize Queue" data={stats.photoJobs} />
-              <QueueCard title="Face Scan Queue" data={stats.faceJobs} />
-            </div>
+            <div className="grid gap-5 lg:grid-cols-3">
+  <QueueCard title="Photo Resize Queue" data={stats.photoJobs} />
+  <QueueCard title="Face Scan Queue" data={stats.faceJobs} />
+  <QueueCard title="Camera Import Queue" data={stats.cameraJobs || {}} />
+</div>
 
-            <WorkerCard workers={stats.workers || []} />
+<RecentCameraImports items={stats.recentCameraImports || []} />
+
+<CameraSessionMonitor sessions={stats.cameraSessions || []} />
+
+<div className="grid gap-5 lg:grid-cols-2">
+  <RecentJobsCard
+    title="Recent Photo Jobs"
+    jobs={stats.recentPhotoJobs || []}
+  />
+
+  <RecentJobsCard
+    title="Recent Face Jobs"
+    jobs={stats.recentFaceJobs || []}
+  />
+</div>
+
+<WorkerCard workers={stats.workers || []} />
 
             <div className="grid gap-5 lg:grid-cols-2">
               <FailedJobsCard
@@ -718,6 +1788,7 @@ useEffect(() => {
             </div>
 
             <RecentErrorsCard logs={stats.recentErrors || []} />
+            <WorkerTimeline logs={stats.recentTimeline || []} />
           </>
         )}
       </div>

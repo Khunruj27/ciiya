@@ -5,6 +5,13 @@ import { createServerSupabaseClient } from '@/lib/supabase-server'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+function getRuntimeStatus(lastSeenAt?: string | null) {
+  if (!lastSeenAt) return 'offline'
+
+  const diffMs = Date.now() - new Date(lastSeenAt).getTime()
+  return diffMs > 2 * 60 * 1000 ? 'offline' : 'online'
+}
+
 function getAdminEmails() {
   return String(process.env.ADMIN_EMAILS || '')
     .split(',')
@@ -53,6 +60,37 @@ async function requireAdmin() {
   }
 }
 
+async function getRecentJobs(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  table: 'photo_jobs' | 'face_jobs'
+) {
+  const { data, error } = await supabase
+    .from(table)
+    .select(
+      `
+      id,
+      photo_id,
+      album_id,
+      status,
+      progress,
+      retry_count,
+      error,
+      created_at,
+      started_at,
+      finished_at
+      `
+    )
+    .order('created_at', { ascending: false })
+    .limit(10)
+
+  if (error) {
+    console.error(`[queue-stats] recent ${table}:`, error.message)
+    return []
+  }
+
+  return data || []
+}
+
 function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -69,11 +107,135 @@ function getSupabaseAdmin() {
   })
 }
 
+function averageSeconds(
+  rows: {
+    created_at?: string | null
+    started_at?: string | null
+    finished_at?: string | null
+    updated_at?: string | null
+  }[]
+) {
+  const durations = rows
+    .map((row) => {
+      const start = row.started_at || row.created_at
+      const end = row.finished_at || row.updated_at
+
+      if (!start || !end) return null
+
+      const startTime = new Date(start).getTime()
+      const endTime = new Date(end).getTime()
+
+      if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) {
+        return null
+      }
+
+      const diff = Math.max(0, endTime - startTime)
+
+      return diff / 1000
+    })
+    .filter((value): value is number => typeof value === 'number')
+
+  if (durations.length === 0) return null
+
+  return Number(
+    (durations.reduce((sum, value) => sum + value, 0) / durations.length).toFixed(2)
+  )
+}
+
+async function getPerformanceAnalytics(
+  supabase: ReturnType<typeof getSupabaseAdmin>
+) {
+  const since = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+
+  const [photoResult, faceResult, cameraResult] = await Promise.all([
+    supabase
+      .from('photo_jobs')
+      .select('created_at, started_at, finished_at, updated_at')
+      .eq('status', 'done')
+      .gte('created_at', since)
+      .limit(200),
+
+    supabase
+      .from('face_jobs')
+      .select('created_at, started_at, finished_at, updated_at')
+      .eq('status', 'done')
+      .gte('created_at', since)
+      .limit(200),
+
+    supabase
+      .from('camera_live_imports')
+      .select('created_at, imported_at, uploaded_at, updated_at')
+      .eq('status', 'done')
+      .gte('created_at', since)
+      .limit(200),
+  ])
+
+  const photoRows = photoResult.data || []
+  const faceRows = faceResult.data || []
+  const cameraRows = (cameraResult.data || []).map((row) => ({
+    created_at: row.created_at,
+    started_at: row.imported_at || row.created_at,
+    finished_at: row.uploaded_at || row.updated_at,
+    updated_at: row.updated_at,
+  }))
+
+  const totalDone =
+    photoRows.length + faceRows.length + cameraRows.length
+
+  return {
+    windowMinutes: 60,
+    photoAvgSeconds: averageSeconds(photoRows),
+    faceAvgSeconds: averageSeconds(faceRows),
+    cameraAvgSeconds: averageSeconds(cameraRows),
+    totalDone,
+    throughputPerMinute: Number((totalDone / 60).toFixed(2)),
+  }
+}
+
+async function getUploadRecoveryWatch(
+  supabase: ReturnType<typeof getSupabaseAdmin>
+) {
+  const stuckAt = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+
+  const [stuckPhotosResult, stuckJobsResult, failedPhotosResult] =
+    await Promise.all([
+      supabase
+        .from('photos')
+        .select('id, album_id, filename, processing_status, processing_progress, created_at, updated_at')
+        .in('processing_status', ['pending', 'processing'])
+        .lt('updated_at', stuckAt)
+        .order('updated_at', { ascending: true })
+        .limit(20),
+
+      supabase
+        .from('photo_jobs')
+        .select('id, photo_id, album_id, status, progress, retry_count, error, created_at, started_at, updated_at')
+        .in('status', ['pending', 'processing'])
+        .lt('updated_at', stuckAt)
+        .order('updated_at', { ascending: true })
+        .limit(20),
+
+      supabase
+        .from('photos')
+        .select('id, album_id, filename, processing_status, processing_progress, created_at, updated_at')
+        .eq('processing_status', 'failed')
+        .order('updated_at', { ascending: false })
+        .limit(20),
+    ])
+
+  return {
+    stuckMinutes: 10,
+    stuckPhotos: stuckPhotosResult.data || [],
+    stuckJobs: stuckJobsResult.data || [],
+    failedPhotos: failedPhotosResult.data || [],
+  }
+}
+
 async function countByStatus(
   supabase: ReturnType<typeof getSupabaseAdmin>,
-  table: 'photo_jobs' | 'face_jobs'
+  table: 'photo_jobs' | 'face_jobs' | 'camera_live_imports',
+  statuses = ['pending', 'processing', 'done', 'failed']
 ) {
-  const statuses = ['pending', 'processing', 'done', 'failed']
 
   const results = await Promise.all(
     statuses.map(async (status) => {
@@ -110,8 +272,7 @@ async function countByStatus(
 async function getWorkers(supabase: ReturnType<typeof getSupabaseAdmin>) {
   const { data, error } = await supabase
     .from('worker_heartbeats')
-    .select(
-      `
+    .select(`
       worker_id,
       worker_name,
       worker_type,
@@ -119,8 +280,7 @@ async function getWorkers(supabase: ReturnType<typeof getSupabaseAdmin>) {
       last_seen,
       last_seen_at,
       metadata
-      `
-    )
+    `)
     .order('last_seen_at', { ascending: false })
 
   if (error) {
@@ -128,7 +288,16 @@ async function getWorkers(supabase: ReturnType<typeof getSupabaseAdmin>) {
     return []
   }
 
-  return data || []
+  return (data || []).map((row) => {
+    const lastSeenAt = row.last_seen_at || row.last_seen || null
+    const runtimeStatus = getRuntimeStatus(lastSeenAt)
+
+    return {
+      ...row,
+      runtime_status: runtimeStatus,
+      is_online: runtimeStatus === 'online',
+    }
+  })
 }
 
 async function getRecentErrors(supabase: ReturnType<typeof getSupabaseAdmin>) {
@@ -192,6 +361,64 @@ async function getFailedJobs(
   return data || []
 }
 
+async function getRecentCameraImports(
+  supabase: ReturnType<typeof getSupabaseAdmin>
+) {
+  const { data, error } = await supabase
+    .from('camera_live_imports')
+    .select(
+      `
+      id,
+      album_id,
+      filename,
+      status,
+      progress,
+      error,
+      created_at,
+      updated_at
+      `
+    )
+    .order('created_at', { ascending: false })
+    .limit(10)
+
+  if (error) {
+    console.error('[queue-stats] recent camera imports:', error.message)
+    return []
+  }
+
+  return data || []
+}
+
+
+async function getRecentTimeline(
+  supabase: ReturnType<typeof getSupabaseAdmin>
+) {
+  const { data, error } = await supabase
+    .from('worker_logs')
+    .select(
+      `
+      id,
+      worker_type,
+      level,
+      message,
+      photo_id,
+      album_id,
+      created_at
+      `
+    )
+    .order('created_at', {
+      ascending: false,
+    })
+    .limit(20)
+
+  if (error) {
+    console.error('[queue-stats] recent timeline:', error.message)
+    return []
+  }
+
+  return data || []
+}
+
 export async function GET() {
   try {
     const admin = await requireAdmin()
@@ -205,32 +432,71 @@ export async function GET() {
 
     const supabase = getSupabaseAdmin()
 
-    const [
-      photoJobs,
-      faceJobs,
-      workers,
-      recentErrors,
-      failedPhotoJobs,
-      failedFaceJobs,
-    ] = await Promise.all([
-      countByStatus(supabase, 'photo_jobs'),
-      countByStatus(supabase, 'face_jobs'),
-      getWorkers(supabase),
-      getRecentErrors(supabase),
-      getFailedJobs(supabase, 'photo_jobs'),
-      getFailedJobs(supabase, 'face_jobs'),
-    ])
+  const [
+  photoJobs,
+  faceJobs,
+  cameraJobs,
+  workers,
+  recentErrors,
+  failedPhotoJobs,
+  failedFaceJobs,
+  recentCameraImports,
+  recentPhotoJobs,
+  recentFaceJobs,
+  recentTimeline,
+  performanceAnalytics,
+  uploadRecoveryWatch,
+] = await Promise.all([
+  countByStatus(supabase, 'photo_jobs'),
+  countByStatus(supabase, 'face_jobs'),
+  countByStatus(supabase, 'camera_live_imports', [
+    'pending',
+    'imported',
+    'uploading',
+    'finalizing',
+    'done',
+    'failed',
+  ]),
+  getWorkers(supabase),
+  getRecentErrors(supabase),
+  getFailedJobs(supabase, 'photo_jobs'),
+  getFailedJobs(supabase, 'face_jobs'),
+  getRecentCameraImports(supabase),
+  getRecentJobs(supabase, 'photo_jobs'),
+  getRecentJobs(supabase, 'face_jobs'),
+  getRecentTimeline(supabase),
+  getPerformanceAnalytics(supabase),
+  getUploadRecoveryWatch(supabase),
+])
 
-    return NextResponse.json({
-      success: true,
-      photoJobs,
-      faceJobs,
-      workers,
-      recentErrors,
-      failedPhotoJobs,
-      failedFaceJobs,
-      checkedAt: new Date().toISOString(),
-    })
+return NextResponse.json({
+  success: true,
+
+  photoJobs,
+  faceJobs,
+  cameraJobs,
+
+  workers,
+  onlineWorkers: workers.filter(
+    (worker) => worker.runtime_status === 'online'
+  ).length,
+  offlineWorkers: workers.filter(
+    (worker) => worker.runtime_status === 'offline'
+  ).length,
+
+  recentErrors,
+  failedPhotoJobs,
+  failedFaceJobs,
+  recentCameraImports,
+
+  recentPhotoJobs,
+  recentFaceJobs,
+  recentTimeline,
+  performanceAnalytics,
+  uploadRecoveryWatch,
+
+  checkedAt: new Date().toISOString(),
+})
   } catch (error) {
     console.error('[queue-stats] fatal:', error)
 

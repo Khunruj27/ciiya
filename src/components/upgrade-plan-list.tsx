@@ -15,6 +15,7 @@ type Plan = {
 type CurrentSubscription = {
   plan_id: string | null
   storage_limit_bytes?: number
+  stripe_subscription_id?: string | null
 }
 
 type Props = {
@@ -52,32 +53,46 @@ export default function UpgradePlanList({
   }, [plans])
 
   async function handleCheckout(planId: string) {
-    try {
-      setLoadingPlanId(planId)
+  try {
+    setLoadingPlanId(planId)
 
-      const res = await fetch('/api/stripe/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId }),
-      })
+    const endpoint =
+      currentSubscription?.stripe_subscription_id
+        ? '/api/stripe/change-plan'
+        : '/api/stripe/checkout'
 
-      const data = await res.json().catch(() => null)
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        planId,
+      }),
+    })
 
-      if (!res.ok) {
-        throw new Error(data?.error || 'Checkout failed')
-      }
+    const data = await res.json().catch(() => null)
 
-      if (!data?.url) {
-        throw new Error('Missing checkout URL')
-      }
-
-      window.location.assign(data.url)
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Checkout error')
-    } finally {
-      setLoadingPlanId(null)
+    if (!res.ok) {
+      throw new Error(data?.error || 'Checkout failed')
     }
+
+    if (endpoint === '/api/stripe/change-plan') {
+      window.location.reload()
+      return
+    }
+
+    if (!data?.url) {
+      throw new Error('Missing checkout URL')
+    }
+
+    window.location.assign(data.url)
+  } catch (err) {
+    alert(err instanceof Error ? err.message : 'Checkout error')
+  } finally {
+    setLoadingPlanId(null)
   }
+}
 
   if (!plans || plans.length === 0) {
     return (

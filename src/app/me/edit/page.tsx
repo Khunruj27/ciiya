@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import NextImage from 'next/image'
 import { createClient } from '@/lib/supabase-client'
 import AppIcon from '@/components/app-icon'
 
@@ -174,15 +175,29 @@ export default function EditProfilePage() {
     return
   }
 
-  if (!file.type.startsWith('image/')) {
-    setMessage('Please choose an image file')
-    return
-  }
+const allowedAvatarTypes = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]
 
-  if (file.size > 10 * 1024 * 1024) {
-    setMessage('Image must be smaller than 10MB')
-    return
-  }
+if (!allowedAvatarTypes.includes(file.type.toLowerCase())) {
+  setAvatarFile(null)
+  setMessage('Please choose a JPEG, PNG or WEBP image')
+  return
+}
+
+if (file.size <= 0) {
+  setAvatarFile(null)
+  setMessage('The selected image is empty')
+  return
+}
+
+if (file.size > 5 * 1024 * 1024) {
+  setAvatarFile(null)
+  setMessage('Image must be 5MB or smaller')
+  return
+}
 
   if (previewUrl?.startsWith('blob:')) {
     URL.revokeObjectURL(previewUrl)
@@ -192,18 +207,44 @@ export default function EditProfilePage() {
   setPreviewUrl(URL.createObjectURL(file))
 }
 
-  async function resizeAvatar(file: File): Promise<Blob> {
-    const image = new Image()
-    const url = URL.createObjectURL(file)
+async function resizeAvatar(
+  file: File
+): Promise<Blob> {
+  const image = new Image()
+  const objectUrl = URL.createObjectURL(file)
 
-    await new Promise<void>((resolve, reject) => {
-      image.onload = () => resolve()
-      image.onerror = reject
-      image.src = url
-    })
+  try {
+    await new Promise<void>(
+      (resolve, reject) => {
+        image.onload = () => resolve()
+
+        image.onerror = () => {
+          reject(
+            new Error(
+              'The selected image could not be opened'
+            )
+          )
+        }
+
+        image.src = objectUrl
+      }
+    )
+
+    if (
+      !Number.isFinite(image.width) ||
+      !Number.isFinite(image.height) ||
+      image.width <= 0 ||
+      image.height <= 0
+    ) {
+      throw new Error(
+        'The selected image has invalid dimensions'
+      )
+    }
 
     const size = 800
-    const canvas = document.createElement('canvas')
+    const canvas =
+      document.createElement('canvas')
+
     canvas.width = size
     canvas.height = size
 
@@ -213,52 +254,117 @@ export default function EditProfilePage() {
       throw new Error('Cannot resize image')
     }
 
-    const scale = Math.max(size / image.width, size / image.height)
+    const scale = Math.max(
+      size / image.width,
+      size / image.height
+    )
+
     const width = image.width * scale
     const height = image.height * scale
     const x = (size - width) / 2
     const y = (size - height) / 2
 
-    ctx.drawImage(image, x, y, width, height)
-    URL.revokeObjectURL(url)
+    ctx.drawImage(
+      image,
+      x,
+      y,
+      width,
+      height
+    )
 
-    return await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            reject(new Error('Cannot convert image'))
-            return
-          }
+    return await new Promise<Blob>(
+      (resolve, reject) => {
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(
+                new Error(
+                  'Cannot convert image'
+                )
+              )
 
-          resolve(blob)
-        },
-        'image/webp',
-        0.82
-      )
-    })
+              return
+            }
+
+            resolve(blob)
+          },
+          'image/webp',
+          0.82
+        )
+      }
+    )
+  } finally {
+    image.onload = null
+    image.onerror = null
+    image.src = ''
+
+    URL.revokeObjectURL(objectUrl)
+  }
+}
+
+async function uploadAvatar() {
+  if (!avatarFile) {
+    return avatarUrl
   }
 
-  async function uploadAvatar(userId: string) {
-    if (!avatarFile) return avatarUrl
+  const resizedBlob =
+    await resizeAvatar(avatarFile)
 
-    const resizedBlob = await resizeAvatar(avatarFile)
-    const path = `${userId}/profile-${Date.now()}.webp`
+  if (
+    resizedBlob.size <= 0 ||
+    resizedBlob.size > 5 * 1024 * 1024
+  ) {
+    throw new Error(
+      'Processed avatar is invalid or too large'
+    )
+  }
 
-    const { error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(path, resizedBlob, {
-        contentType: 'image/webp',
-        upsert: true,
-      })
+  const formData = new FormData()
 
-    if (uploadError) {
-      throw new Error(uploadError.message)
+  formData.append(
+    'file',
+    resizedBlob,
+    `avatar-${Date.now()}.webp`
+  )
+
+  const response = await fetch(
+    '/api/profile/avatar',
+    {
+      method: 'POST',
+      body: formData,
+      cache: 'no-store',
     }
+  )
 
-    const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+  const result = (await response
+    .json()
+    .catch(() => null)) as {
+    avatarUrl?: unknown
+    error?: unknown
+  } | null
 
-    return data.publicUrl
+  if (!response.ok) {
+    const errorMessage =
+      typeof result?.error === 'string'
+        ? result.error
+        : 'Unable to upload avatar'
+
+    throw new Error(errorMessage)
   }
+
+  const uploadedAvatarUrl =
+    typeof result?.avatarUrl === 'string'
+      ? result.avatarUrl.trim()
+      : ''
+
+  if (!uploadedAvatarUrl) {
+    throw new Error(
+      'Avatar upload returned an invalid URL'
+    )
+  }
+
+  return uploadedAvatarUrl
+}
 
   async function handleSave() {
     try {
@@ -289,7 +395,7 @@ export default function EditProfilePage() {
   return
 }
 
-      const nextAvatarUrl = await uploadAvatar(user.id)
+      const nextAvatarUrl = await uploadAvatar()
       const currentMetadata = user.user_metadata || {}
 
       const { error } = await supabase.auth.updateUser({
@@ -379,12 +485,15 @@ export default function EditProfilePage() {
 
         <section className="mt-8 flex flex-col items-center text-center">
           <div className="relative">
-            <div className="h-32 w-32 overflow-hidden rounded-full bg-[#F2EEE9] ring-4 ring-[#FAF7F4]">
+            <div className="relative h-32 w-32 overflow-hidden rounded-full bg-[#F2EEE9] ring-4 ring-[#FAF7F4]">
               {previewUrl ? (
-                <img
+                <NextImage
                   src={previewUrl}
                   alt={name || 'Profile'}
-                  className="h-full w-full object-cover"
+                  fill
+                  sizes="128px"
+                  unoptimized={previewUrl.startsWith('blob:')}
+                  className="object-cover"
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-5xl font-black text-slate-400">
@@ -398,7 +507,7 @@ export default function EditProfilePage() {
 
               <input
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp"
                 onChange={(e) => {
                   handleSelectAvatar(e.target.files?.[0] || null)
                   e.currentTarget.value = ''

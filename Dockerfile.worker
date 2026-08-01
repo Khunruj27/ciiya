@@ -2,10 +2,14 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+ENV NODE_ENV=production
+
 COPY package*.json ./
 
-RUN npm install
+RUN npm ci
 
-COPY . .
+COPY --chown=node:node . .
+
+USER node
 
 CMD ["npm", "run", "worker:photos"]

@@ -52,7 +52,8 @@ function hasUnsafeStoragePath(path: string) {
 
 async function storageObjectExists(
   supabaseAdmin: SupabaseClient,
-  storagePath: string
+  storagePath: string,
+  bucket = 'albums'
 ) {
   const parts = storagePath.split('/')
   const fileName = parts.pop()
@@ -64,7 +65,7 @@ async function storageObjectExists(
   const folder = parts.join('/')
 
   const { data, error } = await supabaseAdmin.storage
-    .from('albums')
+    .from(bucket)
     .list(folder, {
       limit: 5,
       search: fileName,
@@ -163,6 +164,9 @@ const allowedOriginalPrefixes = [
   `${albumPrefix}preview/`,
 ]
 
+const expectedAlbumPresetPrefix = `${albumPrefix}presets/`
+const expectedUserPresetPrefix = `${ownerId}/presets/`
+
     if (hasUnsafeStoragePath(originalPath)) {
   return NextResponse.json(
     { error: 'Invalid original path' },
@@ -193,9 +197,16 @@ if (!originalExists) {
 }
 
 if (photo.preset_path) {
+  const presetBucket = photo.preset_path.startsWith(
+    expectedUserPresetPrefix
+  )
+    ? 'presets'
+    : 'albums'
+
   const presetExists = await storageObjectExists(
     supabaseAdmin,
-    photo.preset_path
+    photo.preset_path,
+    presetBucket
   )
 
   if (!presetExists) {
@@ -219,7 +230,8 @@ if (
 
 if (
   photo.preset_path &&
-  !photo.preset_path.startsWith(`${albumPrefix}presets/`)
+  !photo.preset_path.startsWith(expectedAlbumPresetPrefix) &&
+  !photo.preset_path.startsWith(expectedUserPresetPrefix)
 ) {
   return NextResponse.json(
     { error: 'Invalid preset path' },

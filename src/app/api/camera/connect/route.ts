@@ -27,6 +27,15 @@ function parseCameraName(stdout: string) {
   return cameraLine.replace(/\s+usb:.+$/, '').trim() || null
 }
 
+function splitCameraBrandAndModel(cameraName: string) {
+  const [brand, ...rest] = cameraName.trim().split(/\s+/)
+
+  return {
+    brand: brand || null,
+    model: rest.join(' ') || null,
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const supabase = await createServerSupabaseClient()
@@ -70,11 +79,14 @@ export async function POST(req: Request) {
       )
     }
 
+    const { brand: cameraBrand, model: cameraModel } =
+      splitCameraBrandAndModel(cameraName)
+
     await supabase.from('camera_sessions').insert({
       user_id: user.id,
       album_id: albumId,
-      camera_brand: cameraName.includes('Canon') ? 'Canon' : null,
-      camera_model: cameraName.replace(/^Canon\s+/i, '') || null,
+      camera_brand: cameraBrand,
+      camera_model: cameraModel,
       camera_name: cameraName,
       status: 'connected',
       auto_import: true,

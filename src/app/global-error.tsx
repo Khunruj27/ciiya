@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect } from 'react'
+
 export default function GlobalError({
   error,
   unstable_retry,
@@ -7,6 +9,10 @@ export default function GlobalError({
   error: Error & { digest?: string }
   unstable_retry: () => void
 }) {
+  useEffect(() => {
+    console.error('[global error boundary]', error)
+  }, [error])
+
   return (
     <html lang="en" className="h-full">
       <body className="flex min-h-full items-center justify-center bg-[#F9F9F9] px-6 text-black">

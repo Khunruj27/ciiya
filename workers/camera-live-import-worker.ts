@@ -337,22 +337,79 @@ async function getBaselineFilteredFiles(
   session: CameraUploadSession,
   files: CameraFile[]
 ) {
-  const baseline = sessionBaselines.get(session.id)
+  const cachedBaseline = sessionBaselines.get(session.id)
 
-  if (!baseline) {
-    sessionBaselines.set(
-      session.id,
-      new Set(files.map((file) => file.cameraFileId))
-    )
-
-    console.log(
-      `[camera-live-import-worker] baseline set album=${session.album_id} files=${files.length}`
-    )
-
-    return []
+  if (cachedBaseline) {
+    return files.filter((file) => !cachedBaseline.has(file.cameraFileId))
   }
 
-  return files.filter((file) => !baseline.has(file.cameraFileId))
+  const { data: existingRow, error: existingError } = await supabase
+    .from('camera_live_imports')
+    .select('id')
+    .eq('album_id', session.album_id)
+    .limit(1)
+    .maybeSingle()
+
+  if (existingError) {
+    console.error(
+      '[camera-live-import-worker] baseline lookup failed:',
+      existingError.message
+    )
+  }
+
+  if (existingRow) {
+    // This album already has camera-import history (from an earlier
+    // session, possibly a previous worker process). Don't re-snapshot
+    // the card as "pre-existing" again — that would silently swallow
+    // photos taken since the last disconnect. Let filterNewCameraFiles'
+    // per-file DB check handle dedup instead.
+    sessionBaselines.set(session.id, new Set())
+
+    console.log(
+      `[camera-live-import-worker] album has prior history, skipping baseline snapshot album=${session.album_id}`
+    )
+
+    return files
+  }
+
+  const baselineIds = files.map((file) => file.cameraFileId)
+
+  sessionBaselines.set(session.id, new Set(baselineIds))
+
+  if (files.length > 0) {
+    const { error: skipError } = await supabase
+      .from('camera_live_imports')
+      .upsert(
+        files.map((file) => ({
+          session_id: session.id,
+          album_id: session.album_id,
+          owner_id: session.owner_id,
+          camera_file_id: file.cameraFileId,
+          filename: file.filename,
+          status: 'skipped_baseline',
+          progress: 0,
+          detected_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })),
+        {
+          onConflict: 'album_id,camera_file_id',
+          ignoreDuplicates: true,
+        }
+      )
+
+    if (skipError) {
+      console.error(
+        '[camera-live-import-worker] persist baseline failed:',
+        skipError.message
+      )
+    }
+  }
+
+  console.log(
+    `[camera-live-import-worker] baseline set album=${session.album_id} files=${files.length}`
+  )
+
+  return []
 }
 
 async function ensureTempDir() {
@@ -686,6 +743,50 @@ uploadedStoragePath = null
 }
 }
 
+const STUCK_IMPORT_AGE_MS = 60 * 1000
+
+async function resumeStuckImports(session: CameraUploadSession) {
+  const staleBefore = new Date(Date.now() - STUCK_IMPORT_AGE_MS).toISOString()
+
+  const { data, error } = await supabase
+    .from('camera_live_imports')
+    .select('camera_file_id, filename, status')
+    .eq('album_id', session.album_id)
+    .in('status', ['pending', 'imported'])
+    .lt('updated_at', staleBefore)
+
+  if (error) {
+    console.error(
+      '[camera-live-import-worker] resume stuck imports lookup failed:',
+      error.message
+    )
+    return
+  }
+
+  const stuckRows = data || []
+
+  if (stuckRows.length === 0) return
+
+  console.log(
+    `[camera-live-import-worker] resuming ${stuckRows.length} stuck import(s) album=${session.album_id}`
+  )
+
+  for (const row of stuckRows) {
+    if (!row.camera_file_id) continue
+
+    const file: CameraFile = {
+      cameraFileId: row.camera_file_id,
+      filename: row.filename,
+    }
+
+    if (row.status === 'pending') {
+      await downloadCameraFile(session, file)
+    }
+
+    await uploadLocalCameraFile(session, file)
+  }
+}
+
 async function processSession(session: CameraUploadSession) {
   const camera = await getCachedCamera()
 
@@ -699,6 +800,8 @@ async function processSession(session: CameraUploadSession) {
   console.log(
     `[camera-live-import-worker] camera connected model="${camera.model}" port="${camera.port}" album=${session.album_id}`
   )
+
+  await resumeStuckImports(session)
 
     const files = await listCameraJpgFiles()
 

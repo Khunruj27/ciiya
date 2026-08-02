@@ -1229,52 +1229,17 @@ jobBuffers.add(blurSourceBuffer)
 const blurDataUrl =
   await generateBlurDataUrl(blurSourceBuffer)
 
+    // Only the size the user actually picked gets generated up front —
+    // an sd/uhd selection no longer also forces a full extra 3000px
+    // pass. hd_url/hd_path stay null in that case; downloading an HD
+    // copy still works, /api/photos/download generates and caches it
+    // lazily on request instead of eagerly for every photo.
     let hdPath: string | null = null
     let hdUrl: string | null = null
 
     if (selectedSize === 'hd') {
       hdPath = previewPath
       hdUrl = previewUrlData.publicUrl
-    }
-
-    if (
-  selectedSize !== 'hd' &&
-  selectedSize !== 'original'
-) {
-  await updatePhoto(String(job.photo_id), {
-    processing_progress: 78,
-  })
-
-  const hdBuffer = await generateResizeBuffer(
-  originalBuffer,
-  3000,
-  84,
-  xmpPreset
-)
-
-jobBuffers.add(hdBuffer)
-
-const generatedHdPath = makeOutputPath(
-  originalPath,
-  'hd'
-)
-
-      const uploadHdResult = await withRetry(() =>
-        supabase.storage.from('albums').upload(generatedHdPath, hdBuffer, {
-          contentType: 'image/jpeg',
-          cacheControl: 'no-store',
-          upsert: true,
-        })
-      )
-
-      if (uploadHdResult.error) {
-        throw new Error(uploadHdResult.error.message)
-      }
-
-      const { data } = supabase.storage.from('albums').getPublicUrl(generatedHdPath)
-
-      hdPath = generatedHdPath
-      hdUrl = data.publicUrl
     }
 
     const stillOwnsJob = await isJobStillOwned(job)

@@ -702,25 +702,28 @@ const visibleCameraProcessingItems = mergedCameraItems
   return (
     <div
       key={`camera-processing-${item.id}`}
-      className="relative isolate overflow-hidden bg-neutral-200"
+      className="relative isolate aspect-square w-full overflow-hidden bg-neutral-100"
     >
       <div className="aspect-square w-full bg-gradient-to-br from-[#F0B1DE] via-[#FAF7F4] to-[#D0F578]" />
 
-      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/20">
-        <div className="text-[7px] font-bold leading-none text-white">
-          Processing
+      {/* Mirrors the real photo card's processing overlay below (same
+          text/bar sizing) so the handoff from this placeholder to the
+          actual photo thumbnail doesn't look like a different card. */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40">
+        <div className="mb-2 text-xs font-semibold text-white">
+          Processing...
         </div>
 
-        <div className="mt-1 h-[2px] w-6 overflow-hidden rounded-full bg-white/20">
+        <div className="h-2 w-20 overflow-hidden rounded-full bg-white/20">
           <div
-            className="h-full rounded-full bg-white transition-all duration-300"
+            className="h-full rounded-full bg-white transition-[width] duration-150 ease-out"
             style={{
               width: `${Math.max(8, progress)}%`,
             }}
           />
         </div>
 
-        <div className="mt-0.5 text-[6px] leading-none text-white/70">
+        <div className="mt-2 text-[10px] text-white/80">
           {Math.round(progress)}%
         </div>
       </div>

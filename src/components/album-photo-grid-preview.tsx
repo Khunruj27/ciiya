@@ -73,18 +73,26 @@ function chooseBetterPhoto(livePhoto: Photo, serverPhoto?: Photo) {
   }
 }
 
+// Camera upload and photo processing are two separate pipelines, each
+// reporting its own 0-100 progress. Rendered back to back they looked
+// like the bar reset and restarted, so this half is remapped to fill
+// 0-50% of one continuous bar; the photo-worker half fills 50-100%
+// (see the `progress` calc next to the SmoothProgress render below).
 function getCameraProcessingProgress(item: CameraProcessingItem) {
   const progress = Number(item.progress || 0)
   const status = String(item.status || '').toLowerCase()
 
-  if (progress > 0) return Math.min(100, progress)
+  let raw = progress
 
-  if (status === 'pending') return 8
-  if (status === 'imported') return 50
-  if (status === 'uploading') return 70
-  if (status === 'finalizing') return 88
+  if (raw <= 0) {
+    if (status === 'pending') raw = 8
+    else if (status === 'imported') raw = 50
+    else if (status === 'uploading') raw = 70
+    else if (status === 'finalizing') raw = 88
+    else raw = 10
+  }
 
-  return 10
+  return Math.min(50, raw / 2)
 }
 
 function SmoothProgress({
@@ -725,7 +733,10 @@ const visibleCameraProcessingItems = mergedCameraItems
           const isOriginalFallback =
             Boolean(imageSrc) && !photo.thumbnail_url && !photo.preview_url
           const status = photo.processing_status || 'done'
-          const progress = Number(photo.processing_progress || 0)
+          // Second half of the unified bar — the camera-upload phase
+          // (getCameraProcessingProgress above) already filled 0-50%.
+          const progress =
+            50 + Number(photo.processing_progress || 0) / 2
           const ready = isPhotoReady(photo)
           const isRetrying = retryingId === photo.id
 

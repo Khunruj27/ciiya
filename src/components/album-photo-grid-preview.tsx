@@ -35,6 +35,7 @@ type CameraProcessingItem = {
   status: string
   progress: number
   created_at: string
+  previewUrl?: string | null
 }
 
 function preloadImage(src?: string | null) {
@@ -174,7 +175,7 @@ function SmoothProgress({
 
   return (
     <>
-      <div className="h-2 w-20 overflow-hidden rounded-full bg-white/20">
+      <div className="h-[7px] w-20 overflow-hidden rounded-full bg-white/20">
         <div
           className="h-full rounded-full bg-white transition-[width] duration-150 ease-out"
           style={{
@@ -702,9 +703,17 @@ const visibleCameraProcessingItems = mergedCameraItems
   return (
     <div
       key={`camera-processing-${item.id}`}
-      className="relative isolate aspect-square w-full overflow-hidden bg-neutral-100"
+      className="relative isolate aspect-square w-full overflow-hidden bg-neutral-200"
     >
-      <div className="aspect-square w-full bg-gradient-to-br from-[#F0B1DE] via-[#FAF7F4] to-[#D0F578]" />
+      {item.previewUrl ? (
+        <NextImage
+          src={item.previewUrl}
+          fill
+          sizes="(max-width: 640px) 25vw, 16vw"
+          className="object-cover"
+          alt={item.filename || 'photo'}
+        />
+      ) : null}
 
       {/* Mirrors the real photo card's processing overlay below (same
           text/bar sizing) so the handoff from this placeholder to the
@@ -714,7 +723,7 @@ const visibleCameraProcessingItems = mergedCameraItems
           Processing...
         </div>
 
-        <div className="h-2 w-20 overflow-hidden rounded-full bg-white/20">
+        <div className="h-[7px] w-20 overflow-hidden rounded-full bg-white/20">
           <div
             className="h-full rounded-full bg-white transition-[width] duration-150 ease-out"
             style={{
@@ -831,7 +840,7 @@ onError={() => {
 
                   {isRetrying ? (
   <>
-    <div className="h-2 w-20 overflow-hidden rounded-full bg-white/20">
+    <div className="h-[7px] w-20 overflow-hidden rounded-full bg-white/20">
       <div className="h-full bg-white transition-all duration-300" />
     </div>
 

@@ -133,7 +133,7 @@ const categories = categoriesError ? [] : categoriesData ?? []
 
     const { data: cameraImportsData } = await supabase
     .from('camera_live_imports')
-    .select('id, filename, status, progress, created_at')
+    .select('id, filename, status, progress, storage_path, created_at')
     .eq('album_id', id)
     .in('status', ['imported', 'uploading', 'finalizing'])
     .order('created_at', { ascending: false })
@@ -170,6 +170,10 @@ const cameraProcessingGridItems = (cameraImportsData || [])
     status: String(item.status || 'imported'),
     progress: Number(item.progress || 0),
     created_at: String(item.created_at || new Date().toISOString()),
+    previewUrl: item.storage_path
+      ? supabase.storage.from('albums').getPublicUrl(item.storage_path).data
+          .publicUrl
+      : null,
   }))
 
   return (

@@ -349,16 +349,16 @@ async function queueCameraFile(
   }
 }
 
-async function filterNewCameraFiles(
+// camera_file_id is just gphoto2's position in the current --list-files
+// output, not a persistent identifier - it commonly changes across
+// reconnects, so the same physical shot would look "new" every time.
+// filename is what's actually stable for a given card.
+async function getUntrackedFiles(
   session: CameraUploadSession,
   files: CameraFile[]
 ) {
   if (files.length === 0) return []
 
-  // camera_file_id is just gphoto2's position in the current --list-files
-  // output, not a persistent identifier - it commonly changes across
-  // reconnects, so the same physical shot would look "new" every time.
-  // filename is what's actually stable for a given card.
   const filenames = files.map((file) => file.filename)
 
   const { data, error } = await supabase
@@ -376,13 +376,20 @@ async function filterNewCameraFiles(
     return files
   }
 
-  const existingFilenames = new Set(
+  const trackedFilenames = new Set(
     (data || [])
       .map((item) => String(item.filename || ''))
       .filter(Boolean)
   )
 
-  return files.filter((file) => !existingFilenames.has(file.filename))
+  return files.filter((file) => !trackedFilenames.has(file.filename))
+}
+
+async function filterNewCameraFiles(
+  session: CameraUploadSession,
+  files: CameraFile[]
+) {
+  return getUntrackedFiles(session, files)
 }
 
 async function getBaselineFilteredFiles(
@@ -395,44 +402,24 @@ async function getBaselineFilteredFiles(
     return files.filter((file) => !cachedBaseline.has(file.filename))
   }
 
-  const { data: existingRow, error: existingError } = await supabase
-    .from('camera_live_imports')
-    .select('id')
-    .eq('album_id', session.album_id)
-    .limit(1)
-    .maybeSingle()
+  // First poll of this session: whatever's on the card right now that
+  // we've never tracked for this album before is presumed pre-existing,
+  // not something the user just shot. Only files that show up in a
+  // *later* poll count as new. Anything already tracked (done, pending,
+  // failed, previously baseline-skipped, ...) is left untouched here -
+  // filterNewCameraFiles excludes it anyway.
+  const untracked = await getUntrackedFiles(session, files)
 
-  if (existingError) {
-    console.error(
-      '[camera-live-import-worker] baseline lookup failed:',
-      existingError.message
-    )
-  }
+  sessionBaselines.set(
+    session.id,
+    new Set(untracked.map((file) => file.filename))
+  )
 
-  if (existingRow) {
-    // This album already has camera-import history (from an earlier
-    // session, possibly a previous worker process). Don't re-snapshot
-    // the card as "pre-existing" again — that would silently swallow
-    // photos taken since the last disconnect. Let filterNewCameraFiles'
-    // per-file DB check handle dedup instead.
-    sessionBaselines.set(session.id, new Set())
-
-    console.log(
-      `[camera-live-import-worker] album has prior history, skipping baseline snapshot album=${session.album_id}`
-    )
-
-    return files
-  }
-
-  const baselineFilenames = files.map((file) => file.filename)
-
-  sessionBaselines.set(session.id, new Set(baselineFilenames))
-
-  if (files.length > 0) {
+  if (untracked.length > 0) {
     const { error: skipError } = await supabase
       .from('camera_live_imports')
       .upsert(
-        files.map((file) => ({
+        untracked.map((file) => ({
           session_id: session.id,
           album_id: session.album_id,
           owner_id: session.owner_id,
@@ -458,7 +445,7 @@ async function getBaselineFilteredFiles(
   }
 
   console.log(
-    `[camera-live-import-worker] baseline set album=${session.album_id} files=${files.length}`
+    `[camera-live-import-worker] baseline set album=${session.album_id} files=${untracked.length}`
   )
 
   return []

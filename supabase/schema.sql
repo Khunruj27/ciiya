@@ -1112,8 +1112,8 @@ on public.camera_live_imports(album_id);
 create index if not exists idx_camera_live_imports_status
 on public.camera_live_imports(status);
 
-create unique index if not exists idx_camera_live_imports_unique_file
-on public.camera_live_imports(album_id, camera_file_id);
+create unique index if not exists idx_camera_live_imports_unique_filename
+on public.camera_live_imports(album_id, filename);
 
 -- =========================================================
 -- STORAGE POLICIES

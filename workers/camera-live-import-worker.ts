@@ -336,7 +336,7 @@ async function queueCameraFile(
       updated_at: new Date().toISOString(),
     },
     {
-      onConflict: 'album_id,camera_file_id',
+      onConflict: 'album_id,filename',
       ignoreDuplicates: true,
     }
   )
@@ -355,13 +355,17 @@ async function filterNewCameraFiles(
 ) {
   if (files.length === 0) return []
 
-  const cameraFileIds = files.map((file) => file.cameraFileId)
+  // camera_file_id is just gphoto2's position in the current --list-files
+  // output, not a persistent identifier - it commonly changes across
+  // reconnects, so the same physical shot would look "new" every time.
+  // filename is what's actually stable for a given card.
+  const filenames = files.map((file) => file.filename)
 
   const { data, error } = await supabase
     .from('camera_live_imports')
-    .select('camera_file_id')
+    .select('filename')
     .eq('album_id', session.album_id)
-    .in('camera_file_id', cameraFileIds)
+    .in('filename', filenames)
 
   if (error) {
     console.error(
@@ -372,13 +376,13 @@ async function filterNewCameraFiles(
     return files
   }
 
-  const existingIds = new Set(
+  const existingFilenames = new Set(
     (data || [])
-      .map((item) => String(item.camera_file_id || ''))
+      .map((item) => String(item.filename || ''))
       .filter(Boolean)
   )
 
-  return files.filter((file) => !existingIds.has(file.cameraFileId))
+  return files.filter((file) => !existingFilenames.has(file.filename))
 }
 
 async function getBaselineFilteredFiles(
@@ -388,7 +392,7 @@ async function getBaselineFilteredFiles(
   const cachedBaseline = sessionBaselines.get(session.id)
 
   if (cachedBaseline) {
-    return files.filter((file) => !cachedBaseline.has(file.cameraFileId))
+    return files.filter((file) => !cachedBaseline.has(file.filename))
   }
 
   const { data: existingRow, error: existingError } = await supabase
@@ -420,9 +424,9 @@ async function getBaselineFilteredFiles(
     return files
   }
 
-  const baselineIds = files.map((file) => file.cameraFileId)
+  const baselineFilenames = files.map((file) => file.filename)
 
-  sessionBaselines.set(session.id, new Set(baselineIds))
+  sessionBaselines.set(session.id, new Set(baselineFilenames))
 
   if (files.length > 0) {
     const { error: skipError } = await supabase
@@ -440,7 +444,7 @@ async function getBaselineFilteredFiles(
           updated_at: new Date().toISOString(),
         })),
         {
-          onConflict: 'album_id,camera_file_id',
+          onConflict: 'album_id,filename',
           ignoreDuplicates: true,
         }
       )
@@ -527,7 +531,7 @@ async function downloadCameraFile(
         updated_at: new Date().toISOString(),
       })
       .eq('album_id', session.album_id)
-      .eq('camera_file_id', file.cameraFileId)
+      .eq('filename', file.filename)
 
     console.log(
       `[camera-live-import-worker] downloaded ${file.filename} -> ${localPath}`
@@ -544,7 +548,7 @@ async function downloadCameraFile(
         updated_at: new Date().toISOString(),
       })
       .eq('album_id', session.album_id)
-      .eq('camera_file_id', file.cameraFileId)
+      .eq('filename', file.filename)
 
     console.error(
       `[camera-live-import-worker] download failed filename=${file.filename}:`,
@@ -565,8 +569,8 @@ function getUploadSafeFileName(filename: string) {
   return `${Date.now()}-${crypto.randomUUID()}-${safeBaseName || 'photo'}.${ext}`
 }
 
-function getQuickFileHash(filename: string, size: number, cameraFileId: string) {
-  return `${filename}-${size}-${cameraFileId}`
+function getQuickFileHash(filename: string, size: number) {
+  return `${filename}-${size}`
 }
 
 function isStorageLimitError(error: unknown) {
@@ -603,11 +607,7 @@ async function finalizeCameraUpload(params: {
       albumId: session.album_id,
       storagePath,
       fileName: file.filename,
-      fileHash: getQuickFileHash(
-        file.filename,
-        fileSizeBytes,
-        file.cameraFileId
-      ),
+      fileHash: getQuickFileHash(file.filename, fileSizeBytes),
       fileSizeBytes,
       size: session.resize_mode || 'original',
       categoryId: null,
@@ -639,7 +639,7 @@ async function uploadLocalCameraFile(
     .from('camera_live_imports')
     .select('id, local_path, file_size_bytes, status')
     .eq('album_id', session.album_id)
-    .eq('camera_file_id', file.cameraFileId)
+    .eq('filename', file.filename)
     .maybeSingle()
 
   if (importError || !importRow?.local_path) {
@@ -777,7 +777,7 @@ uploadedStoragePath = null
         updated_at: new Date().toISOString(),
       })
       .eq('album_id', session.album_id)
-      .eq('camera_file_id', file.cameraFileId)
+      .eq('filename', file.filename)
 
     console.error(
       `[camera-live-import-worker] upload/finalize failed album=${session.album_id} filename=${file.filename}:`,
@@ -818,19 +818,34 @@ async function resumeStuckImports(session: CameraUploadSession) {
     `[camera-live-import-worker] resuming ${stuckRows.length} stuck import(s) album=${session.album_id}`
   )
 
+  // camera_file_id on a stuck row may be stale (it's just gphoto2's
+  // current listing position, which shifts across reconnects), so
+  // re-resolve it from a fresh listing before retrying a download.
+  const needsFreshListing = stuckRows.some((row) => row.status === 'pending')
+  const currentFilesByName = needsFreshListing
+    ? new Map((await listCameraJpgFiles()).map((f) => [f.filename, f]))
+    : new Map<string, CameraFile>()
+
   for (const row of stuckRows) {
-    if (!row.camera_file_id) continue
-
-    const file: CameraFile = {
-      cameraFileId: row.camera_file_id,
-      filename: row.filename,
-    }
-
     if (row.status === 'pending') {
-      await downloadCameraFile(session, file)
+      const current = currentFilesByName.get(row.filename)
+
+      if (!current) {
+        console.warn(
+          `[camera-live-import-worker] stuck file no longer on camera, skipping filename=${row.filename}`
+        )
+        continue
+      }
+
+      await downloadCameraFile(session, current)
+      await uploadLocalCameraFile(session, current)
+      continue
     }
 
-    await uploadLocalCameraFile(session, file)
+    await uploadLocalCameraFile(session, {
+      cameraFileId: row.camera_file_id || '',
+      filename: row.filename,
+    })
   }
 }
 
@@ -905,7 +920,7 @@ const newFiles = await filterNewCameraFiles(session, baselineNewFiles)
   const baseline = sessionBaselines.get(session.id)
 
   if (baseline) {
-   baseline.add(file.cameraFileId)
+   baseline.add(file.filename)
   }
 }
 }

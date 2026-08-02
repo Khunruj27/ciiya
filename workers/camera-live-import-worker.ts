@@ -189,9 +189,57 @@ async function loadActiveSessions() {
   return (data || []) as CameraUploadSession[]
 }
 
+const GPHOTO_RETRY_ATTEMPTS = 4
+const GPHOTO_RETRY_DELAY_MS = 1500
+
+function isRetryableGphotoError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || '')
+  const lower = message.toLowerCase()
+
+  return (
+    lower.includes('could not claim') ||
+    lower.includes('busy') ||
+    lower.includes('claim the usb device') ||
+    lower.includes('ptp i/o error') ||
+    lower.includes('i/o in progress') ||
+    lower.includes('lock the device') ||
+    lower.includes('another app')
+  )
+}
+
+async function execGphoto(
+  args: string[],
+  options: { timeout: number }
+) {
+  let lastError: unknown
+
+  for (let attempt = 1; attempt <= GPHOTO_RETRY_ATTEMPTS; attempt++) {
+    try {
+      return await execFileAsync(GPHOTO_BIN, args, options)
+    } catch (error) {
+      lastError = error
+
+      if (
+        !isRetryableGphotoError(error) ||
+        attempt === GPHOTO_RETRY_ATTEMPTS
+      ) {
+        throw error
+      }
+
+      console.warn(
+        `[camera-live-import-worker] gphoto2 device busy, retrying (${attempt}/${GPHOTO_RETRY_ATTEMPTS})...`
+      )
+
+      await sleep(GPHOTO_RETRY_DELAY_MS)
+    }
+  }
+
+  throw lastError
+}
+
 async function detectCamera(): Promise<DetectedCamera | null> {
   try {
-    const { stdout } = await execFileAsync(GPHOTO_BIN, ['--auto-detect'], {
+    const { stdout } = await execGphoto(['--auto-detect'], {
       timeout: 5000,
     })
 
@@ -256,7 +304,7 @@ function parseCameraFiles(stdout: string): CameraFile[] {
 
 async function listCameraJpgFiles(): Promise<CameraFile[]> {
   try {
-    const { stdout } = await execFileAsync(GPHOTO_BIN, ['--list-files'], {
+    const { stdout } = await execGphoto(['--list-files'], {
       timeout: 10000,
     })
 
@@ -454,8 +502,7 @@ async function downloadCameraFile(
   const localPath = path.join(albumDir, safeName)
 
   try {
-    await execFileAsync(
-      GPHOTO_BIN,
+    await execGphoto(
       [
         '--get-file',
         file.cameraFileId,

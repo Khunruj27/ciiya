@@ -130,38 +130,37 @@ function SmoothProgress({
     useState(fallbackTarget)
 
   useEffect(() => {
-    const target =
+    const hardTarget =
       normalizedStatus === 'done'
         ? 100
         : fallbackTarget
 
+    // Real progress only arrives in a few big jumps, seconds apart. Once
+    // the bar catches up to the latest one, keep creeping it slowly
+    // toward a ceiling just past that jump instead of sitting frozen -
+    // it never overtakes the next real update since hardTarget always
+    // wins the moment new data lands.
+    const softCeiling =
+      normalizedStatus === 'done'
+        ? 100
+        : Math.min(97, hardTarget + 12)
+
     const timer = window.setInterval(() => {
       setDisplayedProgress((current) => {
-        if (current === target) {
-          window.clearInterval(timer)
-          return current
+        if (current < hardTarget) {
+          const difference = hardTarget - current
+
+          const step =
+            difference >= 30 ? 3 : difference >= 10 ? 2 : 1
+
+          return Math.min(hardTarget, current + step)
         }
 
-        const difference = target - current
-
-        const step =
-          Math.abs(difference) >= 30
-            ? 3
-            : Math.abs(difference) >= 10
-              ? 2
-              : 1
-
-        if (difference > 0) {
-          return Math.min(
-            target,
-            current + step
-          )
+        if (current < softCeiling) {
+          return Math.min(softCeiling, current + 0.2)
         }
 
-        return Math.max(
-          target,
-          current - step
-        )
+        return current
       })
     }, 45)
 
@@ -716,25 +715,15 @@ const visibleCameraProcessingItems = mergedCameraItems
       ) : null}
 
       {/* Mirrors the real photo card's processing overlay below (same
-          text/bar sizing) so the handoff from this placeholder to the
-          actual photo thumbnail doesn't look like a different card. */}
+          text/bar sizing, same SmoothProgress animation) so the handoff
+          from this placeholder to the actual photo thumbnail doesn't
+          look like a different card. */}
       <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40">
         <div className="mb-2 text-xs font-semibold text-white">
           Processing...
         </div>
 
-        <div className="h-[7px] w-20 overflow-hidden rounded-full bg-white/20">
-          <div
-            className="h-full rounded-full bg-white transition-[width] duration-150 ease-out"
-            style={{
-              width: `${Math.max(8, progress)}%`,
-            }}
-          />
-        </div>
-
-        <div className="mt-2 text-[10px] text-white/80">
-          {Math.round(progress)}%
-        </div>
+        <SmoothProgress value={progress} status={item.status} />
       </div>
     </div>
   )

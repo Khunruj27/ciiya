@@ -1111,9 +1111,13 @@ if (
       processing_progress: 10,
     })
 
-    const downloadResult = await withRetry(() =>
-      supabase.storage.from('albums').download(originalPath)
-    )
+    // Downloading the original and loading the XMP preset are both
+    // independent reads — no need to wait on one before starting the
+    // other.
+    const [downloadResult, xmpPreset] = await Promise.all([
+      withRetry(() => supabase.storage.from('albums').download(originalPath)),
+      loadXmpAdjustments(presetPath),
+    ])
 
     if (downloadResult.error || !downloadResult.data) {
       throw new Error(downloadResult.error?.message || 'Cannot download original file')
@@ -1124,10 +1128,6 @@ if (
 )
 
 jobBuffers.add(originalBuffer)
-
-const xmpPreset = await loadXmpAdjustments(
-  presetPath
-)
 
     console.log('[PhotoWorker] preset path:', job.preset_path || null)
 
@@ -1140,24 +1140,6 @@ const previewWidth = getWidthBySize(selectedSize)
 const shouldCreateProcessedPreview =
   selectedSize !== 'original' || Boolean(xmpPreset)
 
-const previewBuffer =
-  selectedSize === 'original' && xmpPreset
-    ? await generateOriginalProcessedBuffer(
-        originalBuffer,
-        90,
-        xmpPreset
-      )
-    : selectedSize === 'original'
-      ? originalBuffer
-      : await generateResizeBuffer(
-          originalBuffer,
-          previewWidth,
-          86,
-          xmpPreset
-        )
-
-jobBuffers.add(previewBuffer)
-
 const previewPath =
   selectedSize === 'original' && xmpPreset
     ? makeOutputPath(originalPath, 'original')
@@ -1165,48 +1147,68 @@ const previewPath =
       ? originalPath
       : makeOutputPath(originalPath, selectedSize)
 
-    if (shouldCreateProcessedPreview) {
-      const uploadPreviewResult = await withRetry(() =>
+const thumbnailPath = makeOutputPath(originalPath, 'thumbnail')
+
+// Preview and thumbnail are independent Sharp passes over the same
+// source buffer — run them concurrently instead of one after another.
+const [previewBuffer, thumbnailBuffer] = await Promise.all([
+  selectedSize === 'original' && xmpPreset
+    ? generateOriginalProcessedBuffer(originalBuffer, 90, xmpPreset)
+    : selectedSize === 'original'
+      ? Promise.resolve(originalBuffer)
+      : generateResizeBuffer(originalBuffer, previewWidth, 86, xmpPreset),
+  applyXmpAdjustments(sharp(originalBuffer).rotate(), xmpPreset)
+    .resize(480, 480, {
+      fit: 'cover',
+    })
+    .jpeg({
+      quality: 76,
+      mozjpeg: true,
+    })
+    .toBuffer(),
+])
+
+jobBuffers.add(previewBuffer)
+jobBuffers.add(thumbnailBuffer)
+
+// Same for the blur placeholder — it only needs originalBuffer/
+// previewBuffer, so kick it off now rather than waiting on the
+// uploads below.
+const blurSourceBufferPromise =
+  selectedSize === 'original'
+    ? applyXmpAdjustments(sharp(originalBuffer).rotate(), xmpPreset)
+        .jpeg({
+          quality: 60,
+          mozjpeg: true,
+        })
+        .toBuffer()
+    : Promise.resolve(previewBuffer)
+
+// Preview and thumbnail uploads are independent network calls too.
+const uploadResults = await Promise.all([
+  withRetry(() =>
+    supabase.storage.from('albums').upload(thumbnailPath, thumbnailBuffer, {
+      contentType: 'image/jpeg',
+      cacheControl: 'no-store',
+      upsert: true,
+    })
+  ),
+  shouldCreateProcessedPreview
+    ? withRetry(() =>
         supabase.storage.from('albums').upload(previewPath, previewBuffer, {
           contentType: 'image/jpeg',
           cacheControl: 'no-store',
           upsert: true,
         })
       )
+    : null,
+])
 
-      if (uploadPreviewResult.error) {
-        throw new Error(uploadPreviewResult.error.message)
-      }
-    }
-
-    const thumbnailBuffer = await applyXmpAdjustments(
-      sharp(originalBuffer).rotate(),
-      xmpPreset
-    )
-      .resize(480, 480, {
-        fit: 'cover',
-      })
-      .jpeg({
-        quality: 76,
-        mozjpeg: true,
-      })
-      .toBuffer()
-
-      jobBuffers.add(thumbnailBuffer)
-
-    const thumbnailPath = makeOutputPath(originalPath, 'thumbnail')
-
-    const uploadThumbResult = await withRetry(() =>
-      supabase.storage.from('albums').upload(thumbnailPath, thumbnailBuffer, {
-        contentType: 'image/jpeg',
-        cacheControl: 'no-store',
-        upsert: true,
-      })
-    )
-
-    if (uploadThumbResult.error) {
-      throw new Error(uploadThumbResult.error.message)
-    }
+for (const result of uploadResults) {
+  if (result?.error) {
+    throw new Error(result.error.message)
+  }
+}
 
     await updatePhoto(String(job.photo_id), {
       processing_progress: 60,
@@ -1220,18 +1222,7 @@ const previewPath =
       .from('albums')
       .getPublicUrl(thumbnailPath)
 
-   const blurSourceBuffer =
-  selectedSize === 'original'
-    ? await applyXmpAdjustments(
-        sharp(originalBuffer).rotate(),
-        xmpPreset
-      )
-        .jpeg({
-          quality: 60,
-          mozjpeg: true,
-        })
-        .toBuffer()
-    : previewBuffer
+const blurSourceBuffer = await blurSourceBufferPromise
 
 jobBuffers.add(blurSourceBuffer)
 

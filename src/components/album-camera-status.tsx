@@ -338,6 +338,7 @@ async function cancelSettings() {
 
   if (!pendingConnect) return
 
+  autoConnectDisabledRef.current = true
   setPendingConnect(false)
 
   try {
@@ -361,15 +362,18 @@ function openSettingsFromActiveSession() {
   setShowSettings(true)
 }
 
-// Plug-and-play: while this album page is open and nothing is connected
-// yet, poll for a camera on the USB port and start capturing on its own —
-// no "Connect" click needed. Stops polling the moment a session is active
-// (the background worker takes over gphoto2 polling from there) or after
-// the user explicitly disconnects, so it never fights the worker for the
-// USB device or silently reconnects something the user just stopped.
+// Plug-and-play: while this album page is open and nothing is actively
+// capturing yet, poll for a camera on the USB port and start capturing on
+// its own — no "Connect" click needed. Stops polling the moment a session
+// is active (the background worker takes over gphoto2 polling from there)
+// or after the user explicitly disconnects, so it never fights the worker
+// for the USB device or silently reconnects something the user just
+// stopped. Deliberately does NOT gate on cameraState.connected — that flag
+// only reflects the last-known state in the database, and nothing marks it
+// false when the cable is simply unplugged, so trusting it here would mean
+// a page reload could never rediscover a reconnected camera.
 useEffect(() => {
   if (autoUploadActive) return
-  if (cameraState?.connected) return
   if (pendingConnect || showSettings) return
   if (autoConnectDisabledRef.current) return
 
@@ -395,7 +399,7 @@ useEffect(() => {
     window.clearInterval(interval)
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [albumId, autoUploadActive, cameraState?.connected, pendingConnect, showSettings])
+}, [albumId, autoUploadActive, pendingConnect, showSettings])
 
   return (
     <section className="pt-5">

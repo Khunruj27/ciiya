@@ -6,7 +6,13 @@ ENV NODE_ENV=production
 
 COPY package*.json ./
 
-RUN npm ci
+# npm ci enforces the lockfile shape exactly, but @tensorflow/tfjs-node is an
+# optionalDependency with platform-specific native bindings — a lockfile
+# committed from macOS (arm64) doesn't match what npm resolves for this
+# Linux (musl) build image, so npm ci fails here even though the lockfile
+# is fine. npm install re-resolves optional deps for whatever platform it's
+# actually running on.
+RUN npm install
 
 COPY --chown=node:node . .
 

@@ -655,13 +655,13 @@ useEffect(() => {
               type="button"
               onClick={toggleSelectMode}
               className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-lg"
-              aria-label="Cancel selection"
+              aria-label="ยกเลิกการเลือก"
             >
               ✕
             </button>
 
             <p className="whitespace-nowrap px-1 text-sm font-semibold">
-              {selectedIds.size}/{MAX_SELECTION} selected
+              เลือกแล้ว {selectedIds.size}/{MAX_SELECTION} รูป
             </p>
 
             <button
@@ -670,7 +670,7 @@ useEffect(() => {
               disabled={selectedIds.size === 0 || batchDownloading}
               className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-[#F0B1DE] px-4 py-2 text-sm font-bold text-[#4A3140] transition-opacity disabled:opacity-40"
             >
-              {batchDownloading ? 'Downloading…' : '⬇ Download'}
+              {batchDownloading ? 'กำลังดาวน์โหลด…' : '⬇ ดาวน์โหลด'}
             </button>
           </div>
         </div>

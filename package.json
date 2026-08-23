@@ -45,7 +45,6 @@
     "crypto-js": "^4.2.0",
     "dotenv": "^17.4.2",
     "form-data": "^4.0.5",
-    "jszip": "^3.10.1",
     "lucide-react": "^1.16.0",
     "next": "16.2.4",
     "node-fetch": "^3.3.2",

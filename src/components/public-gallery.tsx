@@ -296,7 +296,6 @@ export default function PublicGallery({
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [batchDownloading, setBatchDownloading] = useState(false)
-  const [batchError, setBatchError] = useState<string | null>(null)
 
   const pinchStartDistance = useRef<number | null>(null)
   const startScale = useRef(1)
@@ -411,7 +410,6 @@ useEffect(() => {
   const toggleSelectMode = useCallback(() => {
     setSelectMode((current) => !current)
     setSelectedIds(new Set())
-    setBatchError(null)
   }, [])
 
   const toggleSelect = useCallback((photoId: string) => {
@@ -430,50 +428,34 @@ useEffect(() => {
     })
   }, [])
 
-  const handleBatchDownload = useCallback(async () => {
+  // Triggers one native download per selected photo (each request already
+  // returns a plain .jpg with a Content-Disposition: attachment header via
+  // /api/photos/download), staggered so the browser fires them as distinct
+  // downloads instead of one another.
+  const handleBatchDownload = useCallback(() => {
     if (!shareToken || selectedIds.size === 0 || batchDownloading) return
 
     setBatchDownloading(true)
-    setBatchError(null)
 
-    try {
-      const res = await fetch('/api/share/download-batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: shareToken,
-          photoIds: Array.from(selectedIds),
-        }),
-      })
+    const ids = Array.from(selectedIds)
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => null)
-        throw new Error(data?.error || 'Download failed')
-      }
+    ids.forEach((photoId, index) => {
+      window.setTimeout(() => {
+        const link = document.createElement('a')
+        link.href = `/api/photos/download?photoId=${encodeURIComponent(
+          photoId
+        )}&token=${encodeURIComponent(shareToken)}`
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+      }, index * 400)
+    })
 
-      const blob = await res.blob()
-      const disposition = res.headers.get('Content-Disposition') || ''
-      const match = disposition.match(/filename="([^"]+)"/)
-      const filename = match?.[1] || 'ciiya-photos.zip'
-
-      const blobUrl = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = blobUrl
-      link.download = filename
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      URL.revokeObjectURL(blobUrl)
-
+    window.setTimeout(() => {
+      setBatchDownloading(false)
       setSelectMode(false)
       setSelectedIds(new Set())
-    } catch (error) {
-      setBatchError(
-        error instanceof Error ? error.message : 'Download failed'
-      )
-    } finally {
-      setBatchDownloading(false)
-    }
+    }, ids.length * 400)
   }, [shareToken, selectedIds, batchDownloading])
 
   function goPrev() {
@@ -674,15 +656,9 @@ useEffect(() => {
               disabled={selectedIds.size === 0 || batchDownloading}
               className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-[#F0B1DE] px-4 py-2 text-sm font-bold text-[#4A3140] transition-opacity disabled:opacity-40"
             >
-              {batchDownloading ? 'Zipping…' : '⬇ Download'}
+              {batchDownloading ? 'Downloading…' : '⬇ Download'}
             </button>
           </div>
-
-          {batchError ? (
-            <div className="absolute -top-11 rounded-full bg-red-500 px-4 py-2 text-xs font-semibold text-white shadow-lg">
-              {batchError}
-            </div>
-          ) : null}
         </div>
       ) : null}
 

@@ -345,9 +345,7 @@ export class PhotoDownloadError extends Error {
 
 /**
  * Resolves the downloadable buffer for one photo at the album's configured
- * download size, validating storage-path ownership first. Shared by the
- * single-photo and batch-zip download routes so both stay in sync on size
- * selection, generated-size caching, and path security.
+ * download size, validating storage-path ownership first.
  */
 export async function resolvePhotoDownload(params: {
   supabase: SupabaseClient

@@ -629,7 +629,21 @@ useEffect(() => {
             onClick={toggleSelectMode}
             className="flex items-center gap-2 rounded-full bg-slate-900 px-5 py-3 text-sm font-bold text-white shadow-[0_18px_50px_rgba(15,23,42,0.35)] transition-transform active:scale-95"
           >
-            🖼️ Select photos
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-4 w-4"
+            >
+              <rect x="3" y="3" width="8" height="8" rx="2" />
+              <rect x="13" y="3" width="8" height="8" rx="2" />
+              <rect x="3" y="13" width="8" height="8" rx="2" />
+              <path d="m14.5 17 2 2 4-4" />
+            </svg>
+            เลือกรูปภาพ
           </button>
         </div>
       ) : null}

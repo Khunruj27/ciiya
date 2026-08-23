@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
 import {
   getShareAuthCookieName,
   hasValidSharePasswordAccess,
   isAlbumPubliclyVisible,
 } from '@/lib/share-access'
+import { getSharedAlbumByToken, getSharedAlbumPhotosPage } from '@/lib/share-data'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -14,8 +14,6 @@ const MAX_LIMIT = 100
 
 export async function GET(req: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient()
-
     const token = String(req.nextUrl.searchParams.get('token') || '').trim()
     const cursor = req.nextUrl.searchParams.get('cursor')
     const rawLimit = Number(req.nextUrl.searchParams.get('limit') || DEFAULT_LIMIT)
@@ -25,66 +23,34 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'share token is required' }, { status: 400 })
     }
 
-    const { data: album, error: albumError } = await supabase
-      .from('albums')
-      .select('id, status, is_public, is_password_protected, password_hash')
-      .eq('share_token', token)
-      .maybeSingle()
+    let album: Awaited<ReturnType<typeof getSharedAlbumByToken>> | null = null
 
-    if (albumError || !album || !isAlbumPubliclyVisible(album)) {
+    try {
+      album = await getSharedAlbumByToken(token)
+    } catch (error) {
       return NextResponse.json(
-        { error: albumError?.message || 'Shared album not found' },
-        { status: 404 }
+        { error: error instanceof Error ? error.message : 'Shared album not found' },
+        { status: 500 }
       )
     }
 
-    const safeAlbum = album
-
-    const shareCookie = req.cookies.get(
-      getShareAuthCookieName(safeAlbum.id)
-    )?.value
-
-    if (!hasValidSharePasswordAccess(safeAlbum, shareCookie)) {
-      return NextResponse.json(
-        { error: 'Password required' },
-        { status: 401 }
-      )
+    if (!album || !isAlbumPubliclyVisible(album)) {
+      return NextResponse.json({ error: 'Shared album not found' }, { status: 404 })
     }
 
-    let query = supabase
-      .from('photos')
-      .select(`
-        id,
-        album_id,
-        filename,
-        public_url,
-        preview_url,
-        thumbnail_url,
-        blur_data_url,
-        created_at,
-        view_count,
-        processing_status
-      `)
-      .eq('album_id', safeAlbum.id)
-      .eq('processing_status', 'done')
-      .not('preview_url', 'is', null)
-      .not('thumbnail_url', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(limit + 1)
+    const shareCookie = req.cookies.get(getShareAuthCookieName(album.id))?.value
 
-    if (cursor) {
-      query = query.lt('created_at', cursor)
+    if (!hasValidSharePasswordAccess(album, shareCookie)) {
+      return NextResponse.json({ error: 'Password required' }, { status: 401 })
     }
 
-    const { data, error } = await query
+    const { photos: rows, hasMore } = await getSharedAlbumPhotosPage(
+      album.id,
+      cursor,
+      limit
+    )
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    const rows = data ?? []
-    const hasMore = rows.length > limit
-    const safePhotos = (hasMore ? rows.slice(0, limit) : rows).map((photo) => ({
+    const safePhotos = rows.map((photo) => ({
       id: photo.id,
       album_id: photo.album_id,
       filename: photo.filename,

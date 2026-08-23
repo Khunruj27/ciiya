@@ -113,3 +113,55 @@ export const getSharedAlbumPhotos = unstable_cache(
   ['shared-album-photos'],
   { revalidate: SHARE_CACHE_TTL_SECONDS }
 )
+
+// Cursor-paginated variant for "load more" scrolling past the first page.
+// unstable_cache keys on the actual call arguments too, so each distinct
+// (albumId, cursor, limit) combination gets its own cache entry — this is
+// what lets many concurrent viewers scrolling the same album share one DB
+// round trip per page instead of one each.
+export const getSharedAlbumPhotosPage = unstable_cache(
+  async (albumId: string, cursor: string | null, limit: number) => {
+    const supabase = getAnonClient()
+
+    let query = supabase
+      .from('photos')
+      .select(
+        `
+        id,
+        album_id,
+        filename,
+        public_url,
+        preview_url,
+        thumbnail_url,
+        blur_data_url,
+        created_at,
+        view_count,
+        processing_status
+        `
+      )
+      .eq('album_id', albumId)
+      .eq('processing_status', 'done')
+      .not('preview_url', 'is', null)
+      .not('thumbnail_url', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(limit + 1)
+
+    if (cursor) {
+      query = query.lt('created_at', cursor)
+    }
+
+    const { data, error } = await query
+
+    if (error) throw new Error(error.message)
+
+    const rows = data ?? []
+    const hasMore = rows.length > limit
+
+    return {
+      photos: hasMore ? rows.slice(0, limit) : rows,
+      hasMore,
+    }
+  },
+  ['shared-album-photos-page'],
+  { revalidate: SHARE_CACHE_TTL_SECONDS }
+)

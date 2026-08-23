@@ -567,18 +567,6 @@ useEffect(() => {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={toggleSelectMode}
-              className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-bold transition-colors ${
-                selectMode
-                  ? 'bg-[#F0B1DE] text-white'
-                  : 'bg-slate-100 text-slate-600'
-              }`}
-            >
-              {selectMode ? 'Cancel' : 'Select'}
-            </button>
-
             <div className="grid grid-cols-3 gap-1.5 border border-black/5 overflow-hidden rounded-[26px] p-1.5">
               {[2, 3, 4].map((cols) => (
                  <button
@@ -633,6 +621,18 @@ useEffect(() => {
           }}
         </AutoSizer>
       </div>
+
+      {!selectMode ? (
+        <div className="fixed inset-x-0 bottom-5 z-[90] flex justify-center px-4">
+          <button
+            type="button"
+            onClick={toggleSelectMode}
+            className="flex items-center gap-2 rounded-full bg-slate-900 px-5 py-3 text-sm font-bold text-white shadow-[0_18px_50px_rgba(15,23,42,0.35)] transition-transform active:scale-95"
+          >
+            🖼️ Select photos
+          </button>
+        </div>
+      ) : null}
 
       {selectMode ? (
         <div className="fixed inset-x-0 bottom-5 z-[90] flex justify-center px-4">

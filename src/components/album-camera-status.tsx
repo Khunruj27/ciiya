@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+
+const AUTO_DETECT_POLL_MS = 6000
 
 type Props = {
   albumId: string
@@ -37,6 +39,9 @@ export default function AlbumCameraStatus({ albumId }: Props) {
 
   const [busy, setBusy] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+
+  const autoDetectingRef = useRef(false)
+  const autoConnectDisabledRef = useRef(false)
 
 
   
@@ -154,9 +159,9 @@ useEffect(() => {
     }
   }, [albumId, showSettings])
 
-  async function connectCamera() {
+  async function connectCamera(auto = false) {
     setBusy(true)
-    setErrorMsg('')
+    if (!auto) setErrorMsg('')
 
     try {
       const res = await fetch('/api/camera/connect', {
@@ -181,10 +186,17 @@ useEffect(() => {
 })
 
 setAutoUploadActive(false)
-setPendingConnect(true)
-setShowSettings(true)
+
+if (auto) {
+  await startAutoUpload()
+} else {
+  setPendingConnect(true)
+  setShowSettings(true)
+}
     } catch (error) {
-      setErrorMsg(error instanceof Error ? error.message : 'Connect failed')
+      if (!auto) {
+        setErrorMsg(error instanceof Error ? error.message : 'Connect failed')
+      }
     } finally {
       setBusy(false)
     }
@@ -194,6 +206,7 @@ setShowSettings(true)
   async function disconnectCamera() {
     setBusy(true)
     setErrorMsg('')
+    autoConnectDisabledRef.current = true
 
     try {
       const res = await fetch(`/api/camera/connect?albumId=${albumId}`, {
@@ -348,6 +361,41 @@ function openSettingsFromActiveSession() {
   setShowSettings(true)
 }
 
+// Plug-and-play: while this album page is open and nothing is connected
+// yet, poll for a camera on the USB port and start capturing on its own —
+// no "Connect" click needed. Stops polling the moment a session is active
+// (the background worker takes over gphoto2 polling from there) or after
+// the user explicitly disconnects, so it never fights the worker for the
+// USB device or silently reconnects something the user just stopped.
+useEffect(() => {
+  if (autoUploadActive) return
+  if (cameraState?.connected) return
+  if (pendingConnect || showSettings) return
+  if (autoConnectDisabledRef.current) return
+
+  let cancelled = false
+
+  async function tryAutoConnect() {
+    if (cancelled || autoDetectingRef.current) return
+
+    autoDetectingRef.current = true
+
+    try {
+      await connectCamera(true)
+    } finally {
+      autoDetectingRef.current = false
+    }
+  }
+
+  tryAutoConnect()
+  const interval = window.setInterval(tryAutoConnect, AUTO_DETECT_POLL_MS)
+
+  return () => {
+    cancelled = true
+    window.clearInterval(interval)
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [albumId, autoUploadActive, cameraState?.connected, pendingConnect, showSettings])
 
   return (
     <section className="pt-5">
@@ -562,7 +610,7 @@ function openSettingsFromActiveSession() {
   ) : (
     <button
       type="button"
-      onClick={connectCamera}
+      onClick={() => connectCamera()}
       disabled={busy}
       className="rounded-full bg-[#D0F578] px-4 py-2 text-[12px] font-black text-[#1C0617] disabled:opacity-50"
     >

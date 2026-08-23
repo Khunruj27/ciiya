@@ -9,6 +9,18 @@ type StripeSubscriptionWithPeriod = Stripe.Subscription & {
   current_period_end?: number | null
 }
 
+// Stripe API 2026-05-27.dahlia moved current_period_end off the
+// subscription object and onto each subscription item — subscription.
+// current_period_end is always undefined now. Read it from the first item
+// instead, since this app only ever puts one price per subscription.
+function getCurrentPeriodEnd(subscription: StripeSubscriptionWithPeriod) {
+  return (
+    subscription.items?.data?.[0]?.current_period_end ??
+    subscription.current_period_end ??
+    null
+  )
+}
+
 function getAdminSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -37,6 +49,11 @@ async function syncSubscription(stripeSubscriptionId: string) {
 
   if (!priceId || !userId) return
 
+  const periodEndSeconds = getCurrentPeriodEnd(subscription)
+  const currentPeriodEndIso = periodEndSeconds
+    ? new Date(periodEndSeconds * 1000).toISOString()
+    : null
+
   const { data: plan, error: planError } = await supabase
     .from('plans')
     .select('id, slug, storage_limit_bytes')
@@ -64,9 +81,7 @@ async function syncSubscription(stripeSubscriptionId: string) {
         status: subscription.status || 'active',
         stripe_customer_id: stripeCustomerId,
         stripe_subscription_id: subscription.id,
-        current_period_end: subscription.current_period_end
-          ? new Date(subscription.current_period_end * 1000).toISOString()
-          : null,
+        current_period_end: currentPeriodEndIso,
       },
       {
         onConflict: 'stripe_subscription_id',
@@ -85,6 +100,7 @@ async function syncSubscription(stripeSubscriptionId: string) {
       user_id: userId,
       current_plan: plan.slug,
       storage_limit_bytes: Number(plan.storage_limit_bytes || 0),
+      current_period_end: currentPeriodEndIso,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'user_id' }

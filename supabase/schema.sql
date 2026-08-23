@@ -64,6 +64,11 @@ create table if not exists public.subscriptions (
 create index if not exists idx_subscriptions_user
 on public.subscriptions(user_id);
 
+alter table public.subscriptions
+  drop constraint if exists subscriptions_stripe_subscription_id_key,
+  add constraint subscriptions_stripe_subscription_id_key
+  unique (stripe_subscription_id);
+
 drop trigger if exists trg_subscriptions_updated_at on public.subscriptions;
 create trigger trg_subscriptions_updated_at
 before update on public.subscriptions

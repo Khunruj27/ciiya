@@ -159,6 +159,14 @@ const updatedSubscription = await stripe.subscriptions.update(
   }
 )
 
+    // Stripe API 2026-05-27.dahlia moved current_period_end off the
+    // subscription object and onto each subscription item.
+    const periodEndSeconds =
+      updatedSubscription.items.data[0]?.current_period_end ?? null
+    const currentPeriodEndIso = periodEndSeconds
+      ? new Date(periodEndSeconds * 1000).toISOString()
+      : null
+
     await admin
       .from('subscriptions')
       .update({ status: 'canceled' })
@@ -176,7 +184,7 @@ const updatedSubscription = await stripe.subscriptions.update(
             ? updatedSubscription.customer
             : null,
         stripe_subscription_id: updatedSubscription.id,
-        current_period_end: null,
+        current_period_end: currentPeriodEndIso,
       },
       {
         onConflict: 'stripe_subscription_id',
@@ -202,6 +210,8 @@ const updatedSubscription = await stripe.subscriptions.update(
     downgrade_scheduled_at: isDowngrade
       ? new Date().toISOString()
       : null,
+
+    current_period_end: currentPeriodEndIso,
 
     updated_at: new Date().toISOString(),
   },

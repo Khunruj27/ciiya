@@ -74,17 +74,19 @@ export default async function SharePage({ params }: PageProps) {
    <main className="min-h-screen bg-[#FAF7F4] text-[#1C0617]">
       <ShareViewTracker token={token} />
 
+      <div className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+
       {/* HERO */}
       <section className="overflow-hidden rounded-[34px] border border-black/5 bg-white p-2">
-        <div className="relative h-[250px] overflow-hidden rounded-[28px] bg-[#F2EEE9]">
+        <div className="relative h-[280px] overflow-hidden rounded-[28px] bg-[#F2EEE9] sm:h-[340px] lg:h-[400px]">
           <div className="relative overflow-hidden rounded-[10px] bg-black shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
-            <div className="relative h-[220px]">
+            <div className="relative h-[250px] sm:h-[310px] lg:h-[370px]">
               {album.cover_url ? (
                 <Image
                   src={album.cover_url}
                   alt={album.title || 'Album cover'}
                   fill
-                  sizes="430px"
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 90vw, 1024px"
                   priority
                   unoptimized
                   className="object-cover"
@@ -125,7 +127,7 @@ export default async function SharePage({ params }: PageProps) {
         </div>
       </section>
 
-     <section className="mt-4 grid grid-cols-2 gap-3">
+     <section className="mt-4 grid grid-cols-2 gap-3 sm:max-w-sm">
   <div className="rounded-[24px] border border-black/5 bg-[#F0B1DE] px-4 py-3">
     <p className="text-[12px] font-bold text-[#4A3140]">
       Photos
@@ -146,8 +148,8 @@ export default async function SharePage({ params }: PageProps) {
 </section>
 
       {/* CONTENT */}
-      <section className="px-4 pb-12 pt-5">
-        <div className="mx-auto max-w-[430px] space-y-5">
+      <section className="pb-12 pt-5">
+        <div className="space-y-5">
          <SelfieFaceSearch albumId={album.id} token={token} />
 
           {visiblePhotos.length > 0 ? (
@@ -182,6 +184,8 @@ export default async function SharePage({ params }: PageProps) {
         </footer>
         </div>
       </section>
+
+      </div>
 
       <ScrollToTopButton />
     </main>

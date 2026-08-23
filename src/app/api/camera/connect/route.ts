@@ -82,6 +82,19 @@ export async function POST(req: Request) {
     const { brand: cameraBrand, model: cameraModel } =
       splitCameraBrandAndModel(cameraName)
 
+    // Close out any row still marked 'connected' for this album before
+    // adding a new one, so repeated plug/unplug cycles (auto-detect can
+    // reconnect many times a day) don't pile up stale 'connected' rows.
+    await supabase
+      .from('camera_sessions')
+      .update({
+        status: 'disconnected',
+        disconnected_at: new Date().toISOString(),
+      })
+      .eq('album_id', albumId)
+      .eq('user_id', user.id)
+      .eq('status', 'connected')
+
     await supabase.from('camera_sessions').insert({
       user_id: user.id,
       album_id: albumId,

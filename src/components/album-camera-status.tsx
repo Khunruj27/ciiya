@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 const AUTO_DETECT_POLL_MS = 3000
+const AUTO_START_FAILURE_LIMIT = 3
 
 type Props = {
   albumId: string
@@ -42,6 +43,7 @@ export default function AlbumCameraStatus({ albumId }: Props) {
 
   const autoDetectingRef = useRef(false)
   const autoConnectDisabledRef = useRef(false)
+  const autoStartFailureCountRef = useRef(0)
 
 
   
@@ -147,9 +149,19 @@ useEffect(() => {
     }
   }, [albumId, showSettings])
 
-  async function connectCamera(auto = false) {
+  async function connectCamera(
+    auto = false
+  ): Promise<'no-camera' | 'started' | 'start-failed' | 'awaiting-settings'> {
     setBusy(true)
-    if (!auto) setErrorMsg('')
+
+    if (!auto) {
+      setErrorMsg('')
+      // A manual connect is the user explicitly giving this another shot —
+      // give auto-detect a clean slate too instead of leaving it permanently
+      // given up from an earlier failure streak.
+      autoConnectDisabledRef.current = false
+      autoStartFailureCountRef.current = 0
+    }
 
     try {
       const res = await fetch('/api/camera/connect', {
@@ -176,20 +188,23 @@ useEffect(() => {
 setAutoUploadActive(false)
 
 if (auto) {
-  await startAutoUpload()
+  const started = await startAutoUpload(true)
+  return started ? 'started' : 'start-failed'
 } else {
   setPendingConnect(true)
   setShowSettings(true)
+  return 'awaiting-settings'
 }
     } catch (error) {
       if (!auto) {
         setErrorMsg(error instanceof Error ? error.message : 'Connect failed')
       }
+      return 'no-camera'
     } finally {
       setBusy(false)
     }
   }
-  
+
 
   async function disconnectCamera() {
     setBusy(true)
@@ -221,9 +236,9 @@ if (auto) {
     }
   }
 
-  async function startAutoUpload() {
+  async function startAutoUpload(auto = false) {
     setBusy(true)
-    setErrorMsg('')
+    if (!auto) setErrorMsg('')
 
     try {
       const res = await fetch('/api/camera/upload-session', {
@@ -266,10 +281,14 @@ setShowSettings(false)
   })
 }
 
+      return true
     } catch (error) {
-      setErrorMsg(
-        error instanceof Error ? error.message : 'Start auto upload failed'
-      )
+      if (!auto) {
+        setErrorMsg(
+          error instanceof Error ? error.message : 'Start auto upload failed'
+        )
+      }
+      return false
     } finally {
       setBusy(false)
     }
@@ -369,11 +388,29 @@ useEffect(() => {
 
   async function tryAutoConnect() {
     if (cancelled || autoDetectingRef.current) return
+    if (autoConnectDisabledRef.current) return
 
     autoDetectingRef.current = true
 
     try {
-      await connectCamera(true)
+      const result = await connectCamera(true)
+
+      if (result === 'started') {
+        autoStartFailureCountRef.current = 0
+        return
+      }
+
+      if (result === 'start-failed') {
+        autoStartFailureCountRef.current += 1
+
+        if (autoStartFailureCountRef.current >= AUTO_START_FAILURE_LIMIT) {
+          autoConnectDisabledRef.current = true
+          setErrorMsg(
+            'เชื่อมกล้องสำเร็จแต่เริ่มถ่ายอัตโนมัติไม่ได้ กรุณากด Connect Camera ใหม่อีกครั้ง'
+          )
+        }
+      }
+      // 'no-camera' just means nothing is plugged in yet — keep waiting.
     } finally {
       autoDetectingRef.current = false
     }
@@ -565,7 +602,7 @@ useEffect(() => {
 
         <button
           type="button"
-          onClick={startAutoUpload}
+          onClick={() => startAutoUpload()}
           disabled={busy}
           className="h-11 flex-1 rounded-full bg-[#1C0617] font-black text-white"
         >

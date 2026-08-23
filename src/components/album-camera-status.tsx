@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-const AUTO_DETECT_POLL_MS = 6000
+const AUTO_DETECT_POLL_MS = 3000
 
 type Props = {
   albumId: string
@@ -107,40 +107,28 @@ useEffect(() => {
 
         setAutoUploadActive(Boolean(sessionJson?.active))
 
-        if (!showSettings && session?.resize_mode) {
-  const nextResizeMode = String(
-    session.resize_mode
-  ).toLowerCase()
+        // Pre-fill from the last session used on this album (active or
+        // not) so a rushed reconnect reuses the same preset/resize choice
+        // instead of resetting to bare defaults every time.
+        if (!showSettings && session) {
+          const nextResizeMode = String(session.resize_mode || '').toLowerCase()
 
-  if (
-    nextResizeMode === 'original' ||
-    nextResizeMode === 'uhd' ||
-    nextResizeMode === 'hd' ||
-    nextResizeMode === 'sd'
-  ) {
-    setResizeMode(nextResizeMode)
-  }
-}
+          if (
+            nextResizeMode === 'original' ||
+            nextResizeMode === 'uhd' ||
+            nextResizeMode === 'hd' ||
+            nextResizeMode === 'sd'
+          ) {
+            setResizeMode(nextResizeMode)
+          }
 
-     if (!showSettings && sessionJson?.active && session) {
-  if (typeof session.preset_path === 'string') {
-    setPresetPath(session.preset_path)
-  }
+          if (typeof session.preset_path === 'string') {
+            setPresetPath(session.preset_path)
+          }
 
- if (session.resize_mode === 'sd') {
-  setResizeMode('sd')
-} else if (session.resize_mode === 'uhd') {
-  setResizeMode('uhd')
-} else if (session.resize_mode === 'hd') {
-  setResizeMode('hd')
-} else {
-  setResizeMode('original')
-}
-}
-
-
-        if (typeof session?.auto_publish === 'boolean') {
-          setAutoPublish(session.auto_publish)
+          if (typeof session.auto_publish === 'boolean') {
+            setAutoPublish(session.auto_publish)
+          }
         }
       } catch {
         // ignore camera status errors

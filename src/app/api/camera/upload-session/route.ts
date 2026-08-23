@@ -155,14 +155,6 @@ export async function GET(req: Request) {
       .limit(1)
       .maybeSingle()
 
-      console.log(
-  '[camera-upload-session]',
-  {
-    error,
-    data,
-  }
-)
-
     if (error) {
       return NextResponse.json(
         {
@@ -174,9 +166,27 @@ export async function GET(req: Request) {
       )
     }
 
+    // No active session right now — fall back to the most recent stopped
+    // one just so the caller can pre-fill last-used settings (preset,
+    // resize mode) instead of resetting to bare defaults on every reload.
+    let lastSession = data
+
+    if (!lastSession) {
+      const { data: previous } = await supabase
+        .from('camera_upload_sessions')
+        .select('*')
+        .eq('album_id', albumId)
+        .eq('owner_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      lastSession = previous || null
+    }
+
     return NextResponse.json({
       active: Boolean(data),
-      session: data || null,
+      session: lastSession,
     })
   } catch (error) {
     return NextResponse.json(

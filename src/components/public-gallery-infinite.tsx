@@ -202,6 +202,7 @@ export default function PublicGalleryInfinite({
         totalCount={totalCount}
         albumTitle={albumTitle}
         albumId={albumId}
+        shareToken={shareToken || getTokenFromUrl()}
       />
 
       {hasMore ? (

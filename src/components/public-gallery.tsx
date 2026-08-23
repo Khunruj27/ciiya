@@ -37,6 +37,8 @@ type Props = {
   shareToken?: string
 }
 
+const MAX_SELECTION = 10
+
 type TouchPoint = {
   x: number
   y: number
@@ -102,11 +104,17 @@ const PhotoTile = memo(function PhotoTile({
   index,
   tab,
   onOpen,
+  selectMode,
+  selected,
+  onToggleSelect,
 }: {
   photo: Photo
   index: number
   tab: 'live' | 'popular'
   onOpen: (index: number) => void
+  selectMode: boolean
+  selected: boolean
+  onToggleSelect: (id: string) => void
 }) {
   const rankLabel = tab === 'popular' ? getRankLabel(index) : null
 
@@ -153,7 +161,9 @@ const PhotoTile = memo(function PhotoTile({
   return (
     <button
       type="button"
-      onClick={() => onOpen(index)}
+      onClick={() =>
+        selectMode ? onToggleSelect(photo.id) : onOpen(index)
+      }
       onMouseEnter={() => preloadImage(previewImage)}
       onTouchStart={() => preloadImage(previewImage)}
       className="group relative block h-full w-full overflow-hidden rounded-[4px] bg-slate-100 text-left"
@@ -194,6 +204,28 @@ const PhotoTile = memo(function PhotoTile({
         )}
       </div>
 
+      {selectMode ? (
+        <div
+          className={`absolute right-2 top-2 z-30 flex h-6 w-6 items-center justify-center rounded-full border-2 backdrop-blur transition-colors ${
+            selected
+              ? 'border-[#F0B1DE] bg-[#F0B1DE] text-white'
+              : 'border-white/80 bg-black/20 text-transparent'
+          }`}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-3.5 w-3.5"
+          >
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+        </div>
+      ) : null}
+
       {rankLabel ? (
         <div
           className={`absolute left-3 top-3 z-20 rounded-lg px-2.5 py-1 text-[11px] font-black shadow-md backdrop-blur ${getRankClass(
@@ -218,6 +250,9 @@ type VirtualPhotoCellData = {
   gridCols: number
   tab: 'live' | 'popular'
   onOpen: (index: number) => void
+  selectMode: boolean
+  selectedIds: Set<string>
+  onToggleSelect: (id: string) => void
 }
 
 const VirtualPhotoCell = memo(function VirtualPhotoCell({
@@ -239,12 +274,18 @@ const VirtualPhotoCell = memo(function VirtualPhotoCell({
         index={index}
         tab={data.tab}
         onOpen={data.onOpen}
+        selectMode={data.selectMode}
+        selected={data.selectedIds.has(photo.id)}
+        onToggleSelect={data.onToggleSelect}
       />
     </div>
   )
 })
 
-export default function PublicGallery({ photos: initialPhotos }: Props) {
+export default function PublicGallery({
+  photos: initialPhotos,
+  shareToken,
+}: Props) {
   const photos = initialPhotos
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const [tab, setTab] = useState<'live' | 'popular'>('live')
@@ -252,6 +293,10 @@ export default function PublicGallery({ photos: initialPhotos }: Props) {
   const [lastTap, setLastTap] = useState(0)
   const [gridCols, setGridCols] = useState(3)
   const [viewerLoaded, setViewerLoaded] = useState(false)
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [batchDownloading, setBatchDownloading] = useState(false)
+  const [batchError, setBatchError] = useState<string | null>(null)
 
   const pinchStartDistance = useRef<number | null>(null)
   const startScale = useRef(1)
@@ -363,6 +408,74 @@ useEffect(() => {
     setActiveIndex(index)
   }, [])
 
+  const toggleSelectMode = useCallback(() => {
+    setSelectMode((current) => !current)
+    setSelectedIds(new Set())
+    setBatchError(null)
+  }, [])
+
+  const toggleSelect = useCallback((photoId: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+
+      if (next.has(photoId)) {
+        next.delete(photoId)
+        return next
+      }
+
+      if (next.size >= MAX_SELECTION) return next
+
+      next.add(photoId)
+      return next
+    })
+  }, [])
+
+  const handleBatchDownload = useCallback(async () => {
+    if (!shareToken || selectedIds.size === 0 || batchDownloading) return
+
+    setBatchDownloading(true)
+    setBatchError(null)
+
+    try {
+      const res = await fetch('/api/share/download-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: shareToken,
+          photoIds: Array.from(selectedIds),
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        throw new Error(data?.error || 'Download failed')
+      }
+
+      const blob = await res.blob()
+      const disposition = res.headers.get('Content-Disposition') || ''
+      const match = disposition.match(/filename="([^"]+)"/)
+      const filename = match?.[1] || 'ciiya-photos.zip'
+
+      const blobUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(blobUrl)
+
+      setSelectMode(false)
+      setSelectedIds(new Set())
+    } catch (error) {
+      setBatchError(
+        error instanceof Error ? error.message : 'Download failed'
+      )
+    } finally {
+      setBatchDownloading(false)
+    }
+  }, [shareToken, selectedIds, batchDownloading])
+
   function goPrev() {
     setScale(1)
     setViewerLoaded(false)
@@ -432,8 +545,11 @@ useEffect(() => {
       gridCols,
       tab,
       onOpen: openPhoto,
+      selectMode,
+      selectedIds,
+      onToggleSelect: toggleSelect,
     }),
-    [displayPhotos, gridCols, tab, openPhoto]
+    [displayPhotos, gridCols, tab, openPhoto, selectMode, selectedIds, toggleSelect]
   )
 
   return (
@@ -468,23 +584,37 @@ useEffect(() => {
             </button>
           </div>
 
-         <div className="grid grid-cols-3 gap-1.5 border border-black/5 overflow-hidden rounded-[26px] p-1.5">
-            {[2, 3, 4].map((cols) => (
-               <button
-                key={cols}
-                type="button"
-                onClick={() => setGridCols(cols)}
-                className={`flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 active:scale-90 ${
-                  gridCols === cols
-                    ? 'bg-[#F0B1DE] text-white shadow-sm'
-                    : 'text-slate-500'
-                }`}
-              >
-                {cols === 2 && <Grid2Icon />}
-                {cols === 3 && <Grid3Icon />}
-                {cols === 4 && <Grid4Icon />}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleSelectMode}
+              className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-bold transition-colors ${
+                selectMode
+                  ? 'bg-[#F0B1DE] text-white'
+                  : 'bg-slate-100 text-slate-600'
+              }`}
+            >
+              {selectMode ? 'Cancel' : 'Select'}
+            </button>
+
+            <div className="grid grid-cols-3 gap-1.5 border border-black/5 overflow-hidden rounded-[26px] p-1.5">
+              {[2, 3, 4].map((cols) => (
+                 <button
+                  key={cols}
+                  type="button"
+                  onClick={() => setGridCols(cols)}
+                  className={`flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 active:scale-90 ${
+                    gridCols === cols
+                      ? 'bg-[#F0B1DE] text-white shadow-sm'
+                      : 'text-slate-500'
+                  }`}
+                >
+                  {cols === 2 && <Grid2Icon />}
+                  {cols === 3 && <Grid3Icon />}
+                  {cols === 4 && <Grid4Icon />}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -521,6 +651,40 @@ useEffect(() => {
           }}
         </AutoSizer>
       </div>
+
+      {selectMode ? (
+        <div className="fixed inset-x-0 bottom-5 z-[90] flex justify-center px-4">
+          <div className="flex items-center gap-3 rounded-full bg-slate-900 px-3 py-2 text-white shadow-[0_18px_50px_rgba(15,23,42,0.35)]">
+            <button
+              type="button"
+              onClick={toggleSelectMode}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-lg"
+              aria-label="Cancel selection"
+            >
+              ✕
+            </button>
+
+            <p className="whitespace-nowrap px-1 text-sm font-semibold">
+              {selectedIds.size}/{MAX_SELECTION} selected
+            </p>
+
+            <button
+              type="button"
+              onClick={handleBatchDownload}
+              disabled={selectedIds.size === 0 || batchDownloading}
+              className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-[#F0B1DE] px-4 py-2 text-sm font-bold text-[#4A3140] transition-opacity disabled:opacity-40"
+            >
+              {batchDownloading ? 'Zipping…' : '⬇ Download'}
+            </button>
+          </div>
+
+          {batchError ? (
+            <div className="absolute -top-11 rounded-full bg-red-500 px-4 py-2 text-xs font-semibold text-white shadow-lg">
+              {batchError}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {activeIndex !== null && activePhoto ? (
         <div className="fixed inset-0 z-[100] bg-black text-white">
@@ -590,6 +754,25 @@ useEffect(() => {
           >
             ›
           </button>
+
+          {shareToken ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-2 bg-gradient-to-t from-black/70 to-transparent p-5 pb-7">
+              <a
+                href={`/api/photos/download?photoId=${encodeURIComponent(
+                  activePhoto.id
+                )}&token=${encodeURIComponent(shareToken)}`}
+                className="pointer-events-auto flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-bold text-slate-900 shadow-lg transition-transform active:scale-95"
+              >
+                ⬇ Download photo
+              </a>
+
+              {activePhoto.filename ? (
+                <p className="max-w-[80%] truncate text-center text-[11px] font-medium text-white/70">
+                  {activePhoto.filename}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

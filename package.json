@@ -3,46 +3,35 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-  "node": "20.x"
+    "node": "20.x"
   },
   "scripts": {
-  "dev": "next dev --webpack",
-"build": "next build --webpack",
-"start": "next start",
-"lint": "eslint",
-"typecheck": "tsc --noEmit",
-
- "worker:photos": "tsx workers/photo-worker.ts",
-"worker:faces": "tsx workers/face-worker.ts",
-"worker:camera": "tsx workers/camera-live-import-worker.ts",
-"worker:queue-consistency": "tsx workers/queue-consistency-worker.ts",
-"worker:storage-consistency": "tsx workers/storage-consistency-worker.ts",
-
-  "cleanup:orphans": "tsx scripts/cleanup-orphan-files.ts",
-  "cleanup:jobs": "tsx scripts/cleanup-old-jobs.ts",
-  "cleanup:all": "npm run cleanup:orphans && npm run cleanup:jobs",
-
-  "storage:cleanup": "tsx scripts/storage-cleanup-cron.ts",
-
-  "billing:cron": "tsx scripts/billing-cron.ts",
-
-  "health:check": "tsx scripts/system-health-check.ts",
-  "retry:failed": "tsx scripts/retry-failed-jobs.ts",
-
-  "maintenance:check": "npm run health:check",
-  "maintenance:retry": "npm run retry:failed",
-
-  "maintenance:cleanup": "tsx scripts/maintenance-cleanup-cron.ts",
-
-  "maintenance:all": "npm run health:check && npm run retry:failed && npm run storage:cleanup && npm run maintenance:cleanup",
-
-  "maintenance": "tsx scripts/auto-maintenance.ts",
-
-  "faces:cluster": "tsx scripts/cluster-faces.ts",
-
-  "simulator": "open -a Simulator && next dev --webpack -H 0.0.0.0",
-  "ios": "npm run simulator"
-},
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "worker:photos": "tsx workers/photo-worker.ts",
+    "worker:faces": "tsx workers/face-worker.ts",
+    "worker:camera": "tsx workers/camera-live-import-worker.ts",
+    "worker:queue-consistency": "tsx workers/queue-consistency-worker.ts",
+    "worker:storage-consistency": "tsx workers/storage-consistency-worker.ts",
+    "cleanup:orphans": "tsx scripts/cleanup-orphan-files.ts",
+    "cleanup:jobs": "tsx scripts/cleanup-old-jobs.ts",
+    "cleanup:all": "npm run cleanup:orphans && npm run cleanup:jobs",
+    "storage:cleanup": "tsx scripts/storage-cleanup-cron.ts",
+    "billing:cron": "tsx scripts/billing-cron.ts",
+    "health:check": "tsx scripts/system-health-check.ts",
+    "retry:failed": "tsx scripts/retry-failed-jobs.ts",
+    "maintenance:check": "npm run health:check",
+    "maintenance:retry": "npm run retry:failed",
+    "maintenance:cleanup": "tsx scripts/maintenance-cleanup-cron.ts",
+    "maintenance:all": "npm run health:check && npm run retry:failed && npm run storage:cleanup && npm run maintenance:cleanup",
+    "maintenance": "tsx scripts/auto-maintenance.ts",
+    "faces:cluster": "tsx scripts/cluster-faces.ts",
+    "simulator": "open -a Simulator && next dev --webpack -H 0.0.0.0",
+    "ios": "npm run simulator"
+  },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/modifiers": "^9.0.0",
@@ -56,6 +45,7 @@
     "crypto-js": "^4.2.0",
     "dotenv": "^17.4.2",
     "form-data": "^4.0.5",
+    "jszip": "^3.10.1",
     "lucide-react": "^1.16.0",
     "next": "16.2.4",
     "node-fetch": "^3.3.2",
@@ -87,8 +77,5 @@
     "@tensorflow/tfjs-node": "^4.22.0",
     "@vladmandic/face-api": "^1.7.15",
     "canvas": "^3.2.3"
-
   }
 }
-
-

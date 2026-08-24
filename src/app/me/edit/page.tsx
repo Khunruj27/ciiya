@@ -434,49 +434,49 @@ async function uploadAvatar() {
 
   if (initializing) {
     return (
-     <main className="min-h-screen bg-[#F5F5F7] px-5 pt-[max(60px,env(safe-area-inset-top))] pb-[max(40px,env(safe-area-inset-bottom))] text-black">
+     <main className="min-h-screen bg-ground px-5 pt-[max(60px,env(safe-area-inset-top))] pb-[max(40px,env(safe-area-inset-bottom))] text-ink">
        <div className="ciiya-safe-container">
           <div className="flex items-center justify-between px-2">
-            <div className="h-14 w-14 rounded-full bg-white shadow-[0_12px_35px_rgba(15,23,42,0.06)]" />
-            <div className="h-6 w-32 rounded-full bg-white" />
+            <div className="h-14 w-14 rounded-full bg-surface shadow-[0_12px_35px_rgba(15,23,42,0.06)]" />
+            <div className="h-6 w-32 rounded-full bg-surface" />
             <div className="h-14 w-14" />
           </div>
 
           <section className="mt-10 flex flex-col items-center">
-            <div className="h-36 w-36 rounded-full bg-white shadow-[0_16px_45px_rgba(15,23,42,0.06)]" />
-            <div className="mt-6 h-10 w-52 rounded-full bg-white" />
-            <div className="mt-3 h-6 w-64 rounded-full bg-white" />
-            <div className="mt-5 h-12 w-36 rounded-full bg-white" />
+            <div className="h-36 w-36 rounded-full bg-surface shadow-[0_16px_45px_rgba(15,23,42,0.06)]" />
+            <div className="mt-6 h-10 w-52 rounded-full bg-surface" />
+            <div className="mt-3 h-6 w-64 rounded-full bg-surface" />
+            <div className="mt-5 h-12 w-36 rounded-full bg-surface" />
           </section>
 
           <section className="mt-10">
-            <div className="h-8 w-44 rounded-2xl bg-white" />
-            <div className="mt-3 overflow-hidden rounded-[32px] bg-white shadow-[0_12px_40px_rgba(15,23,42,0.05)]">
-              <div className="h-24 bg-white" />
-              <div className="mx-5 h-px bg-[#E5E5EA]" />
-              <div className="h-24 bg-white" />
+            <div className="h-8 w-44 rounded-2xl bg-surface" />
+            <div className="mt-3 overflow-hidden rounded-hero bg-surface shadow-[0_12px_40px_rgba(15,23,42,0.05)]">
+              <div className="h-24 bg-surface" />
+              <div className="mx-5 h-px bg-ground-sunken" />
+              <div className="h-24 bg-surface" />
             </div>
           </section>
 
-          <div className="mt-8 h-16 rounded-[24px] bg-white" />
+          <div className="mt-8 h-16 rounded-panel bg-surface" />
         </div>
       </main>
     )
   }
 
   return (
-    <main className="min-h-screen bg-[#FAF7F4] px-5 pb-28 pt-[max(60px,env(safe-area-inset-top))] text-[#1C0617]">
+    <main className="min-h-screen bg-ground px-5 pb-28 pt-[max(60px,env(safe-area-inset-top))] text-ink">
       <div className="mx-auto w-full max-w-[390px]">
         <section className="flex items-center justify-between">
   <button
     type="button"
     onClick={() => router.push('/me')}
-    className="flex h-11 w-11 items-center justify-center rounded-full border border-black/5 bg-white"
+    className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface"
   >
     <span className="text-[28px] leading-none">‹</span>
   </button>
 
-  <h1 className="text-[28px] font-black tracking-[-0.05em]">
+  <h1 className="text-[28px] font-semibold tracking-[-0.05em]">
     Edit Profile
   </h1>
 
@@ -485,7 +485,7 @@ async function uploadAvatar() {
 
         <section className="mt-8 flex flex-col items-center text-center">
           <div className="relative">
-            <div className="relative h-32 w-32 overflow-hidden rounded-full bg-[#F2EEE9] ring-4 ring-[#FAF7F4]">
+            <div className="relative h-32 w-32 overflow-hidden rounded-full bg-ground-sunken ring-4 ring-ground">
               {previewUrl ? (
                 <NextImage
                   src={previewUrl}
@@ -496,13 +496,13 @@ async function uploadAvatar() {
                   className="object-cover"
                 />
               ) : (
-                <div className="flex h-full w-full items-center justify-center text-5xl font-black text-slate-400">
+                <div className="flex h-full w-full items-center justify-center text-5xl font-semibold text-muted">
                   {(name || 'C').slice(0, 1).toUpperCase()}
                 </div>
               )}
             </div>
 
-            <label className="absolute bottom-0 right-0 flex h-11 w-11 items-center justify-center rounded-full border border-black/5 bg-[#F0B1DE]">
+            <label className="absolute bottom-0 right-0 flex h-11 w-11 items-center justify-center rounded-full border border-line bg-ink text-white">
               <AppIcon name="pen" size={18} className="opacity-100" />
 
               <input
@@ -518,23 +518,23 @@ async function uploadAvatar() {
             </label>
           </div>
 
-          <h2 className="mt-6 max-w-full truncate text-[24px] sm:text-[32px] font-black leading-none tracking-[-0.06em]">
+          <h2 className="mt-6 max-w-full truncate text-[24px] sm:text-[32px] font-semibold leading-none tracking-[-0.06em]">
             {name || 'User Name'}
           </h2>
 
-          <p className="mt-3 max-w-full truncate text-[14px] sm:text-[19px] font-medium text-[#8E8E93]">
+          <p className="mt-3 max-w-full truncate text-[14px] sm:text-[19px] font-medium text-muted">
             {email}
           </p>
         </section>
 
         <section className="mt-7">
-          <h2 className="mb-3 px-2 text-[22px] sm:text-[28px] font-black tracking-[-0.05em]">
+          <h2 className="mb-3 px-2 text-[22px] sm:text-[28px] font-semibold tracking-[-0.05em]">
             Account Info
           </h2>
 
-          <div className="overflow-hidden rounded-[24px] sm:rounded-[32px] bg-white border border-black/5">
+          <div className="overflow-hidden rounded-panel sm:rounded-hero bg-surface border border-line">
             <div className="px-4 py-2.5">
-              <label className="block text-[13px] font-semibold text-[#8E8E93]">
+              <label className="block text-[13px] font-semibold text-muted">
                 Name
               </label>
 
@@ -546,15 +546,15 @@ async function uploadAvatar() {
                   setMessage('')
                 }}
                 placeholder="Your name"
-                className="mt-1 h-9 w-full appearance-none bg-transparent text-[15px] font-semibold text-black outline-none"
+                className="mt-1 h-9 w-full appearance-none bg-transparent text-[15px] font-semibold text-ink outline-none"
                 disabled={loading}
               />
             </div>
 
-            <div className="mx-5 h-px bg-[#ECECEC]" />
+            <div className="mx-5 h-px bg-ground-sunken" />
 
             <div className="px-4 py-2.5">
-              <label className="block text-[13px] font-semibold text-[#8E8E93]">
+              <label className="block text-[13px] font-semibold text-muted">
                 Email
               </label>
 
@@ -562,14 +562,14 @@ async function uploadAvatar() {
                 type="email"
                 value={email}
                 readOnly
-                className="mt-1 h-9 w-full appearance-none bg-transparent text-[15px] font-semibold text-black outline-none"
+                className="mt-1 h-9 w-full appearance-none bg-transparent text-[15px] font-semibold text-ink outline-none"
               />
             </div>
 
-            <div className="mx-5 h-px bg-[#ECECEC]" />
+            <div className="mx-5 h-px bg-ground-sunken" />
 
             <div className="px-5 py-2.5">
-              <label className="block text-[13px] font-semibold text-[#8E8E93]">
+              <label className="block text-[13px] font-semibold text-muted">
                 Region
               </label>
 
@@ -581,7 +581,7 @@ async function uploadAvatar() {
                   setMessage('')
                 }}
                 disabled={loading}
-                className="mt-1 h-9 w-full appearance-none bg-transparent text-[15px] font-semibold text-black outline-none"
+                className="mt-1 h-9 w-full appearance-none bg-transparent text-[15px] font-semibold text-ink outline-none"
               >
                 <option value="">Select region</option>
                 {REGIONS.map((item) => (
@@ -592,10 +592,10 @@ async function uploadAvatar() {
               </select>
             </div>
 
-            <div className="mx-5 h-px bg-[#ECECEC]" />
+            <div className="mx-5 h-px bg-ground-sunken" />
 
             <div className="px-5 py-5">
-              <label className="block text-[13px] font-semibold text-[#8E8E93]">
+              <label className="block text-[13px] font-semibold text-muted">
                 Province
               </label>
 
@@ -606,7 +606,7 @@ async function uploadAvatar() {
                   setMessage('')
                 }}
                 disabled={loading || !region}
-                className="mt-2 h-8 w-full appearance-none bg-transparent text-[14px] font-semibold text-black outline-none disabled:text-[#8E8E93]"
+                className="mt-2 h-8 w-full appearance-none bg-transparent text-[14px] font-semibold text-ink outline-none disabled:text-muted"
               >
                 <option value="">
                   {region ? 'Select province' : 'Select region first'}
@@ -622,7 +622,7 @@ async function uploadAvatar() {
         </section>
 
         {message ? (
-          <div className="mt-5 rounded-[24px] border border-red-100 bg-[#FFF1F1] px-5 py-4 text-sm font-bold text-red-500">
+          <div className="mt-5 rounded-panel border border-red-100 bg-red-50 px-5 py-4 text-sm font-bold text-red-500">
             {message}
           </div>
         ) : null}
@@ -632,16 +632,16 @@ async function uploadAvatar() {
             type="button"
             onClick={handleSave}
             disabled={loading}
-            className="flex h-12 w-full items-center justify-center rounded-[18px] bg-[#F0B1DE] text-[15px] font-bold text-[#1C0617] transition active:scale-[0.98] disabled:opacity-50"
+            className="flex h-12 w-full items-center justify-center rounded-card bg-ink text-white text-[15px] font-bold text-ink transition active:scale-[0.98] disabled:opacity-50"
           >
             {loading ? 'Saving...' : 'Save Changes'}
           </button>
         </section>
 
         <section className="mt-8">
-          <div className="overflow-hidden rounded-[20px] bg-white border border-black/5">
+          <div className="overflow-hidden rounded-panel bg-surface border border-line">
             <div className="flex items-start gap-4 px-5 py-5">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[#F2F3F7]">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-ground-sunken">
                 <AppIcon name="bell" size={24} />
               </div>
 
@@ -650,7 +650,7 @@ async function uploadAvatar() {
                   Profile sync
                 </p>
 
-                <p className="mt-1 text-[13px] font-medium leading-relaxed text-[#8E8E93]">
+                <p className="mt-1 text-[13px] font-medium leading-relaxed text-muted">
                   Your name, avatar, region, and province will refresh across
                   the app after saving.
                 </p>

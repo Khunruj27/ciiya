@@ -93,12 +93,14 @@ const storageLimitBytes = Number(
     0
   )
 
+  // The meter now sits on the ink storage card, so it needs colours that
+  // read against dark rather than the near-black it used to use on white.
   const barColor =
     usagePercent >= 90
-      ? 'bg-red-500'
+      ? 'bg-red-400'
       : usagePercent >= 70
-        ? 'bg-yellow-500'
-        : 'bg-[#1C0617]'
+        ? 'bg-amber-400'
+        : 'bg-gold'
 
   const displayName =
     user.user_metadata?.full_name ||
@@ -119,196 +121,209 @@ const storageLimitBytes = Number(
   }
 
   return (
-    <main className="min-h-screen bg-[#F9F9F9] px-5 pt-[max(60px,env(safe-area-inset-top))] pb-[max(120px,calc(env(safe-area-inset-bottom)+40px))] text-[#1C0617]">
+    <main className="min-h-screen bg-ground px-5 pt-[max(56px,env(safe-area-inset-top))] pb-[max(120px,calc(env(safe-area-inset-bottom)+40px))] text-ink">
       <div className="mx-auto w-full max-w-[390px]">
-        {/* HEADER */}
-        <section className="flex items-center justify-between px-1">
-          <div>
-            <h1 className="mt-1 text-[34px] font-black leading-none tracking-[-0.06em]">
-              Account
-            </h1>
-          </div>
-        </section>
+        <h1 className="px-1 text-[32px] font-bold leading-none tracking-[-0.045em]">
+          Account
+        </h1>
 
-        {/* PROFILE */}
+        {/*
+          The profile reads as a row rather than the centred portrait block it
+          was: the name and address matter more than a 112px avatar, and the
+          row leaves the storage card below as the screen's one focal point.
+        */}
         <Link
           href="/me/edit"
-          className="mt-6 block rounded-[34px] border border-black/5 bg-white p-4"
+          className="mt-5 flex items-center gap-4 rounded-panel border border-line bg-surface p-3 transition active:scale-[0.99]"
         >
-          <div className="flex flex-col items-center text-center">
-            <div className="relative h-28 w-28 overflow-hidden rounded-full bg-[#F2EEE9] ring-4 ring-[#FAF7F4]">
-              {avatarUrl ? (
-                <Image
-                  src={avatarUrl}
-                  alt={displayName}
-                  fill
-                  sizes="112px"
-                  className="object-cover"
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-4xl font-black text-[#B8AEB4]">
-                  {displayName.slice(0, 1).toUpperCase()}
-                </div>
-              )}
-            </div>
+          <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-ground-sunken">
+            {avatarUrl ? (
+              <Image
+                src={avatarUrl}
+                alt={displayName}
+                fill
+                sizes="56px"
+                className="object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-[20px] font-semibold text-muted">
+                {displayName.slice(0, 1).toUpperCase()}
+              </div>
+            )}
+          </div>
 
-            <h2 className="mt-5 max-w-full truncate text-[30px] font-black leading-none tracking-[-0.06em]">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[17px] font-semibold tracking-[-0.02em]">
               {displayName}
-            </h2>
-
-            <p className="mt-2 max-w-full truncate text-[14px] font-semibold text-[#8E8E93]">
+            </p>
+            <p className="mt-0.5 truncate text-[13px] font-normal text-muted">
               {user.email}
             </p>
-
             {province || region ? (
-              <p className="mt-2 text-[13px] font-semibold text-[#A0969B]">
+              <p className="mt-0.5 truncate text-[12px] font-normal text-muted/80">
                 {province}
                 {province && region ? ' • ' : ''}
                 {region}
               </p>
             ) : null}
           </div>
+
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-muted">
+            <path d="m9 18 6-6-6-6" />
+          </svg>
         </Link>
 
-        {/* OVERVIEW */}
-        <section className="mt-6 grid grid-cols-2 gap-3">
-          <div className="rounded-[26px] border border-black/5 bg-[#F0B1DE] px-4 py-3">
-            <p className="text-[12px] font-bold text-[#4A3140]">Albums</p>
-            <p className="mt-1 text-[28px] font-black leading-none tracking-[-0.06em]">
-              {albumCount || 0}
-            </p>
+        {/*
+          Four figures on one surface separated by hairlines. As four saturated
+          cards — pink, lime, cream, blue — they read as four unrelated things
+          competing for the same glance, when they are just four counts.
+        */}
+        <section className="mt-3 grid grid-cols-4 divide-x divide-line rounded-panel border border-line bg-surface py-3">
+          {[
+            ['Albums', albumCount || 0],
+            ['Photos', photoCount || 0],
+            ['Views', totalViews],
+            ['Shares', totalShares],
+          ].map(([label, value]) => (
+            <div key={String(label)} className="px-1 text-center">
+              <p className="text-[20px] font-semibold leading-none tracking-[-0.04em] tabular-nums">
+                {value}
+              </p>
+              <p className="mt-1.5 text-[10px] font-medium uppercase tracking-[0.1em] text-muted">
+                {label}
+              </p>
+            </div>
+          ))}
+        </section>
+
+        {/* Storage is the one thing on this screen with a limit worth watching,
+            so it gets the dark card and everything else stays quiet. */}
+        <section className="mt-3 rounded-hero bg-ink p-5 text-white">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
+                Storage
+              </p>
+              <p className="mt-2 text-[26px] font-bold leading-none tracking-[-0.045em] tabular-nums">
+                {formatBytes(totalBytes)}
+                <span className="text-[14px] font-normal text-white/45">
+                  {' '}/ {formatBytes(storageLimitBytes)}
+                </span>
+              </p>
+            </div>
+
+            <span className="shrink-0 rounded-full border border-gold/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-gold">
+              {PLAN_LIMITS[storagePlanKey].name}
+            </span>
           </div>
 
-          <div className="rounded-[26px] border border-black/5 bg-[#D0F578] px-4 py-3">
-            <p className="text-[12px] font-bold text-[#344318]">Photos</p>
-            <p className="mt-1 text-[28px] font-black leading-none tracking-[-0.06em]">
-              {photoCount || 0}
-            </p>
+          <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-white/12">
+            <div
+              className={`${barColor} h-full rounded-full transition-all duration-500`}
+              style={{ width: `${usagePercent}%` }}
+            />
           </div>
 
-          <div className="rounded-[26px] border border-black/5 bg-[#F6EEE6] px-4 py-3">
-            <p className="text-[12px] font-bold text-[#6F5C4E]">Views</p>
-            <p className="mt-1 text-[28px] font-black leading-none tracking-[-0.06em]">
-              {totalViews}
-            </p>
-          </div>
-
-          <div className="rounded-[26px] border border-black/5 bg-[#E9F2FB] px-4 py-3">
-            <p className="text-[12px] font-bold text-[#40556A]">Shares</p>
-            <p className="mt-1 text-[28px] font-black leading-none tracking-[-0.06em]">
-              {totalShares}
-            </p>
+          <div className="mt-2.5 flex items-center justify-between text-[11px] font-normal text-white/45 tabular-nums">
+            <span>{Math.round(usagePercent)}% used</span>
+            <span>
+              {formatBytes(Math.max(0, storageLimitBytes - totalBytes))} left
+            </span>
           </div>
         </section>
 
-        {/* STORAGE */}
-        <section className="mt-6">
-          <div className="rounded-[30px] border border-black/5 bg-white p-5">
-            <div className="flex items-center justify-between gap-4">
-              <div className="min-w-0">
-                <p className="truncate text-[21px] font-black tracking-[-0.04em]">
-                  Storage used
-                </p>
+        <Link
+          href="/pricing"
+          className="mt-3 flex items-center gap-3 rounded-panel border border-gold/30 bg-gold-soft px-4 py-3.5 transition active:scale-[0.99]"
+        >
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink text-gold">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+              <path d="M12 3 14.2 8.6 20 9.3l-4.2 4 1.1 5.7L12 16.3 7.1 19l1.1-5.7-4.2-4 5.8-.7z" />
+            </svg>
+          </span>
 
-                <p className="mt-1 text-[14px] font-semibold text-[#8E8E93]">
-                  {formatBytes(totalBytes)} of {formatBytes(storageLimitBytes)}
-                </p>
-              </div>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[14px] font-semibold text-ink">
+              อัปเกรดแพ็กเกจ
+            </span>
+            <span className="block text-[12px] font-normal text-gold-deep">
+              พื้นที่มากขึ้น สำหรับงานที่ถ่ายถี่
+            </span>
+          </span>
 
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#F6EEE6] text-[16px] font-black text-[#1C0617]">
-                {Math.round(usagePercent)}%
-              </div>
-            </div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-gold-deep">
+            <path d="m9 18 6-6-6-6" />
+          </svg>
+        </Link>
 
-            <div className="mt-5 h-3 overflow-hidden rounded-full bg-[#EEE7E1]">
-              <div
-                className={`${barColor} h-full rounded-full transition-all duration-500`}
-                style={{ width: `${usagePercent}%` }}
-              />
-            </div>
-
-            <div className="mt-2 flex items-center justify-between text-[12px] font-semibold text-[#A0969B]">
-              <span>{Math.round(usagePercent)}% used</span>
-              <span>
-                {formatBytes(Math.max(0, storageLimitBytes - totalBytes))} left
-              </span>
-            </div>
-
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <Link
-                href="/pricing"
-                className="flex h-12 items-center justify-center rounded-full border border-black/5 bg-[#F0B1DE] px-4 text-sm font-black text-[#1C0617]"
-              >
-                Manage Plan
-              </Link>
-
-              <BillingPortalButton />
-            </div>
-          </div>
-        </section>
+        <div className="mt-3">
+          <BillingPortalButton />
+        </div>
 
         {/* RECENT ALBUMS */}
         <section className="mt-7">
           <div className="mb-3 flex items-center justify-between px-1">
-            <h2 className="text-[25px] font-black tracking-[-0.05em]">
+            <h2 className="text-[20px] font-bold tracking-[-0.035em]">
               Recent Albums
             </h2>
 
-            <Link href="/albums" className="text-[14px] font-black text-[#1C0617]">
+            <Link href="/albums" className="text-[13px] font-semibold text-muted">
               See all
             </Link>
           </div>
 
-          <div className="overflow-hidden rounded-[30px] border border-black/5 bg-white">
+          <div className="overflow-hidden rounded-panel border border-line bg-surface">
             {(latestAlbums || []).length > 0 ? (
               (latestAlbums || []).map((album, index) => (
                 <Link key={album.id} href={`/albums/${album.id}`}>
-                  <div className="flex items-center gap-3 px-4 py-3.5">
-                    <div className="relative h-15 w-15 h-[60px] w-[60px] overflow-hidden rounded-[20px] bg-[#F2EEE9]">
+                  <div className="flex items-center gap-3 px-3 py-3">
+                    <div className="relative h-[52px] w-[52px] shrink-0 overflow-hidden rounded-card bg-ground-sunken">
                       {album.cover_url ? (
                         <Image
                           src={album.cover_url}
                           alt={album.title || 'Album'}
                           fill
-                          sizes="60px"
+                          sizes="52px"
                           unoptimized
                           className="object-cover"
                         />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center text-xs font-bold text-[#B8AEB4]">
-                          No
+                        <div className="flex h-full w-full items-center justify-center text-[10px] font-medium text-muted">
+                          No cover
                         </div>
                       )}
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[16px] font-black tracking-[-0.03em]">
+                      <p className="truncate text-[15px] font-semibold tracking-[-0.02em]">
                         {album.title || 'Untitled Album'}
                       </p>
 
-                      <p className="mt-1 text-[13px] font-semibold text-[#8E8E93]">
+                      <p className="mt-0.5 text-[12px] font-normal text-muted tabular-nums">
                         {Number(album.view_count || 0)} views ·{' '}
                         {Number(album.share_count || 0)} shares
                       </p>
                     </div>
 
-                    <span className="text-3xl font-light text-[#C7C7CC]">›</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-muted">
+                      <path d="m9 18 6-6-6-6" />
+                    </svg>
                   </div>
 
                   {index < (latestAlbums || []).length - 1 ? (
-                    <div className="ml-[92px] h-px bg-[#F0ECE8]" />
+                    <div className="ml-[76px] h-px bg-line" />
                   ) : null}
                 </Link>
               ))
             ) : (
               <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
-                <AppIcon name="gallery" size={44} className="mb-3 opacity-35" />
+                <AppIcon name="gallery" size={40} className="mb-3 opacity-30" />
 
-                <p className="text-lg font-black text-[#1C0617]">
+                <p className="text-[16px] font-semibold text-ink">
                   No albums yet
                 </p>
 
-                <p className="mt-1 text-sm font-semibold text-[#9A8B92]">
+                <p className="mt-1 text-[13px] font-normal text-muted">
                   Create your first album to start
                 </p>
               </div>
@@ -317,18 +332,17 @@ const storageLimitBytes = Number(
         </section>
 
         {/* SIGN OUT */}
-        <form action={signOutAction} className="mt-8">
+        <form action={signOutAction} className="mt-7">
           <button
             type="submit"
-            className="flex h-13 min-h-13 w-full items-center justify-center rounded-full border border-black/5 bg-white text-[15px] font-black text-red-500"
+            className="flex h-12 w-full items-center justify-center rounded-full border border-line bg-surface text-[14px] font-semibold text-red-600 transition active:scale-[0.99]"
           >
             Sign Out
           </button>
         </form>
 
-        {/* FOOTER */}
         <footer className="text-center">
-          <p className="pt-5 text-[13px] font-semibold text-[#B0A6AB]">
+          <p className="pt-5 text-[11px] font-normal text-muted">
             Ciiya Version 23.1
           </p>
         </footer>
@@ -336,39 +350,24 @@ const storageLimitBytes = Number(
 
       {/* BOTTOM NAV */}
       <nav className="fixed left-0 right-0 z-50 bottom-[max(20px,env(safe-area-inset-bottom))] flex justify-center px-5">
-        <div className="inline-flex items-center gap-5 rounded-full bg-white/88 border border-black/5 px-4 py-3 backdrop-blur-xl">
-          <Link
-            href="/albums"
-            className="flex h-11 w-11 items-center justify-center rounded-full text-black"
-          >
+        <div className="inline-flex items-center gap-5 rounded-full border border-line bg-surface/90 px-4 py-3 shadow-lift backdrop-blur-xl">
+          <Link href="/albums" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
             <AppIcon name="album" size={24} />
           </Link>
 
-          <Link
-            href="/portfolio"
-            className="flex h-11 w-11 items-center justify-center rounded-full text-black"
-          >
+          <Link href="/portfolio" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
             <AppIcon name="portfolio" size={21} />
           </Link>
 
-          <Link
-            href="/ai-retouch"
-            className="flex h-11 w-11 items-center justify-center rounded-full text-black"
-          >
+          <Link href="/ai-retouch" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
             <AppIcon name="magic-wand" size={24} />
           </Link>
 
-          <Link
-            href="/notifications"
-            className="flex h-11 w-11 items-center justify-center rounded-full text-black"
-          >
+          <Link href="/notifications" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
             <AppIcon name="bell" size={20} />
           </Link>
 
-          <Link
-            href="/me"
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-[#ededed]"
-          >
+          <Link href="/me" className="flex h-11 w-11 items-center justify-center rounded-full bg-gold-soft text-gold-deep">
             <AppIcon name="user" size={17} />
           </Link>
         </div>

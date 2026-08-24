@@ -30,8 +30,8 @@ export default function ScrollToTopButton() {
       }
       className="
         fixed
-        bottom-50
-        right-4
+        bottom-6
+        left-4
         z-50
         flex
         flex-col

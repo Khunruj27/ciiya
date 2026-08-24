@@ -43,22 +43,16 @@ export default async function AlbumsPage() {
   .order('created_at', { ascending: false })
 
   const albums = albumsData ?? []
-  const albumIds = albums.map((a) => a.id)
 
-  const { data: photoRowsData } =
-    albumIds.length > 0
-      ? await supabase.from('photos').select('album_id').in('album_id', albumIds)
-      : { data: [] }
-
-  const photoRows = photoRowsData ?? []
-
-  const photoCountMap = photoRows.reduce<Record<string, number>>((acc, row) => {
-    const id = String(row.album_id)
-    acc[id] = (acc[id] || 0) + 1
+  const photoCountMap = albums.reduce<Record<string, number>>((acc, album) => {
+    acc[album.id] = album.photo_count || 0
     return acc
   }, {})
 
-  const totalPhotos = photoRows.length
+  const totalPhotos = albums.reduce(
+    (sum, album) => sum + (album.photo_count || 0),
+    0
+  )
 
   return (
     <main className="min-h-dvh overflow-x-hidden bg-[#F9F9F9] text-black">

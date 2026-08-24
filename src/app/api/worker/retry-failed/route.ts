@@ -56,7 +56,6 @@ export async function POST() {
   .from('photo_jobs')
   .select('id, photo_id')
   .eq('status', 'failed')
-  .lt('retry_count', 3)
   .order('updated_at', { ascending: true })
   .limit(100)
 
@@ -81,6 +80,8 @@ const { error } = await supabaseAdmin
   .update({
     status: 'pending',
     progress: 0,
+    retry_count: 0,
+    retries: 0,
     error: null,
     worker_id: null,
     claimed_by: null,

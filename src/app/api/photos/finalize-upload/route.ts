@@ -561,10 +561,46 @@ if (presetPath && hasUnsafeStoragePath(presetPath)) {
   )
 }
 
-const originalFileExists = await storageObjectExists(
-  supabaseAdmin,
-  storagePath
-)
+const presetBucket = presetPath
+  ? presetPath.startsWith(expectedUserPresetPrefix)
+    ? 'presets'
+    : 'albums'
+  : null
+
+const [
+  originalFileExists,
+  presetFileExists,
+  existingPhotoResult,
+] = await Promise.all([
+  storageObjectExists(supabaseAdmin, storagePath),
+  presetPath
+    ? storageObjectExists(supabaseAdmin, presetPath, presetBucket!)
+    : Promise.resolve(true),
+  supabaseAdmin
+    .from('photos')
+    .select(
+      `
+      id,
+      album_id,
+      owner_id,
+      user_id,
+      filename,
+      file_name,
+      file_hash,
+      public_url,
+      original_url,
+      preview_url,
+      thumbnail_url,
+      processing_status,
+      original_path,
+      storage_path,
+      preset_path
+    `
+    )
+    .eq('album_id', albumId)
+    .eq('file_hash', fileHash)
+    .maybeSingle(),
+])
 
 if (!originalFileExists) {
   return NextResponse.json(
@@ -573,31 +609,25 @@ if (!originalFileExists) {
   )
 }
 
-if (presetPath) {
-  const presetBucket =
-    presetPath.startsWith(
-      expectedUserPresetPrefix
-    )
-      ? 'presets'
-      : 'albums'
-
-  const presetFileExists =
-    await storageObjectExists(
-      supabaseAdmin,
-      presetPath,
-      presetBucket
-    )
-
-  if (!presetFileExists) {
-    return NextResponse.json(
-      {
-        error:
-          'Preset file not found in storage',
-      },
-      { status: 400 }
-    )
-  }
+if (presetPath && !presetFileExists) {
+  return NextResponse.json(
+    {
+      error:
+        'Preset file not found in storage',
+    },
+    { status: 400 }
+  )
 }
+
+    const { data: existingPhoto, error: existingPhotoError } =
+      existingPhotoResult
+
+    if (existingPhotoError) {
+      return NextResponse.json(
+        { error: existingPhotoError.message },
+        { status: 500 }
+      )
+    }
 
     const jobPriority = getPhotoJobPriority({
       fileSizeBytes,
@@ -610,39 +640,6 @@ if (presetPath) {
       .getPublicUrl(storagePath)
 
     const publicUrl = publicUrlData.publicUrl
-
-    const { data: existingPhoto, error: existingPhotoError } =
-      await supabaseAdmin
-        .from('photos')
-        .select(
-          `
-          id,
-          album_id,
-          owner_id,
-          user_id,
-          filename,
-          file_name,
-          file_hash,
-          public_url,
-          original_url,
-          preview_url,
-          thumbnail_url,
-          processing_status,
-          original_path,
-          storage_path,
-          preset_path
-        `
-        )
-        .eq('album_id', albumId)
-        .eq('file_hash', fileHash)
-        .maybeSingle()
-
-    if (existingPhotoError) {
-      return NextResponse.json(
-        { error: existingPhotoError.message },
-        { status: 500 }
-      )
-    }
 
     if (existingPhoto) {
       const needsRepair =
@@ -891,8 +888,6 @@ if (estimatedNextUsage > currentLimit) {
     )
   }
 }
-
-    await safeRecalculateStorage(supabaseAdmin, ownerId)
 
     return NextResponse.json({
       success: true,

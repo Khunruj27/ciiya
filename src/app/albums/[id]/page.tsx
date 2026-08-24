@@ -78,49 +78,67 @@ export default async function AlbumDetailPage({ params }: PageProps) {
     shareToken = newToken
   }
 
-  const { data: photosData, error: photosError } = await supabase
-  .from('photos')
-  .select(
-  `
-  id,
-  album_id,
-  owner_id,
-  filename,
-  file_name,
-  original_path,
-  public_url,
-  preview_url,
-  thumbnail_url,
-  hd_url,
-  uhd_url,
-  blur_data_url,
-  processing_status,
-  processing_progress,
-  created_at
-  `
-)
-  .eq('album_id', id)
-  .eq('owner_id', user.id)
-  .order('created_at', { ascending: false })
+  const [
+    photosResult,
+    peopleCountResult,
+    categoriesResult,
+    cameraImportsResult,
+  ] = await Promise.all([
+    supabase
+      .from('photos')
+      .select(
+        `
+        id,
+        album_id,
+        owner_id,
+        filename,
+        file_name,
+        original_path,
+        public_url,
+        preview_url,
+        thumbnail_url,
+        hd_url,
+        uhd_url,
+        blur_data_url,
+        processing_status,
+        processing_progress,
+        created_at
+        `
+      )
+      .eq('album_id', id)
+      .eq('owner_id', user.id)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('face_clusters')
+      .select('id', {
+        count: 'exact',
+        head: true,
+      })
+      .eq('album_id', id),
+    supabase
+      .from('categories')
+      .select('*')
+      .eq('album_id', id)
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('camera_live_imports')
+      .select('id, filename, status, progress, storage_path, created_at')
+      .eq('album_id', id)
+      .in('status', ['imported', 'uploading', 'finalizing'])
+      .order('created_at', { ascending: false })
+      .limit(24),
+  ])
+
+  const { data: photosData, error: photosError } = photosResult
 
   if (photosError) throw new Error(photosError.message)
 
   const photos = photosData ?? []
   const photoCount = photos.length
 
-  const { count: peopleCount } = await supabase
-    .from('face_clusters')
-    .select('id', {
-      count: 'exact',
-      head: true,
-    })
-    .eq('album_id', id)
+  const { count: peopleCount } = peopleCountResult
 
-  const { data: categoriesData, error: categoriesError } = await supabase
-    .from('categories')
-    .select('*')
-    .eq('album_id', id)
-    .order('created_at', { ascending: true })
+  const { data: categoriesData, error: categoriesError } = categoriesResult
 
   if (categoriesError) {
   console.error(
@@ -131,13 +149,7 @@ export default async function AlbumDetailPage({ params }: PageProps) {
 
 const categories = categoriesError ? [] : categoriesData ?? []
 
-    const { data: cameraImportsData } = await supabase
-    .from('camera_live_imports')
-    .select('id, filename, status, progress, storage_path, created_at')
-    .eq('album_id', id)
-    .in('status', ['imported', 'uploading', 'finalizing'])
-    .order('created_at', { ascending: false })
-    .limit(24)
+    const { data: cameraImportsData } = cameraImportsResult
 
 const existingPhotoNames = new Set(
   photos

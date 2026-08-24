@@ -836,6 +836,67 @@ async function resumeStuckImports(session: CameraUploadSession) {
   }
 }
 
+const MAX_CAMERA_IMPORT_RETRIES = 3
+
+// getUntrackedFiles treats any tracked filename as "already seen"
+// regardless of status, so a file that reached status='failed' (e.g.
+// a network blip during finalize-upload) would otherwise never be
+// reconsidered. The downloaded local file is preserved on failure
+// (uploadLocalCameraFile only unlinks it after a full success), so a
+// retry can go straight to uploadLocalCameraFile the same way a stuck
+// 'imported' row does. Storage-limit failures are excluded since
+// retrying won't help until the user frees space or upgrades.
+async function retryFailedImports(session: CameraUploadSession) {
+  const { data, error } = await supabase
+    .from('camera_live_imports')
+    .select('camera_file_id, filename, retry_count, error')
+    .eq('album_id', session.album_id)
+    .eq('status', 'failed')
+    .lt('retry_count', MAX_CAMERA_IMPORT_RETRIES)
+
+  if (error) {
+    console.error(
+      '[camera-live-import-worker] retry failed imports lookup failed:',
+      error.message
+    )
+    return
+  }
+
+  const retryableRows = (data || []).filter(
+    (row) => !isStorageLimitError(new Error(String(row.error || '')))
+  )
+
+  if (retryableRows.length === 0) return
+
+  console.log(
+    `[camera-live-import-worker] retrying ${retryableRows.length} previously-failed import(s) album=${session.album_id}`
+  )
+
+  for (const row of retryableRows) {
+    const { error: incrementError } = await supabase
+      .from('camera_live_imports')
+      .update({
+        retry_count: (row.retry_count || 0) + 1,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('album_id', session.album_id)
+      .eq('filename', row.filename)
+
+    if (incrementError) {
+      console.error(
+        `[camera-live-import-worker] retry_count increment failed filename=${row.filename}:`,
+        incrementError.message
+      )
+      continue
+    }
+
+    await uploadLocalCameraFile(session, {
+      cameraFileId: row.camera_file_id || '',
+      filename: row.filename,
+    })
+  }
+}
+
 async function processSession(session: CameraUploadSession) {
   const camera = await getCachedCamera()
 
@@ -851,6 +912,7 @@ async function processSession(session: CameraUploadSession) {
   )
 
   await resumeStuckImports(session)
+  await retryFailedImports(session)
 
     const files = await listCameraJpgFiles()
 

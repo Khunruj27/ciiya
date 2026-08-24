@@ -1353,6 +1353,7 @@ async function pollJobs() {
       withRetry(() =>
         supabase.rpc('claim_next_photo_job', {
           worker_name: workerName,
+          max_per_album: MAX_PER_ALBUM,
         })
       )
     )

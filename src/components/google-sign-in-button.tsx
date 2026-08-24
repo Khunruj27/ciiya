@@ -46,9 +46,16 @@ export default function GoogleSignInButton({
       type="button"
       onClick={handleClick}
       disabled={loading}
-      className="flex h-14 w-full items-center justify-center gap-3 rounded-full border border-black/10 bg-white px-5 text-[15px] font-black text-[#1C0617] transition active:scale-[0.98] disabled:opacity-50"
+      /*
+       * Ink-filled rather than the usual white pill: this is the only action
+       * on the page now, and a white button sitting on a white card had no
+       * hierarchy at all. Google's brand guidance allows a dark button as
+       * long as the mark keeps its own colours, which it does below.
+       */
+      className="flex h-14 w-full items-center justify-center gap-3 rounded-full bg-ink px-5 text-[15px] font-semibold text-white transition active:scale-[0.98] disabled:opacity-50"
     >
-      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white">
+        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
         <path
           fill="#4285F4"
           d="M23.52 12.27c0-.85-.08-1.67-.22-2.45H12v4.64h6.46a5.52 5.52 0 0 1-2.4 3.62v3h3.88c2.27-2.09 3.58-5.17 3.58-8.81z"
@@ -65,9 +72,10 @@ export default function GoogleSignInButton({
           fill="#EA4335"
           d="M12 4.75c1.76 0 3.35.61 4.6 1.8l3.44-3.44C17.95 1.18 15.24 0 12 0A12 12 0 0 0 1.28 6.62l4.01 3.1C6.23 6.87 8.88 4.75 12 4.75z"
         />
-      </svg>
+        </svg>
+      </span>
 
-      {loading ? 'Redirecting…' : label}
+      {loading ? 'กำลังพาไปหน้า Google…' : label}
     </button>
   )
 }

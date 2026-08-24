@@ -19,10 +19,14 @@
 
   --ciiya-ink: #171512;
   --ciiya-ink-soft: #3a3630;
-  --ciiya-muted: #7a736a;
+  /* Darkened from #7a736a, which measured 4.27:1 on the cream ground —
+     under AA for the body copy it carries. */
+  --ciiya-muted: #6e675e;
 
   --ciiya-gold: #c2a15e;
-  --ciiya-gold-deep: #9a7f45;
+  /* Label colour on gold-soft cards. The lighter #9a7f45 sat at 3.03:1
+     against that fill, failing AA for the 12px labels using it. */
+  --ciiya-gold-deep: #75602f;
   --ciiya-gold-soft: #efe4ce;
 
   /* Status only — never decoration. */

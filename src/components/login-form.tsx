@@ -2,26 +2,47 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
 import GoogleSignInButton from '@/components/google-sign-in-button'
 
-export default function SignupPage() {
+export default function LoginForm({
+  initialError = '',
+}: {
+  initialError?: string
+}) {
+  const router = useRouter()
   const supabase = createClient()
 
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [errorMsg, setErrorMsg] = useState('')
-  const [successMsg, setSuccessMsg] = useState('')
+  const [email, setEmail] = useState(() => {
+    if (typeof window === 'undefined') return ''
 
-  async function handleSignup(e: React.FormEvent) {
+    return window.localStorage.getItem('ciiya_remember_email') || ''
+  })
+
+  const [password, setPassword] = useState('')
+
+  const [rememberMe, setRememberMe] = useState(() => {
+    if (typeof window === 'undefined') return true
+
+    return Boolean(window.localStorage.getItem('ciiya_remember_email'))
+  })
+
+  const [loading, setLoading] = useState(false)
+
+  // /auth/callback has no UI of its own, so it reports provider and
+  // code-exchange failures by sending the visitor back here with ?error=.
+  // The page reads it server-side and hands it down, which keeps that message
+  // in the first HTML response instead of appearing only after hydration.
+  const [errorMsg, setErrorMsg] = useState(initialError)
+
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setErrorMsg('')
-    setSuccessMsg('')
 
-    const { error } = await supabase.auth.signUp({
-      email: email.trim(),
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
       password,
     })
 
@@ -32,26 +53,24 @@ export default function SignupPage() {
       return
     }
 
-    /*
-     * No redirect here. Email confirmation is required, so the account is not
-     * usable yet — bouncing to /login sent people to a form that could only
-     * fail, and the state update below never got a chance to render. Stay put
-     * and tell them what to do next.
-     */
-    setSuccessMsg(
-      `ส่งลิงก์ยืนยันไปที่ ${email.trim()} แล้ว เปิดอีเมลแล้วกดลิงก์เพื่อเริ่มใช้งาน`
-    )
-    setPassword('')
+    if (rememberMe) {
+      window.localStorage.setItem('ciiya_remember_email', email)
+    } else {
+      window.localStorage.removeItem('ciiya_remember_email')
+    }
+
+    router.push('/albums')
+    router.refresh()
   }
 
   return (
     <main className="min-h-dvh overflow-hidden bg-[#FAF7F4] text-[#1C0617]">
       <div className="pointer-events-none fixed inset-0">
-        <div className="absolute -top-28 left-1/2 h-[360px] w-[360px] -translate-x-1/2 rounded-full bg-[#D0F578]/45 blur-3xl" />
-        <div className="absolute bottom-[-120px] left-[-120px] h-[320px] w-[320px] rounded-full bg-[#F0B1DE]/50 blur-3xl" />
+        <div className="absolute -top-24 left-1/2 h-[360px] w-[360px] -translate-x-1/2 rounded-full bg-[#F0B1DE]/45 blur-3xl" />
+        <div className="absolute bottom-[-120px] right-[-120px] h-[320px] w-[320px] rounded-full bg-[#D0F578]/45 blur-3xl" />
       </div>
 
-      <div className="relative mx-auto flex min-h-dvh w-full max-w-[393px] flex-col px-5 pt-[max(52px,env(safe-area-inset-top))] pb-[max(30px,env(safe-area-inset-bottom))]">
+      <div className="relative mx-auto flex min-h-dvh w-full max-w-[393px] flex-col px-5 pt-[max(52px,env(safe-area-inset-top))] pb-[max(34px,env(safe-area-inset-bottom))]">
         <header className="flex items-center justify-between">
           <Link
             href="/"
@@ -61,36 +80,36 @@ export default function SignupPage() {
           </Link>
 
           <Link
-            href="/login"
+            href="/signup"
             className="flex h-11 items-center justify-center rounded-full border border-black/5 bg-white/80 px-5 text-[13px] font-black text-[#1C0617] backdrop-blur-xl transition active:scale-95"
           >
-            Login
+            Sign up
           </Link>
         </header>
 
         <section className="flex flex-1 flex-col justify-center py-8">
           <div className="mb-7 px-1">
             <div className="inline-flex items-center gap-2 rounded-full border border-black/5 bg-white/70 px-3 py-2 backdrop-blur-xl">
-              <span className="h-2.5 w-2.5 rounded-full bg-[#D0F578]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-[#F0B1DE]" />
               <span className="text-[12px] font-black uppercase tracking-[0.16em] text-[#8E8E93]">
-                Join Ciiya
+                Welcome back
               </span>
             </div>
 
             <h1 className="mt-6 text-[48px] font-black leading-[0.88] tracking-[-0.08em] text-[#1C0617]">
-              Start your
+              Log in
               <br />
-              photo journey.
+              to Ciiya.
             </h1>
 
-            <p className="mt-4 max-w-[320px] text-[15px] font-semibold leading-6 text-[#8E8E93]">
-              Create albums, upload event photos, share galleries, and deliver
-              memories beautifully.
+            <p className="mt-4 max-w-[310px] text-[15px] font-semibold leading-6 text-[#8E8E93]">
+              Manage albums, upload photos, and share galleries with your
+              clients.
             </p>
           </div>
 
           <form
-            onSubmit={handleSignup}
+            onSubmit={handleLogin}
             className="rounded-[34px] border border-black/5 bg-white/90 p-4 backdrop-blur-xl"
           >
             <div className="rounded-[26px] bg-[#FAF7F4] p-3">
@@ -116,9 +135,28 @@ export default function SignupPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Create a secure password"
+                placeholder="••••••••"
                 className="mt-1 h-12 w-full rounded-[20px] border border-black/5 bg-white px-4 text-[15px] font-bold text-[#1C0617] outline-none placeholder:text-slate-300 focus:border-[#F0B1DE]"
               />
+            </div>
+
+            <div className="mt-4 flex items-center justify-between gap-3 px-1">
+              <label className="flex items-center gap-2 text-[13px] font-bold text-[#8E8E93]">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 rounded accent-[#F0B1DE]"
+                />
+                Remember me
+              </label>
+
+              <Link
+                href="/forgot-password"
+                className="text-[13px] font-black text-[#1C0617]"
+              >
+                Forgot?
+              </Link>
             </div>
 
             {errorMsg ? (
@@ -127,18 +165,12 @@ export default function SignupPage() {
               </p>
             ) : null}
 
-            {successMsg ? (
-              <p className="mt-4 rounded-[20px] border border-green-100 bg-green-50 px-4 py-3 text-[13px] font-bold text-green-600">
-                {successMsg}
-              </p>
-            ) : null}
-
             <button
               type="submit"
-              disabled={loading || !email || !password}
-              className="mt-5 flex h-14 w-full items-center justify-center rounded-full border border-black/5 bg-[#D0F578] px-5 text-[15px] font-black text-[#1C0617] transition active:scale-[0.98] disabled:opacity-50"
+              disabled={loading}
+              className="mt-5 flex h-14 w-full items-center justify-center rounded-full border border-black/5 bg-[#F0B1DE] px-5 text-[15px] font-black text-[#1C0617] transition active:scale-[0.98] disabled:opacity-50"
             >
-              {loading ? 'Creating account...' : 'Create Account'}
+              {loading ? 'Logging in...' : 'Log In'}
             </button>
 
             <div className="my-5 flex items-center gap-3">
@@ -151,23 +183,13 @@ export default function SignupPage() {
 
             <GoogleSignInButton next="/albums" onError={setErrorMsg} />
 
-            <div className="mt-4 rounded-[24px] bg-[#FAF7F4] px-4 py-4 text-center">
-              <p className="text-[13px] font-semibold text-[#8E8E93]">
-                Already have an account?
-              </p>
-
-              <Link
-                href="/login"
-                className="mt-2 inline-block text-[13px] font-black text-[#1C0617]"
-              >
-                Log in instead
+            <p className="mt-5 text-center text-[13px] font-semibold text-[#8E8E93]">
+              Don&apos;t have an account?{' '}
+              <Link href="/signup" className="font-black text-[#1C0617]">
+                Sign up
               </Link>
-            </div>
+            </p>
           </form>
-
-          <p className="mt-6 text-center text-xs font-semibold text-[#8E8E93]">
-            © 2026 Ciiya • Premium Event Gallery Platform
-          </p>
         </section>
       </div>
     </main>

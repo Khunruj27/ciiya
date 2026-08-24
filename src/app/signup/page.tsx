@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase-client'
+import GoogleSignInButton from '@/components/google-sign-in-button'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -134,6 +135,16 @@ export default function SignupPage() {
             >
               {loading ? 'Creating account...' : 'Create Account'}
             </button>
+
+            <div className="my-5 flex items-center gap-3">
+              <span className="h-px flex-1 bg-black/8" />
+              <span className="text-[12px] font-black uppercase tracking-[0.12em] text-[#8E8E93]">
+                or
+              </span>
+              <span className="h-px flex-1 bg-black/8" />
+            </div>
+
+            <GoogleSignInButton next="/albums" onError={setErrorMsg} />
 
             <div className="mt-4 rounded-[24px] bg-[#FAF7F4] px-4 py-4 text-center">
               <p className="text-[13px] font-semibold text-[#8E8E93]">

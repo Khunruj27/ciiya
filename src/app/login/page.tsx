@@ -1,12 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
+import GoogleSignInButton from '@/components/google-sign-in-button'
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageContent />
+    </Suspense>
+  )
+}
+
+function LoginPageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
 
   const [email, setEmail] = useState(() => {
@@ -24,7 +34,12 @@ export default function LoginPage() {
   })
 
   const [loading, setLoading] = useState(false)
-  const [errorMsg, setErrorMsg] = useState('')
+
+  // /auth/callback sends provider and code-exchange failures back here as a
+  // query param, since it has no UI of its own to show them in.
+  const [errorMsg, setErrorMsg] = useState(
+    () => searchParams.get('error') || ''
+  )
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -162,6 +177,16 @@ export default function LoginPage() {
             >
               {loading ? 'Logging in...' : 'Log In'}
             </button>
+
+            <div className="my-5 flex items-center gap-3">
+              <span className="h-px flex-1 bg-black/8" />
+              <span className="text-[12px] font-black uppercase tracking-[0.12em] text-[#8E8E93]">
+                or
+              </span>
+              <span className="h-px flex-1 bg-black/8" />
+            </div>
+
+            <GoogleSignInButton next="/albums" onError={setErrorMsg} />
 
             <p className="mt-5 text-center text-[13px] font-semibold text-[#8E8E93]">
               Don&apos;t have an account?{' '}

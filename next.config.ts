@@ -7,6 +7,19 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: '**.supabase.co',
       },
+      /*
+       * Google account avatars. Signing in with Google puts a
+       * lh3.googleusercontent.com URL in user_metadata.avatar_url, and
+       * next/image rejects any host not listed here — which took down every
+       * screen that renders the profile picture, /albums included. The
+       * hostname is pinned rather than wildcarded across googleusercontent
+       * subdomains, since only this one serves the avatars.
+       */
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+        pathname: '/**',
+      },
     ],
   },
 

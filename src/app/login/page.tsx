@@ -1,22 +1,13 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
 import GoogleSignInButton from '@/components/google-sign-in-button'
 
 export default function LoginPage() {
-  return (
-    <Suspense fallback={null}>
-      <LoginPageContent />
-    </Suspense>
-  )
-}
-
-function LoginPageContent() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const supabase = createClient()
 
   const [email, setEmail] = useState(() => {
@@ -34,12 +25,22 @@ function LoginPageContent() {
   })
 
   const [loading, setLoading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState('')
 
-  // /auth/callback sends provider and code-exchange failures back here as a
-  // query param, since it has no UI of its own to show them in.
-  const [errorMsg, setErrorMsg] = useState(
-    () => searchParams.get('error') || ''
-  )
+  /*
+   * /auth/callback reports provider and code-exchange failures by sending the
+   * visitor back here with ?error=, since it has no UI of its own. Read after
+   * mount rather than through useSearchParams: that hook opts the whole page
+   * out of server rendering, which left visitors staring at a blank screen
+   * until hydration finished.
+   */
+  useEffect(() => {
+    const callbackError = new URLSearchParams(window.location.search).get(
+      'error'
+    )
+
+    if (callbackError) setErrorMsg(callbackError)
+  }, [])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()

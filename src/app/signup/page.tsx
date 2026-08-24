@@ -2,10 +2,12 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
 import GoogleSignInButton from '@/components/google-sign-in-button'
 
 export default function SignupPage() {
+  const router = useRouter()
   const supabase = createClient()
 
   const [email, setEmail] = useState('')
@@ -20,24 +22,32 @@ export default function SignupPage() {
     setErrorMsg('')
     setSuccessMsg('')
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
     })
 
-    setLoading(false)
-
     if (error) {
+      setLoading(false)
       setErrorMsg(error.message)
       return
     }
 
     /*
-     * No redirect here. Email confirmation is required, so the account is not
-     * usable yet — bouncing to /login sent people to a form that could only
-     * fail, and the state update below never got a chance to render. Stay put
-     * and tell them what to do next.
+     * Which outcome happens is a project setting, not something this page can
+     * assume: with email confirmation off, signUp returns a live session and
+     * the account is usable immediately; with it on, there is no session until
+     * the emailed link is clicked. Branching on the session keeps both correct,
+     * so flipping that setting later can't strand people again — sending an
+     * unconfirmed user to /login gave them a form that could only reject them.
      */
+    if (data.session) {
+      router.push('/albums')
+      router.refresh()
+      return
+    }
+
+    setLoading(false)
     setSuccessMsg(
       `ส่งลิงก์ยืนยันไปที่ ${email.trim()} แล้ว เปิดอีเมลแล้วกดลิงก์เพื่อเริ่มใช้งาน`
     )

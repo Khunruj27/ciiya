@@ -7,7 +7,6 @@ import {
   Grid3Icon,
   Grid4Icon,
 } from '@/components/gallery-grid-icons'
-import AutoSizer from 'react-virtualized-auto-sizer'
 import {
   FixedSizeGrid as VirtualGrid,
   type GridChildComponentProps,
@@ -90,6 +89,18 @@ function getRankClass(index: number) {
 function getSafeGridCols(value: number) {
   if (value === 2 || value === 3 || value === 4) return value
   return 3
+}
+
+/*
+ * The 2/3/4 control sets density, not an absolute column count: holding a
+ * literal 3 columns everywhere gave 114px tiles on a phone and 320px tiles
+ * on a desktop off the same setting. Widening the grid adds columns so a
+ * tile stays in roughly the same size band on every device.
+ */
+function getResponsiveGridCols(baseCols: number, containerWidth: number) {
+  if (containerWidth >= 880) return baseCols + 2
+  if (containerWidth >= 620) return baseCols + 1
+  return baseCols
 }
 
 function preloadImage(src?: string | null) {
@@ -300,6 +311,39 @@ export default function PublicGallery({
   const pinchStartDistance = useRef<number | null>(null)
   const startScale = useRef(1)
   const preloadedImagesRef = useRef<Set<string>>(new Set())
+
+  /*
+   * Measured here rather than with AutoSizer: AutoSizer stopped re-reporting
+   * after its first measurement, so rotating a phone left the virtual grid
+   * at the old width — 796px of container still rendering a 343px grid, with
+   * the remainder blank. A ResizeObserver on the container we own reflows on
+   * every size change, including orientation.
+   */
+  const gridContainerRef = useRef<HTMLDivElement | null>(null)
+  const [gridSize, setGridSize] = useState({ width: 0, height: 0 })
+
+  useEffect(() => {
+    const node = gridContainerRef.current
+    if (!node) return
+
+    function measure(element: HTMLDivElement) {
+      const { width, height } = element.getBoundingClientRect()
+
+      setGridSize((current) =>
+        Math.round(current.width) === Math.round(width) &&
+        Math.round(current.height) === Math.round(height)
+          ? current
+          : { width, height }
+      )
+    }
+
+    measure(node)
+
+    const observer = new ResizeObserver(() => measure(node))
+    observer.observe(node)
+
+    return () => observer.disconnect()
+  }, [])
 
   const popularPhotos = useMemo(() => {
     return [...photos].sort((a, b) => {
@@ -536,12 +580,22 @@ useEffect(() => {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-[28px] bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-black/5">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-6">
+      {/*
+        Labels get whitespace-nowrap because at 375px the flex row squeezed
+        them until "Live Photos" broke onto two lines and the flame emoji in
+        "Popular" dropped to a line of its own, which read as a broken bar.
+      */}
+      {/*
+        On a landscape phone the whole toolbar lands in the bottom-right
+        corner, right under the fixed face-search button. Reserving a lane
+        on short viewports keeps the density controls tappable there.
+      */}
+      <div className="rounded-[24px] bg-white p-3 shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-black/5 [@media(max-height:480px)]:pr-[76px] sm:rounded-[28px] sm:p-4 sm:[@media(max-height:480px)]:pr-[76px]">
+        <div className="flex items-center justify-between gap-2 sm:gap-3">
+          <div className="flex shrink-0 items-center gap-4 sm:gap-6">
             <button type="button" onClick={() => setTab('live')}>
               <p
-                className={`text-sm font-semibold ${
+                className={`whitespace-nowrap text-[13px] font-semibold sm:text-sm ${
                   tab === 'live' ? 'text-[#F0B1DE]' : 'text-slate-600'
                 }`}
               >
@@ -554,7 +608,7 @@ useEffect(() => {
 
             <button type="button" onClick={() => setTab('popular')}>
               <p
-                className={`text-sm font-semibold ${
+                className={`whitespace-nowrap text-[13px] font-semibold sm:text-sm ${
                   tab === 'popular' ? 'text-[#F0B1DE]' : 'text-slate-600'
                 }`}
               >
@@ -567,13 +621,15 @@ useEffect(() => {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="grid grid-cols-3 gap-1.5 border border-black/5 overflow-hidden rounded-[26px] p-1.5">
+            <div className="grid shrink-0 grid-cols-3 gap-1 overflow-hidden rounded-[22px] border border-black/5 p-1 sm:gap-1.5 sm:rounded-[26px] sm:p-1.5">
               {[2, 3, 4].map((cols) => (
                  <button
                   key={cols}
                   type="button"
                   onClick={() => setGridCols(cols)}
-                  className={`flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 active:scale-90 ${
+                  aria-label={`ความหนาแน่นระดับ ${cols}`}
+                  aria-pressed={gridCols === cols}
+                  className={`flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200 active:scale-90 sm:h-9 sm:w-9 ${
                     gridCols === cols
                       ? 'bg-[#F0B1DE] text-white shadow-sm'
                       : 'text-slate-500'
@@ -589,37 +645,50 @@ useEffect(() => {
         </div>
       </div>
 
-      <div className="h-[72vh] min-h-[520px] overflow-hidden rounded-[4px]">
-        <AutoSizer>
-          {({ height, width }) => {
-            const safeWidth = Math.max(1, width)
-            const columnWidth = Math.floor(safeWidth / gridCols)
-            const rowHeight = Math.round((columnWidth * 4) / 3)
-            const rowCount = Math.ceil(displayPhotos.length / gridCols)
+      {/*
+        The old floor of 520px was taller than a landscape phone's whole
+        viewport (390px), so the grid alone overflowed the screen. Floor is
+        now low enough to fit one, and the ceiling keeps a tall desktop
+        window from turning the grid into an endless column.
+      */}
+      <div
+        ref={gridContainerRef}
+        className="h-[72vh] max-h-[900px] min-h-[320px] overflow-hidden rounded-[4px]"
+      >
+        {gridSize.width > 0 && gridSize.height > 0
+          ? (() => {
+              const safeWidth = Math.max(1, gridSize.width)
+              const responsiveCols = getResponsiveGridCols(gridCols, safeWidth)
+              const columnWidth = Math.floor(safeWidth / responsiveCols)
+              const rowHeight = Math.round((columnWidth * 4) / 3)
+              const rowCount = Math.ceil(
+                displayPhotos.length / responsiveCols
+              )
 
-            return (
-              <VirtualGrid
-                height={height}
-                width={safeWidth}
-                columnCount={gridCols}
-                columnWidth={columnWidth}
-                rowCount={rowCount}
-                rowHeight={rowHeight}
-                overscanRowCount={3}
-                itemData={gridData}
-                itemKey={({ columnIndex, rowIndex, data }) => {
-                  const photoIndex = rowIndex * data.gridCols + columnIndex
-                  return (
-                    data.photos[photoIndex]?.id ||
-                    `${rowIndex}-${columnIndex}`
-                  )
-                }}
-              >
-                {VirtualPhotoCell}
-              </VirtualGrid>
-            )
-          }}
-        </AutoSizer>
+              return (
+                <VirtualGrid
+                  height={gridSize.height}
+                  width={safeWidth}
+                  columnCount={responsiveCols}
+                  columnWidth={columnWidth}
+                  rowCount={rowCount}
+                  rowHeight={rowHeight}
+                  overscanRowCount={3}
+                  itemData={{ ...gridData, gridCols: responsiveCols }}
+                  itemKey={({ columnIndex, rowIndex, data }) => {
+                    const photoIndex =
+                      rowIndex * data.gridCols + columnIndex
+                    return (
+                      data.photos[photoIndex]?.id ||
+                      `${rowIndex}-${columnIndex}`
+                    )
+                  }}
+                >
+                  {VirtualPhotoCell}
+                </VirtualGrid>
+              )
+            })()
+          : null}
       </div>
 
       {!selectMode ? (

@@ -114,6 +114,45 @@ export const getSharedAlbumPhotos = unstable_cache(
   { revalidate: SHARE_CACHE_TTL_SECONDS }
 )
 
+// Backs the redesign preview routes, which are gated to non-production.
+// They render against a real album so a direction is judged on the
+// photographer's own work rather than stock placeholders.
+export async function getPreviewSample() {
+  const supabase = getAnonClient()
+
+  const { data: album, error } = await supabase
+    .from('albums')
+    .select('id, title, description, cover_url, view_count, created_at')
+    .eq('is_public', true)
+    .eq('status', 'active')
+    .not('share_token', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw new Error(error.message)
+  if (!album) return null
+
+  const { photos, photoCount } = await getSharedAlbumPhotos(album.id)
+
+  return {
+    album,
+    photoCount,
+    photos: photos
+      .map((photo) => ({
+        id: photo.id,
+        src:
+          photo.preview_url ||
+          photo.hd_url ||
+          photo.public_url ||
+          photo.thumbnail_url ||
+          '',
+        alt: photo.filename || 'ภาพจากอัลบั้ม',
+      }))
+      .filter((photo) => photo.src),
+  }
+}
+
 // Cursor-paginated variant for "load more" scrolling past the first page.
 // unstable_cache keys on the actual call arguments too, so each distinct
 // (albumId, cursor, limit) combination gets its own cache entry — this is

@@ -74,83 +74,73 @@ export default async function SharePage({ params }: PageProps) {
    <main className="min-h-screen bg-[#FAF7F4] text-[#1C0617]">
       <ShareViewTracker token={token} />
 
-      <div className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+      {/*
+        HERO — full bleed. It sits outside the padded container so the cover
+        runs edge to edge with no card, border, or corner radius around it.
+        Height tracks the viewport and is deliberately shorter than the rest
+        of the page's rhythm on phones, where a tall cover pushed the photos
+        themselves below the fold.
+      */}
+      <section className="relative h-[30vh] max-h-[360px] min-h-[170px] w-full overflow-hidden bg-black sm:h-[34vh] sm:max-h-[440px]">
+        {album.cover_url ? (
+          <Image
+            src={album.cover_url}
+            alt={album.title || 'Album cover'}
+            fill
+            sizes="100vw"
+            priority
+            unoptimized
+            className="object-cover"
+          />
+        ) : (
+          <div className="h-full w-full bg-gradient-to-br from-[#72D8FF] via-[#5B8CFF] to-[#315BFF]" />
+        )}
 
-      {/* HERO */}
-      <section className="overflow-hidden rounded-[34px] border border-black/5 bg-white p-2">
-        <div className="relative h-[280px] overflow-hidden rounded-[28px] bg-[#F2EEE9] sm:h-[340px] lg:h-[400px]">
-          <div className="relative overflow-hidden rounded-[10px] bg-black shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
-            <div className="relative h-[250px] sm:h-[310px] lg:h-[370px]">
-              {album.cover_url ? (
-                <Image
-                  src={album.cover_url}
-                  alt={album.title || 'Album cover'}
-                  fill
-                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 90vw, 1024px"
-                  priority
-                  unoptimized
-                  className="object-cover"
-                />
-              ) : (
-                <div className="h-full w-full bg-gradient-to-br from-[#72D8FF] via-[#5B8CFF] to-[#315BFF]" />
-              )}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/20 to-black/78" />
 
-              <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/20 to-black/78" />
+        {/* Overlay text keeps the container's gutters so it lines up with the
+            gallery below instead of hugging the screen edge. */}
+        <div className="absolute inset-x-0 top-0">
+          <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-2 px-4 pt-4 sm:px-6 sm:pt-5 lg:px-8">
+            <div className="rounded-full bg-white/18 px-3 py-1.5 text-[11px] font-bold text-white backdrop-blur-xl sm:px-4 sm:py-2 sm:text-[12px]">
+              Gallery
+            </div>
+            <div className="rounded-full bg-white/18 px-3 py-1.5 text-[11px] font-bold text-white backdrop-blur-xl sm:px-4 sm:py-2 sm:text-[12px]">
+              Live album
+            </div>
+          </div>
+        </div>
 
-              <div className="absolute left-5 right-5 top-5 flex items-center justify-between">
-                <div className="rounded-full bg-white/18 px-4 py-2 text-[12px] font-bold text-white backdrop-blur-xl">
-                  Gallery
-                </div>
-
-                <div className="rounded-full bg-white/18 px-4 py-2 text-[12px] font-bold text-white backdrop-blur-xl">
-                  Live album
-                </div>
-              </div>
-              
-              
-              <div className="absolute bottom-4 left-4 right-4">
-               <p className="text-[12px] font-black uppercase tracking-[0.16em] text-white/70">
-                Shared Album
-              </p>
-
-             <h1 className="mt-2 text-[32px] font-black leading-[0.95] tracking-[-0.06em] text-white">
-                {album.title}
-             </h1>
-
-            <p className="mt-2 line-clamp-2 text-[13px] font-semibold leading-snug text-white/75">
-            {album.description || 'View and download your event photos'}
+        <div className="absolute inset-x-0 bottom-0">
+          <div className="mx-auto w-full max-w-5xl px-4 pb-4 sm:px-6 sm:pb-5 lg:px-8">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/70 sm:text-[12px]">
+              Shared Album
             </p>
-            </div>
-              
-            </div>
+            {/*
+              The title block is anchored to the bottom of the cover, so an
+              unclamped title grows upward: a real two-line Thai album name
+              ran 29px into the pills on a landscape phone. Clamping the
+              lines caps that growth, and on short viewports the type shrinks
+              and the description steps aside to leave room.
+            */}
+            <h1 className="mt-1.5 line-clamp-2 text-[clamp(1.75rem,1.1rem+2.4vw,2.75rem)] font-black leading-[0.95] tracking-[-0.05em] text-white text-balance [@media(max-height:480px)]:text-[1.5rem] sm:mt-2">
+              {album.title}
+            </h1>
+            <p className="mt-1.5 line-clamp-2 text-[12px] font-semibold leading-snug text-white/75 [@media(max-height:480px)]:hidden sm:mt-2 sm:text-[14px]">
+              {album.description || 'View and download your event photos'}
+            </p>
           </div>
         </div>
       </section>
 
-     <section className="mt-4 grid grid-cols-2 gap-3 sm:max-w-sm">
-  <div className="rounded-[24px] border border-black/5 bg-[#F0B1DE] px-4 py-3">
-    <p className="text-[12px] font-bold text-[#4A3140]">
-      Photos
-    </p>
-    <p className="mt-1 text-[26px] font-black leading-none tracking-[-0.05em]">
-      {photoCount}
-    </p>
-  </div>
-
-  <div className="rounded-[24px] border border-black/5 bg-[#D0F578] px-4 py-3">
-    <p className="text-[12px] font-bold text-[#344318]">
-      Views
-    </p>
-    <p className="mt-1 text-[26px] font-black leading-none tracking-[-0.05em]">
-      {album.view_count || 0}
-    </p>
-  </div>
-</section>
+      {/* No top padding here — the CONTENT section below already carries it,
+          and doubling them left a wide gap under the full-bleed cover. */}
+      <div className="mx-auto w-full max-w-5xl px-4 pb-5 sm:px-6 sm:pb-6 lg:px-8">
 
       {/* CONTENT */}
       <section className="pb-12 pt-5">
         <div className="space-y-5">
-         <SelfieFaceSearch albumId={album.id} token={token} />
+          <SelfieFaceSearch albumId={album.id} token={token} />
 
           {visiblePhotos.length > 0 ? (
             <PublicGalleryInfinite

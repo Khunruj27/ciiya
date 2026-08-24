@@ -57,9 +57,16 @@ function loadImageFromFile(file: File): Promise<HTMLImageElement> {
 export default function SelfieFaceSearch({
   albumId,
   token,
+  variant = 'floating',
 }: {
   albumId: string
   token: string
+  /*
+   * 'inline' places the trigger in normal page flow. 'floating' pins it
+   * above the bottom-right corner, clear of the centred selection bar and
+   * the bottom-left back-to-top button.
+   */
+  variant?: 'floating' | 'inline'
 }) {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -176,7 +183,11 @@ export default function SelfieFaceSearch({
         }}
         disabled={loading}
         aria-label="ค้นหารูปด้วยใบหน้า"
-        className="fixed right-4 top-1/2 z-50 flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full bg-black text-white shadow-2xl transition hover:scale-105 disabled:opacity-60"
+        className={
+          variant === 'inline'
+            ? 'ml-auto flex shrink-0 items-center gap-2 rounded-full bg-[#1C0617] px-4 py-2.5 text-[12px] font-bold text-white transition active:scale-95 disabled:opacity-60'
+            : 'fixed bottom-5 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-black text-white shadow-2xl transition hover:scale-105 disabled:opacity-60'
+        }
       >
         <svg
           viewBox="0 0 24 24"
@@ -185,7 +196,7 @@ export default function SelfieFaceSearch({
           strokeWidth="1.8"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="h-7 w-7"
+          className={variant === 'inline' ? 'h-4 w-4' : 'h-7 w-7'}
         >
           <path d="M4 8V6a2 2 0 0 1 2-2h2" />
           <path d="M16 4h2a2 2 0 0 1 2 2v2" />
@@ -194,6 +205,8 @@ export default function SelfieFaceSearch({
           <circle cx="12" cy="11" r="3.2" />
           <path d="M9 16.2c.7-1 1.8-1.6 3-1.6s2.3.6 3 1.6" />
         </svg>
+
+        {variant === 'inline' ? <span>หารูปฉัน</span> : null}
       </button>
 
       <input
@@ -208,7 +221,7 @@ export default function SelfieFaceSearch({
       />
 
       {message && !loading && results.length === 0 && (
-        <div className="fixed bottom-24 right-6 z-50 max-w-[320px] rounded-2xl bg-white px-4 py-3 text-sm text-slate-700 shadow-xl">
+        <div className="fixed bottom-44 right-4 z-50 max-w-[min(320px,calc(100vw-2rem))] rounded-2xl bg-white px-4 py-3 text-sm text-slate-700 shadow-xl">
           {message}
         </div>
       )}

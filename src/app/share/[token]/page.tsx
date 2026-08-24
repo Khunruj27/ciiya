@@ -36,17 +36,17 @@ export default async function SharePage({ params }: PageProps) {
 
   if (!album || !isAlbumPubliclyVisible(album)) {
     return (
-      <main className="min-h-screen bg-[#F5F5F7] px-4 py-10 text-black">
-        <div className="mx-auto max-w-[430px] rounded-[36px] bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
-          <p className="text-[13px] font-semibold text-[#8E8E93]">
+      <main className="min-h-screen bg-ground px-4 py-10 text-ink">
+        <div className="mx-auto max-w-[430px] rounded-hero border border-line bg-surface p-7 shadow-card">
+          <p className="text-[13px] font-medium text-muted">
             Ciiya Gallery
           </p>
 
-          <h1 className="mt-3 text-[32px] font-black tracking-[-0.06em]">
+          <h1 className="mt-3 text-[30px] font-bold tracking-[-0.045em]">
             Album not found
           </h1>
 
-          <p className="mt-3 text-[15px] font-medium leading-6 text-[#8E8E93]">
+          <p className="mt-3 text-[14px] font-normal leading-6 text-muted">
             This shared album does not exist or is no longer available.
           </p>
         </div>
@@ -71,7 +71,7 @@ export default async function SharePage({ params }: PageProps) {
       : null
 
   return (
-   <main className="min-h-screen bg-[#FAF7F4] text-[#1C0617]">
+   <main className="min-h-screen bg-ground text-ink">
       <ShareViewTracker token={token} />
 
       {/*
@@ -93,7 +93,7 @@ export default async function SharePage({ params }: PageProps) {
             className="object-cover"
           />
         ) : (
-          <div className="h-full w-full bg-gradient-to-br from-[#72D8FF] via-[#5B8CFF] to-[#315BFF]" />
+          <div className="h-full w-full bg-gradient-to-br from-gold via-gold-deep to-ink" />
         )}
 
         <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/20 to-black/78" />
@@ -102,10 +102,11 @@ export default async function SharePage({ params }: PageProps) {
             gallery below instead of hugging the screen edge. */}
         <div className="absolute inset-x-0 top-0">
           <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-2 px-4 pt-4 sm:px-6 sm:pt-5 lg:px-8">
-            <div className="rounded-full bg-white/18 px-3 py-1.5 text-[11px] font-bold text-white backdrop-blur-xl sm:px-4 sm:py-2 sm:text-[12px]">
+            <div className="rounded-full bg-white/18 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-xl sm:px-4 sm:py-2 sm:text-[12px]">
               Gallery
             </div>
-            <div className="rounded-full bg-white/18 px-3 py-1.5 text-[11px] font-bold text-white backdrop-blur-xl sm:px-4 sm:py-2 sm:text-[12px]">
+            <div className="flex items-center gap-1.5 rounded-full bg-white/18 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-xl sm:px-4 sm:py-2 sm:text-[12px]">
+              <span className="h-1.5 w-1.5 rounded-full bg-rose" />
               Live album
             </div>
           </div>
@@ -113,7 +114,7 @@ export default async function SharePage({ params }: PageProps) {
 
         <div className="absolute inset-x-0 bottom-0">
           <div className="mx-auto w-full max-w-5xl px-4 pb-4 sm:px-6 sm:pb-5 lg:px-8">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/70 sm:text-[12px]">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/70 sm:text-[11px]">
               Shared Album
             </p>
             {/*
@@ -123,10 +124,10 @@ export default async function SharePage({ params }: PageProps) {
               lines caps that growth, and on short viewports the type shrinks
               and the description steps aside to leave room.
             */}
-            <h1 className="mt-1.5 line-clamp-2 text-[clamp(1.75rem,1.1rem+2.4vw,2.75rem)] font-black leading-[0.95] tracking-[-0.05em] text-white text-balance [@media(max-height:480px)]:text-[1.5rem] sm:mt-2">
+            <h1 className="mt-1.5 line-clamp-2 text-[clamp(1.75rem,1.1rem+2.4vw,2.75rem)] font-bold leading-[0.98] tracking-[-0.04em] text-white text-balance [@media(max-height:480px)]:text-[1.5rem] sm:mt-2">
               {album.title}
             </h1>
-            <p className="mt-1.5 line-clamp-2 text-[12px] font-semibold leading-snug text-white/75 [@media(max-height:480px)]:hidden sm:mt-2 sm:text-[14px]">
+            <p className="mt-1.5 line-clamp-2 text-[12px] font-normal leading-snug text-white/80 [@media(max-height:480px)]:hidden sm:mt-2 sm:text-[14px]">
               {album.description || 'View and download your event photos'}
             </p>
           </div>
@@ -152,12 +153,12 @@ export default async function SharePage({ params }: PageProps) {
               initialCursor={initialCursor}
             />
           ) : (
-            <div className="rounded-[36px] bg-white px-7 py-14 text-center border border-black/5">
-              <p className="text-[22px] font-black tracking-[-0.04em] text-slate-900">
+            <div className="rounded-hero border border-line bg-surface px-7 py-14 text-center">
+              <p className="text-[20px] font-semibold tracking-[-0.03em] text-ink">
                 No photos yet
               </p>
 
-              <p className="mt-2 text-[15px] font-medium leading-6 text-[#8E8E93]">
+              <p className="mt-2 text-[14px] font-normal leading-6 text-muted">
                 This album is ready, but no photos have been published yet.
               </p>
             </div>
@@ -165,10 +166,10 @@ export default async function SharePage({ params }: PageProps) {
 
            {/* FOOTER */}
         <footer className="text-center">
-          <p className="pt-5 text-[13px] font-semibold text-[#B0A6AB]">
+          <p className="pt-5 text-[12px] font-medium text-muted">
              Powered by Ciiya app
           </p>
-          <p className="text-[10px] font-medium text-[#8E8E93]">
+          <p className="text-[10px] font-normal text-muted/80">
               Photos sharing platform
             </p>
         </footer>

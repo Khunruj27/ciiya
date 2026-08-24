@@ -185,8 +185,8 @@ export default function SelfieFaceSearch({
         aria-label="ค้นหารูปด้วยใบหน้า"
         className={
           variant === 'inline'
-            ? 'ml-auto flex shrink-0 items-center gap-2 rounded-full bg-[#1C0617] px-4 py-2.5 text-[12px] font-bold text-white transition active:scale-95 disabled:opacity-60'
-            : 'fixed bottom-5 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-black text-white shadow-2xl transition hover:scale-105 disabled:opacity-60'
+            ? 'ml-auto flex shrink-0 items-center gap-2 rounded-full bg-ink px-4 py-2.5 text-[12px] font-bold text-white transition active:scale-95 disabled:opacity-60'
+            : 'fixed bottom-5 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-ink text-white shadow-float transition hover:scale-105 disabled:opacity-60'
         }
       >
         <svg
@@ -221,16 +221,16 @@ export default function SelfieFaceSearch({
       />
 
       {message && !loading && results.length === 0 && (
-        <div className="fixed bottom-44 right-4 z-50 max-w-[min(320px,calc(100vw-2rem))] rounded-2xl bg-white px-4 py-3 text-sm text-slate-700 shadow-xl">
+        <div className="fixed bottom-44 right-4 z-50 max-w-[min(320px,calc(100vw-2rem))] rounded-panel border border-line bg-surface px-4 py-3 text-[13px] text-ink shadow-lift">
           {message}
         </div>
       )}
 
       {loading && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
-          <div className="rounded-3xl bg-white px-8 py-6 text-center shadow-2xl">
-            <div className="mb-3 text-lg font-bold">กำลังค้นหารูป...</div>
-            <div className="text-sm text-slate-500">
+          <div className="rounded-hero border border-line bg-surface px-8 py-6 text-center shadow-lift">
+            <div className="mb-3 text-[16px] font-semibold text-ink">กำลังค้นหารูป...</div>
+            <div className="text-[13px] text-muted">
               ระบบ AI กำลังเปรียบเทียบใบหน้า
             </div>
           </div>
@@ -239,11 +239,11 @@ export default function SelfieFaceSearch({
 
       {results.length > 0 && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 p-6">
-          <div className="mx-auto max-w-5xl rounded-[32px] bg-white p-6">
+          <div className="mx-auto max-w-5xl rounded-hero bg-surface p-6">
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold">ผลการค้นหา</h2>
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-muted">
                   พบ {results.length} รูป
                 </p>
               </div>
@@ -254,7 +254,7 @@ export default function SelfieFaceSearch({
                   setMessage('')
                   setSelectedIds(new Set())
                 }}
-                className="rounded-full bg-slate-100 px-4 py-2 text-sm"
+                className="rounded-full bg-ground-sunken px-4 py-2 text-sm"
               >
                 ปิด
               </button>
@@ -297,7 +297,7 @@ export default function SelfieFaceSearch({
                     <div
                       className={`absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border-2 backdrop-blur transition-colors ${
                         selected
-                          ? 'border-[#F0B1DE] bg-[#F0B1DE] text-white'
+                          ? 'border-gold bg-gold text-white'
                           : 'border-white/80 bg-black/20 text-transparent'
                       }`}
                     >
@@ -320,7 +320,7 @@ export default function SelfieFaceSearch({
           </div>
 
           <div className="fixed inset-x-0 bottom-5 z-[95] flex justify-center px-4">
-            <div className="flex items-center gap-3 rounded-full bg-slate-900 px-3 py-2 text-white shadow-[0_18px_50px_rgba(15,23,42,0.35)]">
+            <div className="flex items-center gap-3 rounded-full bg-ink px-3 py-2 text-white shadow-[0_18px_50px_rgba(15,23,42,0.35)]">
               <p className="whitespace-nowrap px-1 text-sm font-semibold">
                 เลือกแล้ว {selectedIds.size}/{MAX_SELECTION} รูป
               </p>
@@ -329,7 +329,7 @@ export default function SelfieFaceSearch({
                 type="button"
                 onClick={handleBatchDownload}
                 disabled={selectedIds.size === 0 || batchDownloading}
-                className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-[#F0B1DE] px-4 py-2 text-sm font-bold text-[#4A3140] transition-opacity disabled:opacity-40"
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-gold px-4 py-2 text-sm font-bold text-ink transition-opacity disabled:opacity-40"
               >
                 {batchDownloading ? 'กำลังดาวน์โหลด…' : '⬇ ดาวน์โหลด'}
               </button>

@@ -80,10 +80,10 @@ function getRankLabel(index: number) {
 
 function getRankClass(index: number) {
   const rank = index + 1
-  if (rank === 1) return 'bg-yellow-400 text-black'
-  if (rank === 2) return 'bg-slate-300 text-black'
-  if (rank === 3) return 'bg-orange-400 text-white'
-  return 'bg-black/65 text-white'
+  if (rank === 1) return 'bg-gold text-ink'
+  if (rank === 2) return 'bg-white/85 text-ink'
+  if (rank === 3) return 'bg-gold-deep text-white'
+  return 'bg-ink/70 text-white'
 }
 
 function getSafeGridCols(value: number) {
@@ -177,7 +177,7 @@ const PhotoTile = memo(function PhotoTile({
       }
       onMouseEnter={() => preloadImage(previewImage)}
       onTouchStart={() => preloadImage(previewImage)}
-      className="group relative block h-full w-full overflow-hidden rounded-[4px] bg-slate-100 text-left"
+      className="group relative block h-full w-full overflow-hidden rounded-[3px] bg-ground-sunken text-left"
     >
       <div className="relative h-full w-full overflow-hidden">
         {!loaded && photo.blur_data_url ? (
@@ -211,7 +211,7 @@ const PhotoTile = memo(function PhotoTile({
             className="z-10 object-cover transition-transform duration-300 will-change-transform group-hover:scale-[1.03]"
           />
         ) : (
-          <div className="absolute inset-0 z-0 bg-slate-200" />
+          <div className="absolute inset-0 z-0 bg-ground-sunken" />
         )}
       </div>
 
@@ -219,7 +219,7 @@ const PhotoTile = memo(function PhotoTile({
         <div
           className={`absolute right-2 top-2 z-30 flex h-6 w-6 items-center justify-center rounded-full border-2 backdrop-blur transition-colors ${
             selected
-              ? 'border-[#F0B1DE] bg-[#F0B1DE] text-white'
+              ? 'border-gold bg-gold text-white'
               : 'border-white/80 bg-black/20 text-transparent'
           }`}
         >
@@ -239,7 +239,7 @@ const PhotoTile = memo(function PhotoTile({
 
       {rankLabel ? (
         <div
-          className={`absolute left-3 top-3 z-20 rounded-lg px-2.5 py-1 text-[11px] font-black shadow-md backdrop-blur ${getRankClass(
+          className={`absolute left-3 top-3 z-20 rounded-lg px-2.5 py-1 text-[11px] font-semibold shadow-md backdrop-blur ${getRankClass(
             index
           )}`}
         >
@@ -247,11 +247,6 @@ const PhotoTile = memo(function PhotoTile({
         </div>
       ) : null}
 
-      <div className="absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/45 to-transparent px-2 py-2">
-        <p className="truncate text-[10px] text-white/90">
-          {photo.filename || 'photo'}
-        </p>
-      </div>
     </button>
   )
 })
@@ -596,26 +591,26 @@ useEffect(() => {
             <button type="button" onClick={() => setTab('live')}>
               <p
                 className={`whitespace-nowrap text-[13px] font-semibold sm:text-sm ${
-                  tab === 'live' ? 'text-[#F0B1DE]' : 'text-slate-600'
+                  tab === 'live' ? 'text-ink' : 'text-muted'
                 }`}
               >
                 Live Photos
               </p>
               {tab === 'live' ? (
-                <div className="mx-auto mt-2 h-1 w-8 rounded-full bg-[#F0B1DE]" />
+                <div className="mx-auto mt-2 h-[3px] w-8 rounded-full bg-gold" />
               ) : null}
             </button>
 
             <button type="button" onClick={() => setTab('popular')}>
               <p
                 className={`whitespace-nowrap text-[13px] font-semibold sm:text-sm ${
-                  tab === 'popular' ? 'text-[#F0B1DE]' : 'text-slate-600'
+                  tab === 'popular' ? 'text-ink' : 'text-muted'
                 }`}
               >
                 Popular🔥
               </p>
               {tab === 'popular' ? (
-                <div className="mx-auto mt-2 h-1 w-8 rounded-full bg-[#F0B1DE]" />
+                <div className="mx-auto mt-2 h-[3px] w-8 rounded-full bg-gold" />
               ) : null}
             </button>
           </div>
@@ -631,8 +626,8 @@ useEffect(() => {
                   aria-pressed={gridCols === cols}
                   className={`flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200 active:scale-90 sm:h-9 sm:w-9 ${
                     gridCols === cols
-                      ? 'bg-[#F0B1DE] text-white shadow-sm'
-                      : 'text-slate-500'
+                      ? 'bg-gold-soft text-gold-deep'
+                      : 'text-muted'
                   }`}
                 >
                   {cols === 2 && <Grid2Icon />}
@@ -696,7 +691,7 @@ useEffect(() => {
           <button
             type="button"
             onClick={toggleSelectMode}
-            className="flex items-center gap-2 rounded-full bg-slate-900 px-5 py-3 text-sm font-bold text-white shadow-[0_18px_50px_rgba(15,23,42,0.35)] transition-transform active:scale-95"
+            className="flex items-center gap-2 rounded-full bg-ink px-5 py-3 text-[13px] font-semibold text-white shadow-float transition-transform active:scale-95"
           >
             <svg
               viewBox="0 0 24 24"
@@ -719,7 +714,7 @@ useEffect(() => {
 
       {selectMode ? (
         <div className="fixed inset-x-0 bottom-5 z-[90] flex justify-center px-4">
-          <div className="flex items-center gap-3 rounded-full bg-slate-900 px-3 py-2 text-white shadow-[0_18px_50px_rgba(15,23,42,0.35)]">
+          <div className="flex items-center gap-3 rounded-full bg-ink px-3 py-2 text-white shadow-float">
             <button
               type="button"
               onClick={toggleSelectMode}
@@ -737,7 +732,7 @@ useEffect(() => {
               type="button"
               onClick={handleBatchDownload}
               disabled={selectedIds.size === 0 || batchDownloading}
-              className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-[#F0B1DE] px-4 py-2 text-sm font-bold text-[#4A3140] transition-opacity disabled:opacity-40"
+              className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-gold px-4 py-2 text-[13px] font-semibold text-ink transition-opacity disabled:opacity-40"
             >
               {batchDownloading ? 'กำลังดาวน์โหลด…' : '⬇ ดาวน์โหลด'}
             </button>
@@ -820,7 +815,7 @@ useEffect(() => {
                 href={`/api/photos/download?photoId=${encodeURIComponent(
                   activePhoto.id
                 )}&token=${encodeURIComponent(shareToken)}`}
-                className="pointer-events-auto flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-bold text-slate-900 shadow-lg transition-transform active:scale-95"
+                className="pointer-events-auto flex items-center gap-2 rounded-full bg-white px-6 py-3 text-[13px] font-semibold text-ink shadow-lg transition-transform active:scale-95"
               >
                 ⬇ Download photo
               </a>

@@ -213,7 +213,7 @@ export default function PublicGalleryInfinite({
             type="button"
             onClick={loadMore}
             disabled={loading}
-            className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow ring-1 ring-black/5 transition hover:bg-slate-50 disabled:opacity-50"
+            className="rounded-full border border-line bg-surface px-5 py-3 text-[13px] font-semibold text-ink shadow-card transition hover:bg-ground disabled:opacity-50"
           >
             {loading ? 'Loading...' : 'Load more photos'}
           </button>

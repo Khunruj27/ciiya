@@ -52,17 +52,17 @@ export default function SharePasswordGate({ token, albumTitle }: Props) {
   }
 
   return (
-    <main className="min-h-screen bg-[#F5F5F7] px-4 py-10 text-black">
-      <div className="mx-auto max-w-[430px] rounded-[36px] bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
-        <p className="text-[13px] font-semibold text-[#8E8E93]">
+    <main className="min-h-screen bg-ground px-4 py-10 text-black">
+      <div className="mx-auto max-w-[430px] rounded-[36px] bg-surface p-7 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+        <p className="text-[13px] font-semibold text-muted">
           Ciiya Gallery
         </p>
 
-        <h1 className="mt-3 text-[26px] font-black tracking-[-0.05em]">
+        <h1 className="mt-3 text-[26px] font-semibold tracking-[-0.05em]">
           {albumTitle || 'This album is protected'}
         </h1>
 
-        <p className="mt-2 text-[14px] font-medium leading-6 text-[#8E8E93]">
+        <p className="mt-2 text-[14px] font-medium leading-6 text-muted">
           Enter the password from the photographer to view this gallery.
         </p>
 

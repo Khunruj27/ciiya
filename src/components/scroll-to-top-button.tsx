@@ -40,7 +40,7 @@ export default function ScrollToTopButton() {
         h-16
         w-16
         rounded-full
-        bg-[#F0B1DE]
+        bg-surface text-ink border border-line shadow-lift
         transition
         active:scale-95
       "

@@ -2,57 +2,20 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase-client'
 import GoogleSignInButton from '@/components/google-sign-in-button'
 
+/*
+ * Signup is Google-only. Email/password signup let anyone claim an address
+ * they did not control — with confirmation off nothing verified it, and
+ * Supabase would later link the real owner's Google identity into that
+ * squatted account. Google verifies the address before we ever see it, so
+ * this removes the squat without adding a confirmation step.
+ *
+ * Existing password accounts still sign in at /login; only creating new ones
+ * this way is gone.
+ */
 export default function SignupPage() {
-  const router = useRouter()
-  const supabase = createClient()
-
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
-  const [successMsg, setSuccessMsg] = useState('')
-
-  async function handleSignup(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setErrorMsg('')
-    setSuccessMsg('')
-
-    const { data, error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-    })
-
-    if (error) {
-      setLoading(false)
-      setErrorMsg(error.message)
-      return
-    }
-
-    /*
-     * Which outcome happens is a project setting, not something this page can
-     * assume: with email confirmation off, signUp returns a live session and
-     * the account is usable immediately; with it on, there is no session until
-     * the emailed link is clicked. Branching on the session keeps both correct,
-     * so flipping that setting later can't strand people again — sending an
-     * unconfirmed user to /login gave them a form that could only reject them.
-     */
-    if (data.session) {
-      router.push('/albums')
-      router.refresh()
-      return
-    }
-
-    setLoading(false)
-    setSuccessMsg(
-      `ส่งลิงก์ยืนยันไปที่ ${email.trim()} แล้ว เปิดอีเมลแล้วกดลิงก์เพื่อเริ่มใช้งาน`
-    )
-    setPassword('')
-  }
 
   return (
     <main className="min-h-dvh overflow-hidden bg-[#FAF7F4] text-[#1C0617]">
@@ -99,37 +62,12 @@ export default function SignupPage() {
             </p>
           </div>
 
-          <form
-            onSubmit={handleSignup}
-            className="rounded-[34px] border border-black/5 bg-white/90 p-4 backdrop-blur-xl"
-          >
-            <div className="rounded-[26px] bg-[#FAF7F4] p-3">
-              <label className="px-2 text-[12px] font-black uppercase tracking-[0.12em] text-[#8E8E93]">
-                Email
-              </label>
-
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="mt-1 h-12 w-full rounded-[20px] border border-black/5 bg-white px-4 text-[15px] font-bold text-[#1C0617] outline-none placeholder:text-slate-300 focus:border-[#F0B1DE]"
-              />
-            </div>
-
-            <div className="mt-3 rounded-[26px] bg-[#FAF7F4] p-3">
-              <label className="px-2 text-[12px] font-black uppercase tracking-[0.12em] text-[#8E8E93]">
-                Password
-              </label>
-
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Create a secure password"
-                className="mt-1 h-12 w-full rounded-[20px] border border-black/5 bg-white px-4 text-[15px] font-bold text-[#1C0617] outline-none placeholder:text-slate-300 focus:border-[#F0B1DE]"
-              />
-            </div>
+          <div className="rounded-[34px] border border-black/5 bg-white/90 p-4 backdrop-blur-xl">
+            <GoogleSignInButton
+              next="/albums"
+              label="Sign up with Google"
+              onError={setErrorMsg}
+            />
 
             {errorMsg ? (
               <p className="mt-4 rounded-[20px] border border-red-100 bg-red-50 px-4 py-3 text-[13px] font-bold text-red-500">
@@ -137,29 +75,9 @@ export default function SignupPage() {
               </p>
             ) : null}
 
-            {successMsg ? (
-              <p className="mt-4 rounded-[20px] border border-green-100 bg-green-50 px-4 py-3 text-[13px] font-bold text-green-600">
-                {successMsg}
-              </p>
-            ) : null}
-
-            <button
-              type="submit"
-              disabled={loading || !email || !password}
-              className="mt-5 flex h-14 w-full items-center justify-center rounded-full border border-black/5 bg-[#D0F578] px-5 text-[15px] font-black text-[#1C0617] transition active:scale-[0.98] disabled:opacity-50"
-            >
-              {loading ? 'Creating account...' : 'Create Account'}
-            </button>
-
-            <div className="my-5 flex items-center gap-3">
-              <span className="h-px flex-1 bg-black/8" />
-              <span className="text-[12px] font-black uppercase tracking-[0.12em] text-[#8E8E93]">
-                or
-              </span>
-              <span className="h-px flex-1 bg-black/8" />
-            </div>
-
-            <GoogleSignInButton next="/albums" onError={setErrorMsg} />
+            <p className="mt-4 px-2 text-center text-[12px] font-semibold leading-5 text-[#8E8E93]">
+              สมัครเสร็จเข้าใช้งานได้ทันที ไม่ต้องตั้งรหัสผ่านหรือยืนยันอีเมล
+            </p>
 
             <div className="mt-4 rounded-[24px] bg-[#FAF7F4] px-4 py-4 text-center">
               <p className="text-[13px] font-semibold text-[#8E8E93]">
@@ -173,7 +91,7 @@ export default function SignupPage() {
                 Log in instead
               </Link>
             </div>
-          </form>
+          </div>
 
           <p className="mt-6 text-center text-xs font-semibold text-[#8E8E93]">
             © 2026 Ciiya • Premium Event Gallery Platform

@@ -1,53 +1,91 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ============================================================
+   CIIYA DESIGN TOKENS
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+   Warm cream ground, warm near-black ink, champagne gold as the
+   single premium accent. The ink leans warm rather than neutral so
+   it settles into the cream instead of sitting on top of it.
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-/* ========================================
-   CIIYA V18 DESIGN TOKENS
-======================================== */
+   Ciiya's original rose is kept, but demoted to one job: the "live
+   album" signal. Gold carries the premium weight, rose carries the
+   brand's own voice, and nothing else competes for attention.
+   ============================================================ */
 
 :root {
-  --ciiya-bg: #faf7f4;
+  --ciiya-ground: #f7f4ef;
+  --ciiya-ground-sunken: #efe9e0;
   --ciiya-surface: #ffffff;
 
-  --ciiya-border: rgba(15, 23, 42, 0.06);
+  --ciiya-ink: #171512;
+  --ciiya-ink-soft: #3a3630;
+  --ciiya-muted: #7a736a;
 
-  --ciiya-text: #111827;
-  --ciiya-text-muted: #6b7280;
+  --ciiya-gold: #c2a15e;
+  --ciiya-gold-deep: #9a7f45;
+  --ciiya-gold-soft: #efe4ce;
 
-  --ciiya-pink: #f5d9ea;
-  --ciiya-green: #e8f5df;
-  --ciiya-blue: #e9f2fb;
-  --ciiya-cream: #f6eee6;
+  /* Status only — never decoration. */
+  --ciiya-rose: #f0b1de;
 
-  --ciiya-radius-sm: 16px;
-  --ciiya-radius-md: 24px;
-  --ciiya-radius-lg: 28px;
-  --ciiya-radius-xl: 32px;
+  --ciiya-line: rgba(23, 21, 18, 0.09);
+  --ciiya-line-strong: rgba(23, 21, 18, 0.18);
 
-  --ciiya-shadow:
-    0 8px 24px rgba(15, 23, 42, 0.04);
+  /*
+   * One scale, replacing the ten ad-hoc corner values the pages had
+   * accumulated (4, 16, 20, 22, 24, 26, 28, 30, 34, 36px in a single
+   * screen). Sizes step by role, not by whim: control, card, panel.
+   */
+  --ciiya-radius-control: 12px;
+  --ciiya-radius-card: 16px;
+  --ciiya-radius-panel: 20px;
+  --ciiya-radius-hero: 28px;
+
+  --ciiya-shadow-card: 0 1px 2px rgba(23, 21, 18, 0.04);
+  --ciiya-shadow-lift: 0 10px 30px rgba(23, 21, 18, 0.08);
+  --ciiya-shadow-float: 0 14px 34px rgba(23, 21, 18, 0.16);
+}
+
+/* Expose the tokens as Tailwind utilities: bg-ground, text-ink,
+   border-line, rounded-card, and so on. */
+@theme inline {
+  --color-ground: var(--ciiya-ground);
+  --color-ground-sunken: var(--ciiya-ground-sunken);
+  --color-surface: var(--ciiya-surface);
+
+  --color-ink: var(--ciiya-ink);
+  --color-ink-soft: var(--ciiya-ink-soft);
+  --color-muted: var(--ciiya-muted);
+
+  --color-gold: var(--ciiya-gold);
+  --color-gold-deep: var(--ciiya-gold-deep);
+  --color-gold-soft: var(--ciiya-gold-soft);
+  --color-rose: var(--ciiya-rose);
+
+  --color-line: var(--ciiya-line);
+  --color-line-strong: var(--ciiya-line-strong);
+
+  --radius-control: var(--ciiya-radius-control);
+  --radius-card: var(--ciiya-radius-card);
+  --radius-panel: var(--ciiya-radius-panel);
+  --radius-hero: var(--ciiya-radius-hero);
+
+  --shadow-card: var(--ciiya-shadow-card);
+  --shadow-lift: var(--ciiya-shadow-lift);
+  --shadow-float: var(--ciiya-shadow-float);
+
+  --font-sans: var(--font-anuphan);
+}
+
+/*
+ * The old rule here hard-set Arial, which silently overrode the webfont
+ * the layout was already downloading — the whole app rendered in a
+ * system fallback nobody chose. It also carried a leftover dark-mode
+ * block from the Next.js starter that flipped the body to near-black
+ * while every page still painted its own light surfaces on top.
+ */
+body {
+  background: var(--ciiya-ground);
+  color: var(--ciiya-ink);
+  font-family: var(--font-anuphan), "Helvetica Neue", Arial, sans-serif;
 }

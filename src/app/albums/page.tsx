@@ -55,7 +55,7 @@ export default async function AlbumsPage() {
   )
 
   return (
-    <main className="min-h-dvh overflow-x-hidden bg-[#F9F9F9] text-black">
+    <main className="min-h-dvh overflow-x-hidden bg-ground text-ink">
       <div className="mx-auto flex min-h-dvh w-full max-w-[393px] flex-col px-4 pt-[max(54px,env(safe-area-inset-top))] pb-[calc(104px+env(safe-area-inset-bottom))]">
         {/* HEADER */}
        <section className="shrink-0">
@@ -69,7 +69,7 @@ export default async function AlbumsPage() {
               className="h-8 w-auto max-w-[132px]"
             />
 
-            <div className="shrink-0 rounded-full bg-white border border-black/5">
+            <div className="shrink-0 rounded-full border border-line bg-surface">
   <ProfileAvatarSettings
     email={user.email}
     initialAvatarUrl={user.user_metadata?.avatar_url || null}
@@ -80,7 +80,7 @@ export default async function AlbumsPage() {
 
         {/* HERO */}
        <section className="pt-6">
-          <h1 className="mt-4 text-[38px] font-black leading-[0.94] tracking-[-0.06em] text-black">
+          <h1 className="mt-4 text-[38px] font-bold leading-[0.94] tracking-[-0.045em] text-ink">
   Hello, {(
     user.user_metadata?.full_name ||
     user.user_metadata?.name ||
@@ -89,7 +89,7 @@ export default async function AlbumsPage() {
   ).split(' ')[0]}!  
 </h1>
 
-          <p className="mt-3 text-[15px] font-bold tracking-[-0.02em] text-black">
+          <p className="mt-3 text-[14px] font-medium tracking-[-0.01em] text-muted">
             {albums.length} albums · {totalPhotos} photos
           </p>
         </section>
@@ -101,7 +101,7 @@ export default async function AlbumsPage() {
 
         {/* ACTION CARDS */}
       <section className="pt-6">
-          <div className="flex min-h-[132px] w-full items-center justify-center rounded-[28px] bg-[#f0B1DE] p-5 text-white border border-black/5 transition active:scale-[0.98]">
+          <div className="flex min-h-[124px] w-full items-center justify-center rounded-hero border border-gold/25 bg-gold-soft p-5 transition active:scale-[0.98]">
              
              <CreateAlbumModal />
              
@@ -112,11 +112,11 @@ export default async function AlbumsPage() {
       <section className="pt-5">
           <div className="w-full">
             <div className="mb-3 flex items-center justify-between px-1">
-              <h2 className="text-[24px] font-black tracking-[-0.05em]">
+              <h2 className="text-[20px] font-bold tracking-[-0.035em] text-ink">
               Your albums
             </h2>
 
-              <span className="shrink-0 text-[15px] font-bold text-black/80">
+              <span className="shrink-0 text-[13px] font-semibold text-muted">
                 See all
               </span>
             </div>
@@ -126,14 +126,14 @@ export default async function AlbumsPage() {
                 {albums.map((album) => (
                   <div
                     key={album.id}
-                    className="relative w-full overflow-hidden rounded-[22px] bg-white p-2 border border-black/5"
+                    className="relative w-full overflow-hidden rounded-panel border border-line bg-surface p-2 shadow-card"
                   >
                    
                     <DeleteAlbumButton albumId={album.id} />
                     
 
                     <Link href={`/albums/${album.id}`} className="flex min-w-0 gap-3">
-                      <div className="relative h-[86px] w-[96px] shrink-0 overflow-hidden rounded-[18px] bg-slate-100">
+                      <div className="relative h-[86px] w-[96px] shrink-0 overflow-hidden rounded-card bg-ground-sunken">
                         {album.cover_url ? (
                           <Image
                             src={album.cover_url}
@@ -145,26 +145,26 @@ export default async function AlbumsPage() {
                             className="object-cover"
                           />
                         ) : (
-                          <div className="flex h-full items-center justify-center text-xs text-slate-400">
+                          <div className="flex h-full items-center justify-center text-xs text-muted">
                             No Cover
                           </div>
                         )}
 
-                        <span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2 py-1 text-[11px] font-bold text-white">
+                        <span className="absolute bottom-2 left-2 rounded-full bg-ink/75 px-2 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
                           {photoCountMap[album.id] || 0}
                         </span>
                       </div>
 
                       <div className="min-w-0 flex-1 py-1 pr-7">
-                        <p className="truncate text-[15px] sm:text-[16px] font-black tracking-[-0.03em] text-black">
+                        <p className="truncate text-[15px] font-semibold tracking-[-0.02em] text-ink sm:text-[16px]">
                           {album.title}
                         </p>
 
-                        <span className="mt-1 inline-block rounded-full bg-black px-3 py-1 text-[11px] font-bold text-white">
+                        <span className="mt-1.5 inline-block rounded-full border border-gold/40 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-gold-deep">
                           Album
                         </span>
 
-                        <p className="mt-2 line-clamp-2 text-[12px] font-medium leading-snug text-slate-500">
+                        <p className="mt-2 line-clamp-2 text-[12px] font-normal leading-snug text-muted">
                           {album.description || 'No description'}
                         </p>
                       </div>
@@ -175,10 +175,10 @@ export default async function AlbumsPage() {
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <AppIcon name="gallery" size={46} className="mb-3 opacity-35" />
-                <p className="text-lg font-black text-slate-800">
+                <p className="text-[17px] font-semibold text-ink">
                   No albums yet
                 </p>
-                <p className="mt-1 text-sm font-medium text-slate-400">
+                <p className="mt-1 text-[13px] font-normal text-muted">
                   Create your first album to start
                 </p>
               </div>
@@ -189,32 +189,32 @@ export default async function AlbumsPage() {
 
       {/* FLOATING BOTTOM NAV */}
       <nav className="fixed left-0 right-0 z-50 bottom-[max(20px,env(safe-area-inset-bottom))] flex justify-center px-5">
-        <div className="inline-flex items-center gap-5 rounded-full bg-white/88 border border-black/5 px-4 py-3 backdrop-blur-xl">
+        <div className="inline-flex items-center gap-5 rounded-full border border-line bg-surface/90 px-4 py-3 shadow-lift backdrop-blur-xl">
           <Link
             href="/albums"
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-[#ebebeb]"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-gold-soft text-gold-deep"
           >
             <AppIcon name="album bold" size={22} />
           </Link>
 
            <Link
             href="/portfolio"
-            className="flex h-11 w-11 items-center justify-center rounded-full text-black"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95"
           >
             <AppIcon name="portfolio" size={22} />
           </Link>
 
-          <button className="flex h-11 w-11 items-center justify-center rounded-full text-black">
+          <button className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
             <AppIcon name="magic-wand" size={22} />
           </button>
 
-          <button className="flex h-11 w-11 items-center justify-center rounded-full text-black">
+          <button className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
             <AppIcon name="bell" size={20} />
           </button>
 
           <Link
             href="/me"
-            className="flex h-11 w-11 items-center justify-center rounded-full text-black"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95"
           >
             <AppIcon name="user-1" size={22} />
           </Link>

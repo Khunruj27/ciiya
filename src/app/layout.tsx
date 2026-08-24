@@ -1,17 +1,20 @@
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { Anuphan } from "next/font/google"
 import "./globals.css"
 import AutoWorker from '@/components/auto-worker'
 import '@/lib/env'
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-})
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+/*
+ * One family for Thai and Latin. The app's copy mixes both in the same
+ * sentence constantly — album titles, buttons, counts — and a Latin-only
+ * face left every Thai run to whatever the device happened to substitute,
+ * so the two scripts never shared a weight or a rhythm.
+ */
+const anuphan = Anuphan({
+  variable: "--font-anuphan",
+  subsets: ["latin", "thai"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
 })
 
 export const metadata: Metadata = {
@@ -26,17 +29,14 @@ export default function RootLayout({
 }) {
   return (
     <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      lang="th"
+      className={`${anuphan.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        
-        {/* 🔥 เนื้อหาเว็บ */}
         {children}
 
-        {/* 🔥 Auto Worker (background) */}
+        {/* Background worker */}
         <AutoWorker />
-
       </body>
     </html>
   )

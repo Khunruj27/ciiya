@@ -30,19 +30,19 @@ export default async function AlbumDetailPage({ params }: PageProps) {
     console.warn('[album detail] auth getUser failed:', error)
 
     return (
-      <main className="min-h-screen bg-[#FAF7F4] px-6 py-10 text-[#1C0617]">
-        <div className="mx-auto max-w-[393px] rounded-[28px] bg-white p-6 text-center border border-black/5">
-          <h1 className="text-[24px] font-black">
+      <main className="min-h-screen bg-ground px-6 py-10 text-ink">
+        <div className="mx-auto max-w-[393px] rounded-hero bg-surface p-6 text-center border border-line">
+          <h1 className="text-[24px] font-bold">
             Connection interrupted
           </h1>
 
-          <p className="mt-3 text-[14px] font-semibold leading-6 text-[#8E8E93]">
+          <p className="mt-3 text-[14px] font-semibold leading-6 text-muted">
             Cannot connect to the server right now. Please refresh this page.
           </p>
 
           <Link
             href={`/albums/${id}`}
-            className="mt-5 inline-flex h-11 items-center justify-center rounded-full bg-[#1C0617] px-5 text-[13px] font-black text-white"
+            className="mt-5 inline-flex h-11 items-center justify-center rounded-full bg-ink px-5 text-[13px] font-bold text-white"
           >
             Refresh
           </Link>
@@ -189,14 +189,14 @@ const cameraProcessingGridItems = (cameraImportsData || [])
   }))
 
   return (
-  <main className="min-h-screen bg-[#FAF7F4] text-[#1C0617] text-black">
+  <main className="min-h-screen bg-ground text-ink">
       <div className="mx-auto flex min-h-dvh w-full max-w-[393px] flex-col px-4 pt-[max(54px,env(safe-area-inset-top))] pb-[calc(104px+env(safe-area-inset-bottom))]">
         {/* HEADER */}
         <section className="px-6 pt-7">
           <div className="flex items-center justify-between">
             <Link
               href="/albums"
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-2xl font-black border border-black/5"
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-surface text-2xl font-bold border border-line"
             >
               ‹
             </Link>
@@ -214,11 +214,11 @@ const cameraProcessingGridItems = (cameraImportsData || [])
           </div>
  
           <section className="pt-6">
-          <h1 className="text-[34px] font-black leading-[0.95] tracking-[-0.07em] text-[#1C0617]">
+          <h1 className="text-[34px] font-bold leading-[0.95] tracking-[-0.07em] text-ink">
            {album.title}
           </h1>
 
-          <p className="mt-2 text-[14px] font-semibold leading-relaxed text-[#8E8E93]">
+          <p className="mt-2 text-[14px] font-semibold leading-relaxed text-muted">
              {album.description || 'No description'}
           </p>
           </section>
@@ -226,25 +226,25 @@ const cameraProcessingGridItems = (cameraImportsData || [])
         
        {/* SUMMARY CARDS */}
 <section className="mt-5 grid grid-cols-2 gap-3 pt-3">
-  <div className="rounded-[24px] border border-black/5 bg-[#F0B1DE] px-4 py-3">
-    <p className="text-[12px] font-bold text-[#4A3140]">
+  <div className="rounded-panel border border-line bg-gold-soft px-4 py-3">
+    <p className="text-[12px] font-bold text-gold-deep">
       Photos
     </p>
 
-    <p className="mt-1 text-[26px] font-black leading-none tracking-[-0.05em] text-[#1C0617]">
+    <p className="mt-1 text-[26px] font-bold leading-none tracking-[-0.05em] text-ink">
       {photoCount}
     </p>
   </div>
 
   <Link
     href={`/albums/${album.id}/people`}
-    className="rounded-[24px] border border-black/5 bg-[#D0F578] px-4 py-3 transition active:scale-[0.98]"
+    className="rounded-panel border border-line bg-gold-soft px-4 py-3 transition active:scale-[0.98]"
   >
-    <p className="text-[12px] font-bold text-[#344318]">
+    <p className="text-[12px] font-bold text-gold-deep">
       People
     </p>
 
-    <p className="mt-1 text-[26px] font-black leading-none tracking-[-0.05em] text-[#1C0617]">
+    <p className="mt-1 text-[26px] font-bold leading-none tracking-[-0.05em] text-ink">
       {peopleCount || 0}
     </p>
   </Link>
@@ -255,17 +255,17 @@ const cameraProcessingGridItems = (cameraImportsData || [])
 
         {/* ACTION BAR */}
         <section className="pt-5">
-          <div className="flex items-center justify-between rounded-[28px] bg-white border border-black/5 p-4">
+          <div className="flex items-center justify-between rounded-hero bg-surface border border-line p-4">
             <div>
-              <p className="text-[16px] font-black tracking-[-0.03em]">
+              <p className="text-[16px] font-bold tracking-[-0.03em]">
                 Share album
               </p>
-              <p className="mt-1 text-sm font-medium text-slate-500">
+              <p className="mt-1 text-sm font-medium text-muted">
                 Send public gallery
               </p>
             </div>
 
-            <div className="shrink-0 rounded-full bg-white px-3 py-2 border border-black/5">
+            <div className="shrink-0 rounded-full bg-surface px-3 py-2 border border-line">
               <ShareActions shareToken={shareToken} />
             </div>
           </div>
@@ -273,10 +273,10 @@ const cameraProcessingGridItems = (cameraImportsData || [])
   
         {/* PHOTO GRID */}
         <section className="mt-6">
-          <div className="rounded-[28px] bg-white border border-black/5 p-4">
+          <div className="rounded-hero bg-surface border border-line p-4">
             <div className="mb-4 flex items-center justify-between">
               <div className="mb-4">
-                <h2 className="text-[24px] sm:text-[30px] font-black tracking-[-0.05em]">
+                <h2 className="text-[24px] sm:text-[30px] font-bold tracking-[-0.05em]">
                     Photos
                </h2>
               </div>
@@ -289,16 +289,16 @@ const cameraProcessingGridItems = (cameraImportsData || [])
   cameraProcessingItems={cameraProcessingGridItems}
 />
 ) : (
-              <div className="rounded-[26px] bg-[#F6F7FA] px-6 py-12 text-center">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm">
+              <div className="rounded-panel bg-ground-sunken px-6 py-12 text-center">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-surface shadow-sm">
                   <AppIcon name="album" size={60} className="opacity-30" />
                 </div>
 
-                <p className="mt-5 text-22 font-black text-slate-800">
+                <p className="mt-5 text-[22px] font-semibold text-ink">
                   No Photos Yet
                 </p>
 
-                <p className="mt-2 text-sm font-medium leading-6 text-slate-500">
+                <p className="mt-2 text-sm font-medium leading-6 text-muted">
                   Upload your first JPG photo, then share this album with your
                   clients.
                 </p>
@@ -310,10 +310,10 @@ const cameraProcessingGridItems = (cameraImportsData || [])
 
       {/* FLOATING BOTTOM NAV */}
 <nav className="fixed left-0 right-0 z-50 bottom-[max(20px,env(safe-area-inset-bottom))] flex justify-center px-5">
-        <div className="inline-flex items-center gap-5 rounded-full bg-white/88 border border-black/5 px-3 py-2 backdrop-blur-xl">
+        <div className="inline-flex items-center gap-5 rounded-full bg-surface/88 border border-line px-3 py-2 backdrop-blur-xl">
     <Link
       href="/albums"
-      className="flex h-11 w-11 items-center justify-center rounded-full text-black"
+      className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95"
     >
       <AppIcon name="album" size={24} />
     </Link>
@@ -329,7 +329,7 @@ const cameraProcessingGridItems = (cameraImportsData || [])
 
     <Link
       href="/me"
-      className="flex h-11 w-11 items-center justify-center rounded-full text-black"
+      className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95"
     >
       <AppIcon name="user-1" size={23} />
     </Link>

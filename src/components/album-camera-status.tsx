@@ -427,56 +427,94 @@ useEffect(() => {
 }, [albumId, autoUploadActive, pendingConnect, showSettings])
 
   return (
-    <section className="pt-5">
-      <div className="rounded-panel border border-line bg-surface p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
-              กล้อง
-            </p>
-
-             {errorMsg ? (
-  <p className="mt-3 text-[12px] font-bold text-red-500">
-    {errorMsg}
-  </p>
-) : null}
-
-            <p className="mt-1 truncate text-[16px] font-semibold text-ink">
-              {cameraState?.connected
-                ? cameraState.cameraName || 'เชื่อมต่อกล้องแล้ว'
-                : 'ยังไม่ได้เชื่อมต่อกล้อง'}
-            </p>
-
-            <p className="mt-1 text-[12px] font-semibold text-muted">
-              {cameraState?.connected
-                ? autoUploadActive
-                  ? 'กำลังอัปโหลดอัตโนมัติ'
-                  : 'ตั้งค่าการประมวลผลก่อนถ่ายภาพ'
-                : 'เชื่อมต่อกล้องผ่าน USB-C'}
-            </p>
-          </div>
-
-          <div
+    <section className="pt-4">
+      {/*
+        A status strip, not a feature card. The camera is disconnected for most
+        of a session, and the old layout spent four stacked lines plus a pill
+        plus its own button row saying so. The dot carries the state, the line
+        says what it is, and the action sits on the same row.
+      */}
+      <div className="rounded-panel border border-line bg-surface px-3 py-2.5">
+        <div className="flex items-center gap-3">
+          <span
             className={[
-              'flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase',
-              cameraState?.connected
-                ? 'bg-gold-soft text-gold-deep'
-                : 'bg-ground-sunken text-muted',
+              'grid h-8 w-8 shrink-0 place-items-center rounded-full',
+              cameraState?.connected ? 'bg-gold-soft text-gold-deep' : 'bg-ground-sunken text-muted',
             ].join(' ')}
+            aria-hidden="true"
           >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+              <path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h2.2l1.1-1.7A1 1 0 0 1 8.6 5h6.8a1 1 0 0 1 .8.3L17.3 7h2.2A1.5 1.5 0 0 1 21 8.5v8A1.5 1.5 0 0 1 19.5 18h-15A1.5 1.5 0 0 1 3 16.5z" />
+              <circle cx="12" cy="12.5" r="3.2" />
+            </svg>
+          </span>
+
+          <p className="min-w-0 flex-1 truncate text-[13px] font-medium text-ink">
             <span
               className={[
-                'h-2 w-2 rounded-full',
-                cameraState?.connected ? 'bg-rose' : 'bg-line-strong',
+                'mr-2 inline-block h-1.5 w-1.5 shrink-0 rounded-full align-middle',
+                autoUploadActive
+                  ? 'bg-rose'
+                  : cameraState?.connected
+                    ? 'bg-gold'
+                    : 'bg-line-strong',
               ].join(' ')}
             />
+            {cameraState?.connected
+              ? cameraState.cameraName || 'เชื่อมต่อกล้องแล้ว'
+              : 'ยังไม่ได้เชื่อมต่อกล้อง'}
+            <span className="text-muted">
+              {cameraState?.connected
+                ? autoUploadActive
+                  ? ' · กำลังอัปโหลดอัตโนมัติ'
+                  : ' · ยังไม่เริ่มอัปโหลด'
+                : ' · ต่อผ่าน USB-C'}
+            </span>
+          </p>
 
-            {cameraState?.connected ? 'เชื่อมต่อแล้ว' : 'ออฟไลน์'}
+          <div className="flex shrink-0 items-center gap-1.5">
+            {cameraState?.connected ? (
+              <>
+                {autoUploadActive ? (
+                  <button
+                    type="button"
+                    onClick={openSettingsFromActiveSession}
+                    disabled={busy}
+                    className="rounded-full px-3 py-1.5 text-[12px] font-medium text-muted transition hover:bg-ground-sunken hover:text-ink disabled:opacity-50"
+                  >
+                    ตั้งค่า
+                  </button>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={disconnectCamera}
+                  disabled={busy}
+                  className="rounded-full border border-line px-3 py-1.5 text-[12px] font-medium text-ink transition hover:bg-ground-sunken disabled:opacity-50"
+                >
+                  {busy ? 'กำลังหยุด…' : 'ตัดการเชื่อมต่อ'}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => connectCamera()}
+                disabled={busy}
+                className="rounded-full bg-ink px-3.5 py-1.5 text-[12px] font-medium text-white transition hover:bg-ink-soft disabled:opacity-50"
+              >
+                {busy ? 'กำลังเชื่อมต่อ…' : 'เชื่อมต่อ'}
+              </button>
+            )}
           </div>
         </div>
 
-          
-      {showSettings && cameraState?.connected && (
+        {errorMsg ? (
+          <p className="mt-2 pl-11 text-[12px] font-medium text-red-600">
+            {errorMsg}
+          </p>
+        ) : null}
+
+        {showSettings && cameraState?.connected && (
   <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
     <div className="w-full max-w-[380px] rounded-panel bg-surface p-5">
 
@@ -613,40 +651,6 @@ useEffect(() => {
   </div>
 )}
 
-   <div className="mt-4 flex gap-2">
-  {cameraState?.connected ? (
-    <>
-      {autoUploadActive ? (
-        <button
-          type="button"
-          onClick={openSettingsFromActiveSession}
-          disabled={busy}
-          className="rounded-full bg-ground-sunken px-4 py-2 text-[12px] font-semibold text-ink disabled:opacity-50"
-        >
-          ตั้งค่า
-        </button>
-      ) : null}
-
-      <button
-        type="button"
-        onClick={disconnectCamera}
-        disabled={busy}
-        className="rounded-full bg-ink px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-50"
-      >
-        {busy ? 'กำลังหยุด…' : 'ยกเลิกการเชื่อมต่อ'}
-      </button>
-    </>
-  ) : (
-    <button
-      type="button"
-      onClick={() => connectCamera()}
-      disabled={busy}
-      className="rounded-full bg-gold px-4 py-2 text-[12px] font-semibold text-ink disabled:opacity-50"
-    >
-      {busy ? 'กำลังเชื่อมต่อ…' : 'เชื่อมต่อกล้อง'}
-    </button>
-  )}
-</div>
       </div>
     </section>
   )

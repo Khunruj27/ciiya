@@ -74,24 +74,24 @@ export default function AlbumProcessingQueue({ items }: Props) {
 
   return (
   <section className="pt-3">
-    <div className="rounded-[22px] border border-black/5 bg-white px-3 py-2.5">
+    <div className="rounded-panel border border-line bg-white px-3 py-2.5">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         className="flex w-full items-center justify-between gap-3 text-left"
       >
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F0B1DE]">
-            <div className="h-2.5 w-2.5 animate-pulse rounded-full bg-[#1C0617]" />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gold">
+            <div className="h-2.5 w-2.5 animate-pulse rounded-full bg-ink" />
           </div>
 
           <div className="min-w-0">
-            <p className="truncate text-[13px] font-black tracking-[-0.03em] text-[#1C0617]">
+            <p className="truncate text-[13px] font-semibold tracking-[-0.03em] text-ink">
               Processing {activeItems.length} photo
               {activeItems.length > 1 ? 's' : ''}
             </p>
 
-            <p className="mt-0.5 truncate text-[10.5px] font-semibold text-[#8E8E93]">
+            <p className="mt-0.5 truncate text-[10.5px] font-semibold text-muted">
               {uploadCount > 0 ? `Upload ${uploadCount}` : null}
               {uploadCount > 0 && processingCount > 0 ? ' • ' : null}
               {processingCount > 0 ? `Photo ${processingCount}` : null}
@@ -103,7 +103,7 @@ export default function AlbumProcessingQueue({ items }: Props) {
           </div>
         </div>
 
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#FAF7F4] text-[16px] font-black text-[#8E8E93]">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ground text-[16px] font-semibold text-muted">
           {open ? '−' : '+'}
         </span>
       </button>
@@ -116,21 +116,21 @@ export default function AlbumProcessingQueue({ items }: Props) {
             return (
               <div
                 key={`${item.type}-${item.id}`}
-                className="rounded-[16px] bg-[#FAF7F4] px-3 py-2"
+                className="rounded-card bg-ground px-3 py-2"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <p className="min-w-0 truncate text-[11.5px] font-black text-[#1C0617]">
+                  <p className="min-w-0 truncate text-[11.5px] font-semibold text-ink">
                     {item.filename || 'Photo'}
                   </p>
 
-                  <p className="shrink-0 text-[10.5px] font-black text-[#8E8E93]">
+                  <p className="shrink-0 text-[10.5px] font-semibold text-muted">
                     {getLabel(item)} {progress}%
                   </p>
                 </div>
 
                 <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-black/5">
                   <div
-                    className="h-full rounded-full bg-[#F0B1DE]"
+                    className="h-full rounded-full bg-gold"
                     style={{ width: `${progress}%` }}
                   />
                 </div>

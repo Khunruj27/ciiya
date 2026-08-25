@@ -183,13 +183,13 @@ function closeModal() {
           />
         </label>
       ) : (
-        <div className="rounded-[30px] bg-white p-5 shadow-sm ring-1 ring-black/5">
-          <div className="rounded-[26px] bg-gradient-to-br from-slate-950 to-slate-700 p-5 text-white">
+        <div className="rounded-hero bg-white p-5 shadow-sm ring-1 ring-line">
+          <div className="rounded-panel bg-gradient-to-br from-slate-950 to-slate-700 p-5 text-white">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/55">
               Album Cover
             </p>
 
-            <h3 className="mt-3 text-[26px] font-black leading-none tracking-[-0.05em]">
+            <h3 className="mt-3 text-[26px] font-semibold leading-none tracking-[-0.05em]">
               Upload cover
             </h3>
 
@@ -198,7 +198,7 @@ function closeModal() {
             </p>
           </div>
 
-          <label className="mt-4 flex h-14 cursor-pointer items-center justify-center rounded-full bg-[#2F6BFF] text-sm font-black text-white shadow-[0_16px_35px_rgba(47,107,255,0.28)] transition active:scale-[0.98]">
+          <label className="mt-4 flex h-14 cursor-pointer items-center justify-center rounded-full bg-ink text-sm font-semibold text-white shadow-[0_16px_35px_rgba(47,107,255,0.28)] transition active:scale-[0.98]">
             เลือกรูปหน้าปก
 
             <input
@@ -240,14 +240,14 @@ function closeModal() {
   max-w-[390px]
   max-h-[calc(100dvh-110px)]
   overflow-hidden
-  rounded-[30px]
+  rounded-hero
   bg-white
   shadow-[0_30px_80px_rgba(15,23,42,0.22)]
 "
 >
             <div className="flex shrink-0 items-start justify-between px-5 pb-3 pt-4">
               <div>
-                <h2 className="mt-2 text-[28px] font-black leading-none tracking-[-0.05em]">
+                <h2 className="mt-2 text-[28px] font-semibold leading-none tracking-[-0.05em]">
                   จัดตำแหน่งรูปหน้าปก
                 </h2>
 
@@ -262,13 +262,13 @@ function closeModal() {
                  if (!loading) closeModal()
                  }}
                 disabled={loading}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F6F7FA] text-[22px] font-black text-black transition active:scale-95">
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-ground-sunken text-[22px] font-semibold text-black transition active:scale-95">
                 ×
               </button>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-[max(24px,env(safe-area-inset-bottom))]">
-              <div className="relative h-[320px] sm:h-[420px] w-full overflow-hidden rounded-[24px] bg-slate-950 ring-1 ring-black/10">
+              <div className="relative h-[320px] sm:h-[420px] w-full overflow-hidden rounded-panel bg-slate-950 ring-1 ring-black/10">
                 <Cropper
                   image={imageSrc}
                   crop={crop}
@@ -280,7 +280,7 @@ function closeModal() {
                 />
               </div>
 
-              <div className="mt-5 rounded-[20px] bg-[#F8F9FC] p-4 ring-1 ring-black/5">
+              <div className="mt-5 rounded-panel bg-ground-sunken p-4 ring-1 ring-line">
                 <div className="mb-3 flex items-center justify-between">
                   <label className="text-sm font-bold text-slate-700">
                     ขยายภาพ
@@ -298,7 +298,7 @@ function closeModal() {
                   step={0.1}
                   value={zoom}
                   onChange={(e) => setZoom(Number(e.target.value))}
-                  className="w-full accent-[#F0B1DE]"
+                  className="w-full accent-gold"
                 />
               </div>
 
@@ -306,7 +306,7 @@ function closeModal() {
                 type="button"
                 onClick={handleUploadCover}
                 disabled={loading}
-                className="mt-5 flex h-[52px] w-full items-center justify-center rounded-[18px] bg-[#F0B1DE] text-[15px] font-black text-white border border-black/5 active:scale-[0.98] disabled:opacity-50"
+                className="mt-5 flex h-[52px] w-full items-center justify-center rounded-card bg-gold text-[15px] font-semibold text-white border border-line active:scale-[0.98] disabled:opacity-50"
               >
                 {loading ? 'กำลังบันทึก…' : 'บันทึกรูปหน้าปก'}
               </button>

@@ -40,10 +40,10 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
       <button
         type="button"
         onClick={() => setIsSearchOpen(true)}
-        className="mt-3 flex h-[56px] w-full items-center gap-3 rounded-full border border-black/5 bg-white px-5 text-left"
+        className="mt-3 flex h-[56px] w-full items-center gap-3 rounded-full border border-line bg-white px-5 text-left"
       >
         <AppIcon name="search" size={22} className="opacity-50" />
-        <span className="text-[16px] font-medium text-[#8E8E93]">
+        <span className="text-[16px] font-medium text-muted">
           ค้นหางาน
         </span>
       </button>
@@ -52,7 +52,7 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
         <div className="fixed inset-0 z-[80] bg-black/20 px-5 pt-[max(92px,env(safe-area-inset-top))] backdrop-blur-sm">
           <div className="mx-auto w-full max-w-xl rounded-panel border border-line bg-ground p-4 shadow-lift sm:p-6">
             <div className="flex items-center justify-between">
-              <p className="text-[22px] font-black tracking-[-0.05em]">
+              <p className="text-[22px] font-semibold tracking-[-0.05em]">
                 ค้นหางาน
               </p>
 
@@ -79,7 +79,7 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
                   filteredAlbums.map((album) => (
                     <div
                       key={album.id}
-                      className="relative overflow-hidden rounded-[28px] border border-black/5 bg-white p-3"
+                      className="relative overflow-hidden rounded-panel border border-line bg-white p-3"
                     >
                       <DeleteAlbumButton albumId={album.id} />
 
@@ -88,7 +88,7 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
                         onClick={() => setIsSearchOpen(false)}
                         className="flex gap-3"
                       >
-                        <div className="relative h-[92px] w-[102px] shrink-0 overflow-hidden rounded-[22px] bg-slate-100">
+                        <div className="relative h-[92px] w-[102px] shrink-0 overflow-hidden rounded-panel bg-slate-100">
                           {album.cover_url ? (
                             <Image
                               src={album.cover_url}
@@ -104,21 +104,21 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
                             </div>
                           )}
 
-                          <span className="absolute bottom-2 left-2 rounded-full bg-white/90 px-2 py-1 text-[11px] font-black text-[#1C0617] backdrop-blur-xl">
+                          <span className="absolute bottom-2 left-2 rounded-full bg-white/90 px-2 py-1 text-[11px] font-semibold text-ink backdrop-blur-xl">
                             {photoCountMap[album.id] || 0}
                           </span>
                         </div>
 
                         <div className="min-w-0 flex-1 pr-7">
-                          <p className="truncate text-[16px] font-black text-[#1C0617]">
+                          <p className="truncate text-[16px] font-semibold text-ink">
                             {album.title || 'Untitled Album'}
                           </p>
 
-                          <span className="mt-1 inline-block rounded-full bg-[#F6EEE6] px-3 py-1 text-[11px] font-black text-[#1C0617]">
+                          <span className="mt-1 inline-block rounded-full bg-gold-soft px-3 py-1 text-[11px] font-semibold text-ink">
                             Album
                           </span>
 
-                          <p className="mt-2 line-clamp-2 text-[13px] font-semibold leading-snug text-[#8E8E93]">
+                          <p className="mt-2 line-clamp-2 text-[13px] font-semibold leading-snug text-muted">
                             {album.description || 'ยังไม่มีคำอธิบาย'}
                           </p>
                         </div>
@@ -126,14 +126,14 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
                     </div>
                   ))
                 ) : (
-                  <div className="rounded-[28px] border border-black/5 bg-white px-6 py-10 text-center">
+                  <div className="rounded-panel border border-line bg-white px-6 py-10 text-center">
                     <AppIcon name="gallery" size={42} className="mx-auto opacity-35" />
 
-                    <p className="mt-4 text-[18px] font-black text-[#1C0617]">
+                    <p className="mt-4 text-[18px] font-semibold text-ink">
                       ไม่พบงานที่ค้นหา
                     </p>
 
-                    <p className="mt-1 text-[13px] font-semibold text-[#8E8E93]">
+                    <p className="mt-1 text-[13px] font-semibold text-muted">
                       Try another keyword.
                     </p>
                   </div>

@@ -1,6 +1,6 @@
 export default function PricingLoading() {
   return (
-    <main className="min-h-screen overflow-hidden bg-[#FAF7F4] px-5 pt-[max(54px,env(safe-area-inset-top))] pb-[max(42px,env(safe-area-inset-bottom))] text-[#1C0617]">
+    <main className="min-h-screen overflow-hidden bg-ground px-5 pt-[max(54px,env(safe-area-inset-top))] pb-[max(42px,env(safe-area-inset-bottom))] text-ink">
       <div className="mx-auto w-full max-w-[393px]">
         <div className="flex items-center justify-between">
           <div className="h-11 w-11 animate-pulse rounded-full bg-black/5" />
@@ -14,7 +14,7 @@ export default function PricingLoading() {
           {Array.from({ length: 3 }).map((_, i) => (
             <div
               key={i}
-              className="h-40 w-full animate-pulse rounded-[28px] bg-black/10"
+              className="h-40 w-full animate-pulse rounded-panel bg-black/10"
             />
           ))}
         </div>

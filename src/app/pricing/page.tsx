@@ -70,22 +70,22 @@ const currentSubscription = activeSubscription
         <div className="flex items-center justify-between">
           <Link
             href="/me"
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-black/5 bg-white/80 text-2xl font-black text-[#1C0617] backdrop-blur-xl transition active:scale-95"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-white/80 text-2xl font-semibold text-ink backdrop-blur-xl transition active:scale-95"
           >
             ‹
           </Link>
 
-          <div className="rounded-full border border-black/5 bg-white/80 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-[#8E8E93] backdrop-blur-xl">
+          <div className="rounded-full border border-line bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted backdrop-blur-xl">
             แพ็กเกจ
           </div>
         </div>
 
         <section className="mt-8">
-          <p className="text-[13px] font-black uppercase tracking-[0.18em] text-[#8E8E93]">
+          <p className="text-[13px] font-semibold uppercase tracking-[0.18em] text-muted">
             พื้นที่สำหรับทุกงาน
           </p>
 
-          <h1 className="mt-3 text-[44px] font-black leading-[0.9] tracking-[-0.08em] text-[#1C0617]">
+          <h1 className="mt-3 text-[44px] font-semibold leading-[0.9] tracking-[-0.08em] text-ink">
             เลือกพื้นที่ที่พอดีกับคุณ
           </h1>
         </section>
@@ -93,15 +93,15 @@ const currentSubscription = activeSubscription
         <section className="mt-7 rounded-hero border border-line bg-surface/90 p-4 shadow-card backdrop-blur-xl sm:p-6 lg:p-8">
           <div className="mb-5 flex items-center justify-between">
             <div>
-              <h2 className="text-[24px] font-black tracking-[-0.05em]">
+              <h2 className="text-[24px] font-semibold tracking-[-0.05em]">
                 แพ็กเกจที่พร้อมใช้งาน
               </h2>
-              <p className="mt-1 text-xs font-semibold text-[#8E8E93]">
+              <p className="mt-1 text-xs font-semibold text-muted">
                 เปลี่ยนแพ็กเกจได้ตามปริมาณงานของคุณ
               </p>
             </div>
 
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F6F7FA] text-xl">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-ground-sunken text-xl">
               ✦
             </div>
           </div>
@@ -113,12 +113,12 @@ const currentSubscription = activeSubscription
               totalBytes={totalBytes}
             />
           ) : (
-            <div className="rounded-[26px] border border-dashed border-slate-300 bg-[#F6F7FA] p-6 text-center">
+            <div className="rounded-panel border border-dashed border-slate-300 bg-ground-sunken p-6 text-center">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white text-2xl">
                 📦
               </div>
 
-              <h2 className="mt-4 text-base font-black text-slate-900">
+              <h2 className="mt-4 text-base font-semibold text-slate-900">
                 ยังไม่พบแพ็กเกจ
               </h2>
 

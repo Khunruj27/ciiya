@@ -96,16 +96,16 @@ export default function UpgradePlanList({
 
   if (!plans || plans.length === 0) {
     return (
-      <div className="rounded-[28px] border border-dashed border-black/10 bg-[#F6F7FA] px-5 py-8 text-center">
+      <div className="rounded-panel border border-dashed border-line-strong bg-ground-sunken px-5 py-8 text-center">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white text-2xl">
           📦
         </div>
 
-        <h2 className="mt-4 text-base font-black text-[#1C0617]">
+        <h2 className="mt-4 text-base font-semibold text-ink">
           ยังไม่พบแพ็กเกจ
         </h2>
 
-        <p className="mt-2 text-xs font-semibold leading-5 text-[#8E8E93]">
+        <p className="mt-2 text-xs font-semibold leading-5 text-muted">
           กรุณาเพิ่มข้อมูลแพ็กเกจก่อน
         </p>
       </div>
@@ -115,13 +115,13 @@ export default function UpgradePlanList({
   return (
     <div className="space-y-2.5">
       {isSuccess ? (
-        <div className="rounded-[22px] border border-green-200 bg-green-50 px-4 py-3 text-xs font-bold leading-5 text-green-700">
+        <div className="rounded-panel border border-green-200 bg-green-50 px-4 py-3 text-xs font-bold leading-5 text-green-700">
           ชำระเงินสำเร็จ แพ็กเกจของคุณได้รับการอัปเดตแล้ว
         </div>
       ) : null}
 
       {isCanceled ? (
-        <div className="rounded-[22px] border border-yellow-200 bg-yellow-50 px-4 py-3 text-xs font-bold leading-5 text-yellow-700">
+        <div className="rounded-panel border border-yellow-200 bg-yellow-50 px-4 py-3 text-xs font-bold leading-5 text-yellow-700">
           ยกเลิกการชำระเงินแล้ว คุณสามารถเลือกแพ็กเกจใหม่ได้ทุกเมื่อ
         </div>
       ) : null}
@@ -156,67 +156,67 @@ export default function UpgradePlanList({
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="truncate text-[22px] font-black leading-none tracking-[-0.06em] text-[#1C0617]">
+                  <h2 className="truncate text-[22px] font-semibold leading-none tracking-[-0.06em] text-ink">
                     {plan.name}
                   </h2>
 
                   {isCurrent ? (
-                    <span className="rounded-full bg-white/75 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#1C0617]">
+                    <span className="rounded-full bg-white/75 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink">
                       ปัจจุบัน
                     </span>
                   ) : null}
 
                   {isPopular && !isCurrent ? (
-                    <span className="rounded-full bg-white/75 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#344318]">
+                    <span className="rounded-full bg-white/75 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-gold-deep">
                       แนะนำ
                     </span>
                   ) : null}
                 </div>
 
-                <p className="mt-2 text-xs font-bold leading-5 text-[#4A3140]/75">
+                <p className="mt-2 text-xs font-bold leading-5 text-gold-deep/75">
                   พื้นที่จัดเก็บสูงสุด {storageLabel}
                 </p>
 
                 {isPopular ? (
-                  <p className="mt-1 text-xs font-bold leading-5 text-[#344318]">
+                  <p className="mt-1 text-xs font-bold leading-5 text-gold-deep">
                     เหมาะสำหรับช่างภาพและแกลเลอรีลูกค้า
                   </p>
                 ) : null}
               </div>
 
               <div className="shrink-0 text-right">
-                <p className="text-[28px] font-black leading-none tracking-[-0.07em] text-[#1C0617]">
+                <p className="text-[28px] font-semibold leading-none tracking-[-0.07em] text-ink">
                   {plan.price_thb === 0 ? 'ฟรี' : `฿${plan.price_thb}`}
                 </p>
 
-                <p className="mt-1 text-[11px] font-bold text-[#8E8E93]">
+                <p className="mt-1 text-[11px] font-bold text-muted">
                   {plan.price_thb === 0 ? 'เริ่มต้น' : '/ เดือน'}
                 </p>
               </div>
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-2">
-              <div className="rounded-[20px] bg-white/65 px-3 py-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8E8E93]">
+              <div className="rounded-panel bg-white/65 px-3 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
                   พื้นที่
                 </p>
-                <p className="mt-1 text-sm font-black text-[#1C0617]">
+                <p className="mt-1 text-sm font-semibold text-ink">
                   {storageLabel}
                 </p>
               </div>
 
-              <div className="rounded-[20px] bg-white/65 px-3 py-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8E8E93]">
+              <div className="rounded-panel bg-white/65 px-3 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
                   ส่งมอบงาน
                 </p>
-                <p className="mt-1 text-sm font-black text-[#1C0617]">
+                <p className="mt-1 text-sm font-semibold text-ink">
                   แกลเลอรี
                 </p>
               </div>
             </div>
 
             {cannotDowngrade ? (
-              <p className="mt-3 rounded-[20px] bg-red-50 px-3 py-3 text-xs font-bold leading-5 text-red-600">
+              <p className="mt-3 rounded-panel bg-red-50 px-3 py-3 text-xs font-bold leading-5 text-red-600">
                 พื้นที่ที่ใช้อยู่เกินขีดจำกัดของแพ็กเกจนี้
               </p>
             ) : null}
@@ -227,12 +227,12 @@ export default function UpgradePlanList({
               disabled={
                 isCurrent || loadingPlanId === plan.id || cannotDowngrade
               }
-              className={`mt-4 flex h-12 w-full items-center justify-center rounded-full text-sm font-black transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55 ${
+              className={`mt-4 flex h-12 w-full items-center justify-center rounded-full text-sm font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55 ${
                 isCurrent
-                  ? 'bg-white/70 text-[#1C0617]'
+                  ? 'bg-white/70 text-ink'
                   : cannotDowngrade
                     ? 'bg-slate-300 text-white'
-                    : 'bg-[#1C0617] text-white'
+                    : 'bg-ink text-white'
               }`}
             >
               {isCurrent

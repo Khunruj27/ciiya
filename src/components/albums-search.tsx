@@ -56,7 +56,7 @@ export default function AlbumsSearch({ albums, onSearchChange }: Props) {
           <button
             type="button"
             onClick={() => setQuery('')}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F6EEE6] text-[18px] font-bold"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-gold-soft text-[18px] font-bold"
           >
             ×
           </button>
@@ -64,7 +64,7 @@ export default function AlbumsSearch({ albums, onSearchChange }: Props) {
       </div>
 
       {query.trim() ? (
-        <p className="mt-3 px-2 text-[13px] font-semibold text-[#8E8E93]">
+        <p className="mt-3 px-2 text-[13px] font-semibold text-muted">
           พบ {filteredIds.length} งาน
         </p>
       ) : null}

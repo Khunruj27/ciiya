@@ -106,13 +106,13 @@ export default function EditAlbumForm({
             className="absolute inset-0"
           />
 
-         <div className="relative z-10 w-full max-w-[390px] max-h-[calc(100dvh-120px)] overflow-hidden rounded-[30px] bg-white shadow-[0_30px_80px_rgba(15,23,42,0.22)]">
+         <div className="relative z-10 w-full max-w-[390px] max-h-[calc(100dvh-120px)] overflow-hidden rounded-hero bg-white shadow-[0_30px_80px_rgba(15,23,42,0.22)]">
             {/* HEADER */}
             <div className="flex items-start justify-between px-5 pb-3 pt-4">
               <div>
                
 
-                <h2 className="mt-2 text-[28px] font-black leading-none tracking-[-0.05em]">
+                <h2 className="mt-2 text-[28px] font-semibold leading-none tracking-[-0.05em]">
                   แก้ไขอัลบั้ม
                 </h2>
               </div>
@@ -123,7 +123,7 @@ export default function EditAlbumForm({
   if (!loading) setOpen(false)
 }}
 disabled={loading}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F6F7FA] text-[22px] font-black text-black transition active:scale-95"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-ground-sunken text-[22px] font-semibold text-black transition active:scale-95"
               >
                 ×
               </button>
@@ -147,7 +147,7 @@ disabled={loading}
   setErrorMsg('')
 }}
                   placeholder="ชื่ออัลบั้ม"
-                  className="min-h-[110px] w-full resize-none rounded-[20px] border border-slate-200 bg-[#F8F9FC] px-4 py-3 text-[15px] font-medium outline-none transition focus:border-[#0257ff] focus:bg-white"
+                  className="min-h-[110px] w-full resize-none rounded-panel border border-line bg-ground-sunken px-4 py-3 text-[15px] font-medium outline-none transition focus:border-gold focus:bg-surface"
                 />
               </div>
 
@@ -167,15 +167,15 @@ disabled={loading}
 min-h-[110px]
 w-full
 resize-none
-rounded-[20px]
-border border-slate-200
-bg-[#F8F9FC]
+rounded-panel
+border border-line
+bg-ground-sunken
 px-4
 py-3
 text-[15px]
 font-medium
 outline-none
-transition focus:border-[#0257ff] focus:bg-white"
+transition focus:border-gold focus:bg-surface"
                 />
               </div>
 
@@ -188,7 +188,7 @@ transition focus:border-[#0257ff] focus:bg-white"
               <button
                 type="submit"
                 disabled={loading}
-                className="flex h-[52px] w-full items-center justify-center rounded-[18px] bg-[#F0B1DE] text-[15px] font-black text-white border border-black/5 transition active:scale-[0.98] disabled:opacity-50"
+                className="flex h-[52px] w-full items-center justify-center rounded-card bg-gold text-[15px] font-semibold text-white border border-line transition active:scale-[0.98] disabled:opacity-50"
               >
                 {loading ? 'กำลังบันทึก…' : 'บันทึกการเปลี่ยนแปลง'}
               </button>

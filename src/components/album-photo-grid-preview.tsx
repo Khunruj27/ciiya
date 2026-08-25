@@ -658,7 +658,7 @@ const visibleCameraProcessingItems = mergedCameraItems
       key={`optimistic-${item.id}`}
       className="relative isolate overflow-hidden bg-neutral-200"
     >
-      <div className="aspect-square w-full bg-gradient-to-br from-[#F0B1DE] via-[#FAF7F4] to-[#D0F578]" />
+      <div className="aspect-square w-full bg-gradient-to-br from-gold via-ground to-gold-soft" />
 
       <div
         className={`absolute inset-0 flex flex-col items-center justify-center px-1 text-center ${

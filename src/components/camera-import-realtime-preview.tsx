@@ -85,12 +85,12 @@ export default function CameraImportRealtimePreview({ albumId }: Props) {
   if (items.length === 0) return null
 
   return (
-    <div className="mt-3 rounded-[20px] border border-black/5 bg-white p-3">
+    <div className="mt-3 rounded-panel border border-line bg-white p-3">
       <div className="mb-2 flex items-center justify-between">
-        <p className="text-[13px] font-black text-[#1C0617]">
+        <p className="text-[13px] font-semibold text-ink">
           Camera importing
         </p>
-        <p className="text-[11px] font-bold uppercase text-[#8E8E93]">
+        <p className="text-[11px] font-bold uppercase text-muted">
           Live
         </p>
       </div>
@@ -102,26 +102,26 @@ export default function CameraImportRealtimePreview({ albumId }: Props) {
           return (
             <div
               key={item.id}
-              className="rounded-2xl bg-[#FAF7F4] px-3 py-2"
+              className="rounded-2xl bg-ground px-3 py-2"
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-[12px] font-black text-[#1C0617]">
+                  <p className="truncate text-[12px] font-semibold text-ink">
                     {item.filename || 'Camera photo'}
                   </p>
-                  <p className="mt-0.5 text-[11px] font-bold text-[#8E8E93]">
+                  <p className="mt-0.5 text-[11px] font-bold text-muted">
                     {item.status || 'processing'} • {progress}%
                   </p>
                 </div>
 
-                <div className="h-9 w-9 shrink-0 rounded-xl bg-[#E9A7D8] flex items-center justify-center text-[12px] font-black text-[#1C0617]">
+                <div className="h-9 w-9 shrink-0 rounded-xl bg-gold-soft flex items-center justify-center text-[12px] font-semibold text-ink">
                   JPG
                 </div>
               </div>
 
               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white">
                 <div
-                  className="h-full rounded-full bg-[#D0F578]"
+                  className="h-full rounded-full bg-gold-soft"
                   style={{ width: `${progress}%` }}
                 />
               </div>

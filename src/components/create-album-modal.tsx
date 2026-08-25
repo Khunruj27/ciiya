@@ -35,14 +35,14 @@ export default function CreateAlbumModal() {
              className="absolute inset-0"
             />
 
-            <div className="relative z-10 w-full max-w-lg rounded-[24px] border border-line bg-surface p-5 shadow-float sm:p-7">
+            <div className="relative z-10 w-full max-w-lg rounded-panel border border-line bg-surface p-5 shadow-float sm:p-7">
               <div className="mb-3 flex items-center justify-between">
                 <div>
                   <h2 className="mt-2 text-[28px] font-semibold tracking-[-0.04em] text-ink">
                     สร้างงานใหม่
                   </h2>
 
-                  <p className="mt-2 text-[15px] text-[#8E8E93]">
+                  <p className="mt-2 text-[15px] text-muted">
                     ตั้งชื่องานแล้วเริ่มอัปโหลดภาพได้ทันที
                   </p>
                 </div>
@@ -50,7 +50,7 @@ export default function CreateAlbumModal() {
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="flex h-11 w-11 items-center justify-center rounded-full bg-[#F2F3F7] text-[22px] font-bold text-black transition active:scale-[0.95]"
+                  className="flex h-11 w-11 items-center justify-center rounded-full bg-ground-sunken text-[22px] font-bold text-black transition active:scale-[0.95]"
                   aria-label="ปิดหน้าต่างสร้างงาน"
                 >
                   ✕
@@ -69,7 +69,7 @@ export default function CreateAlbumModal() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex h-full w-full items-center justify-center gap-1.5 rounded-[22px] text-center text-white transition active:scale-[0.98]"
+        className="flex h-full w-full items-center justify-center gap-1.5 rounded-panel text-center text-white transition active:scale-[0.98]"
       >
         <Image
   src="/icons/square-plus1.svg"

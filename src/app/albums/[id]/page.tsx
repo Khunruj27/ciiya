@@ -33,18 +33,18 @@ export default async function AlbumDetailPage({ params }: PageProps) {
       <main className="min-h-screen bg-ground px-6 py-10 text-ink">
         <div className="mx-auto max-w-[393px] rounded-hero bg-surface p-6 text-center border border-line">
           <h1 className="text-[24px] font-bold">
-            Connection interrupted
+            การเชื่อมต่อขัดข้อง
           </h1>
 
           <p className="mt-3 text-[14px] font-semibold leading-6 text-muted">
-            Cannot connect to the server right now. Please refresh this page.
+            ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ในขณะนี้ กรุณาลองโหลดหน้าใหม่
           </p>
 
           <Link
             href={`/albums/${id}`}
             className="mt-5 inline-flex h-11 items-center justify-center rounded-full bg-ink px-5 text-[13px] font-bold text-white"
           >
-            Refresh
+            โหลดใหม่
           </Link>
         </div>
       </main>
@@ -178,7 +178,7 @@ const cameraProcessingGridItems = (cameraImportsData || [])
   )
   .map((item) => ({
     id: item.id,
-    filename: item.filename || 'Camera photo',
+    filename: item.filename || 'ภาพจากกล้อง',
     status: String(item.status || 'imported'),
     progress: Number(item.progress || 0),
     created_at: String(item.created_at || new Date().toISOString()),
@@ -190,9 +190,9 @@ const cameraProcessingGridItems = (cameraImportsData || [])
 
   return (
   <main className="min-h-screen bg-ground text-ink">
-      <div className="mx-auto flex min-h-dvh w-full max-w-[393px] flex-col px-4 pt-[max(54px,env(safe-area-inset-top))] pb-[calc(104px+env(safe-area-inset-bottom))]">
+      <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-5 pt-[max(28px,env(safe-area-inset-top))] pb-[calc(112px+env(safe-area-inset-bottom))] sm:px-8 sm:pt-8 lg:px-12">
         {/* HEADER */}
-        <section className="px-6 pt-7">
+        <section className="pt-2 sm:pt-4">
           <div className="flex items-center justify-between">
             <Link
               href="/albums"
@@ -213,22 +213,23 @@ const cameraProcessingGridItems = (cameraImportsData || [])
             </div>
           </div>
  
-          <section className="pt-6">
-          <h1 className="text-[34px] font-bold leading-[0.95] tracking-[-0.07em] text-ink">
+          <section className="pt-8 sm:pt-12">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-gold-deep">รายละเอียดงาน</p>
+          <h1 className="mt-3 text-[clamp(2.3rem,6vw,4.5rem)] font-semibold leading-[0.96] tracking-[-0.055em] text-ink">
            {album.title}
           </h1>
 
           <p className="mt-2 text-[14px] font-semibold leading-relaxed text-muted">
-             {album.description || 'No description'}
+             {album.description || 'ยังไม่มีคำอธิบาย'}
           </p>
           </section>
         </section>
         
        {/* SUMMARY CARDS */}
-<section className="mt-5 grid grid-cols-2 gap-3 pt-3">
+<section className="mt-7 grid grid-cols-2 gap-3 sm:max-w-md">
   <div className="rounded-panel border border-line bg-gold-soft px-4 py-3">
     <p className="text-[12px] font-bold text-gold-deep">
-      Photos
+      รูปภาพทั้งหมด
     </p>
 
     <p className="mt-1 text-[26px] font-bold leading-none tracking-[-0.05em] text-ink">
@@ -241,7 +242,7 @@ const cameraProcessingGridItems = (cameraImportsData || [])
     className="rounded-panel border border-line bg-gold-soft px-4 py-3 transition active:scale-[0.98]"
   >
     <p className="text-[12px] font-bold text-gold-deep">
-      People
+      บุคคลในงาน
     </p>
 
     <p className="mt-1 text-[26px] font-bold leading-none tracking-[-0.05em] text-ink">
@@ -253,32 +254,19 @@ const cameraProcessingGridItems = (cameraImportsData || [])
 <AlbumCameraStatus albumId={album.id} />
 
 
-        {/* ACTION BAR */}
-        <section className="pt-5">
-          <div className="flex items-center justify-between rounded-hero bg-surface border border-line p-4">
-            <div>
-              <p className="text-[16px] font-bold tracking-[-0.03em]">
-                Share album
-              </p>
-              <p className="mt-1 text-sm font-medium text-muted">
-                Send public gallery
-              </p>
-            </div>
-
-            <div className="shrink-0 rounded-full bg-surface px-3 py-2 border border-line">
-              <ShareActions shareToken={shareToken} />
-            </div>
-          </div>
-        </section>
-  
         {/* PHOTO GRID */}
         <section className="mt-6">
-          <div className="rounded-hero bg-surface border border-line p-4">
-            <div className="mb-4 flex items-center justify-between">
-              <div className="mb-4">
-                <h2 className="text-[24px] sm:text-[30px] font-bold tracking-[-0.05em]">
-                    Photos
-               </h2>
+          <div className="rounded-panel bg-surface border border-line p-4 sm:p-6">
+            {/* Sharing lives on this row now. It used to sit in a card of its
+                own whose only content was these three buttons, so moving them
+                took the card with it. */}
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <h2 className="text-[24px] font-bold tracking-[-0.05em] sm:text-[30px]">
+                รูปภาพ
+              </h2>
+
+              <div className="shrink-0 rounded-full border border-line bg-surface px-3 py-2">
+                <ShareActions shareToken={shareToken} />
               </div>
             </div>
 
@@ -295,12 +283,11 @@ const cameraProcessingGridItems = (cameraImportsData || [])
                 </div>
 
                 <p className="mt-5 text-[22px] font-semibold text-ink">
-                  No Photos Yet
+                  ยังไม่มีรูปภาพ
                 </p>
 
                 <p className="mt-2 text-sm font-medium leading-6 text-muted">
-                  Upload your first JPG photo, then share this album with your
-                  clients.
+                  อัปโหลดภาพแรกของงาน แล้วแชร์แกลเลอรีให้ลูกค้าของคุณ
                 </p>
               </div>
             )}
@@ -310,7 +297,7 @@ const cameraProcessingGridItems = (cameraImportsData || [])
 
       {/* FLOATING BOTTOM NAV */}
 <nav className="fixed left-0 right-0 z-50 bottom-[max(20px,env(safe-area-inset-bottom))] flex justify-center px-5">
-        <div className="inline-flex items-center gap-5 rounded-full bg-surface/88 border border-line px-3 py-2 backdrop-blur-xl">
+        <div className="inline-flex items-center gap-3 rounded-[18px] bg-surface/95 border border-line px-3 py-2 shadow-lift backdrop-blur-xl">
     <Link
       href="/albums"
       className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95"

@@ -192,12 +192,12 @@ export default function AlbumFaceSearch({ albumId, token = '' }: Props) {
 
   return (
     <section className="px-4 pt-4">
-      <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="rounded-[28px] border border-line bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div>
             <h3 className="text-lg font-black">Face Search</h3>
 
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-muted">
               อัปโหลดรูปหน้า เพื่อค้นหารูปในอัลบั้ม
             </p>
           </div>
@@ -235,7 +235,7 @@ export default function AlbumFaceSearch({ albumId, token = '' }: Props) {
               />
             </div>
 
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-muted">
               {loading ? 'กำลังค้นหา...' : `พบ ${matches.length} รูป`}
             </div>
           </div>
@@ -260,7 +260,7 @@ export default function AlbumFaceSearch({ albumId, token = '' }: Props) {
                   href={item.photo?.imageUrl || imageUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="relative block aspect-square overflow-hidden rounded-2xl bg-slate-100"
+                  className="relative block aspect-square overflow-hidden rounded-2xl bg-ground-sunken"
                 >
                   <NextImage
                     src={imageUrl}

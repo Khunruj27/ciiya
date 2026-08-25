@@ -53,7 +53,7 @@ export default function FaceClusterButton({ albumId }: Props) {
       </button>
 
       {message ? (
-        <p className="text-[11px] text-slate-400">
+        <p className="text-[11px] text-muted">
           {message}
         </p>
       ) : null}

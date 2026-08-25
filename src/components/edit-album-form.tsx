@@ -89,7 +89,7 @@ export default function EditAlbumForm({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="flex h-11 items-center justify-center rounded-full bg-slate-950 px-5 text-sm font-semibold tracking-[-0.02em] text-white shadow-[0_10px_30px_rgba(15,23,42,0.18)] transition active:scale-[0.98]"
+          className="flex h-11 items-center justify-center rounded-full bg-ink px-5 text-sm font-semibold tracking-[-0.02em] text-white shadow-[0_10px_30px_rgba(15,23,42,0.18)] transition active:scale-[0.98]"
         >
           แก้ไขอัลบั้ม
         </button>
@@ -135,7 +135,7 @@ disabled={loading}
              className="space-y-4 overflow-y-auto px-5 pt-4 pb-[max(24px,env(safe-area-inset-bottom))]"
             >
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">
+                <label className="mb-2 block text-sm font-bold text-ink-soft">
                   ชื่ออัลบั้ม
                 </label>
 
@@ -152,7 +152,7 @@ disabled={loading}
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">
+                <label className="mb-2 block text-sm font-bold text-ink-soft">
                   คำอธิบาย
                 </label>
 

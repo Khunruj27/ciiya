@@ -33,10 +33,10 @@ const iconSize: Record<Size, number> = {
 
 const variantClass: Record<Variant, string> = {
   white:
-    'bg-white/90 text-slate-700 shadow-sm ring-1 ring-black/5 hover:bg-white',
+    'bg-white/90 text-ink-soft shadow-sm ring-1 ring-black/5 hover:bg-white',
   blue: 'bg-[#2F6BFF] text-white shadow-sm hover:bg-[#2458d8]',
   red: 'bg-red-50 text-red-600 shadow-sm ring-1 ring-red-100 hover:bg-red-100',
-  ghost: 'bg-transparent text-slate-600 hover:bg-slate-100',
+  ghost: 'bg-transparent text-ink-soft hover:bg-ground-sunken',
   dark: 'bg-black/70 text-white shadow-sm hover:bg-black/80',
 }
 

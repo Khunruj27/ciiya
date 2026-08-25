@@ -47,14 +47,14 @@ export default async function ReorderPhotosPage({ params }: PageProps) {
       <div className="mx-auto max-w-4xl space-y-4">
         <Link
           href={`/albums/${album.id}`}
-          className="text-xs uppercase tracking-[0.2em] text-slate-400"
+          className="text-xs uppercase tracking-[0.2em] text-muted"
         >
           ← กลับไปหน้าอัลบั้ม
         </Link>
 
         <div className="rounded-3xl bg-white p-4 shadow-sm">
-          <h1 className="text-2xl font-bold text-slate-900">{album.title}</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-2xl font-bold text-ink">{album.title}</h1>
+          <p className="mt-1 text-sm text-muted">
             จัดลำดับรูปภาพสำหรับอัลบั้มนี้
           </p>
         </div>

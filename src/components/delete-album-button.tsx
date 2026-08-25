@@ -110,26 +110,26 @@ setTimeout(() => {
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/45 px-5 backdrop-blur-sm">
           <div className="w-full max-w-[380px] rounded-[30px] bg-white p-6 text-center shadow-2xl">
             {/* Spinner */}
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border-4 border-slate-200">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border-4 border-line">
              <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-[#DCE6FF] border-t-[#0257ff]" />
             </div>
 
-            <h2 className="mt-6 text-[28px] sm:text-[32px] font-bold tracking-tight text-slate-950">
+            <h2 className="mt-6 text-[28px] sm:text-[32px] font-bold tracking-tight text-ink">
               Deleting album
             </h2>
 
-            <p className="mt-3 text-[15px] leading-7 leading-8 text-slate-500">
+            <p className="mt-3 text-[15px] leading-7 leading-8 text-muted">
               Removing photos, storage files, and album data...
             </p>
 
             {/* Progress */}
             <div className="mt-8">
-              <div className="mb-3 flex items-center justify-between text-sm font-medium text-slate-500">
+              <div className="mb-3 flex items-center justify-between text-sm font-medium text-muted">
                 <span>Processing</span>
                 <span>{progress}%</span>
               </div>
 
-              <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+              <div className="h-2.5 w-full overflow-hidden rounded-full bg-ground-sunken">
                 <div className="h-full rounded-full bg-[#0257ff] transition-[width] duration-500 ease-out"
                   style={{
                     width: `${progress}%`,
@@ -138,7 +138,7 @@ setTimeout(() => {
               </div>
             </div>
 
-            <p className="mt-5 text-sm text-slate-400">
+            <p className="mt-5 text-sm text-muted">
               Please wait, do not close this page.
             </p>
           </div>

@@ -210,11 +210,11 @@ function QueueCard({
   const total = pending + processing + done + failed
 
   return (
-    <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-black/5">
+    <div className="rounded-panel bg-white p-5 shadow-sm ring-1 ring-line">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">{title}</h2>
-          <p className="mt-1 text-xs text-slate-400">Total jobs: {total}</p>
+          <h2 className="text-lg font-bold text-ink">{title}</h2>
+          <p className="mt-1 text-xs text-muted">Total jobs: {total}</p>
         </div>
 
         <div
@@ -239,28 +239,28 @@ function QueueCard({
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
-        <div className="rounded-2xl bg-yellow-50 p-4">
+        <div className="rounded-panel bg-yellow-50 p-4">
           <p className="text-xs font-medium text-yellow-700">Pending</p>
-          <p className="mt-1 text-2xl font-black text-yellow-800">
+          <p className="mt-1 text-2xl font-semibold text-yellow-800">
             {pending}
           </p>
         </div>
 
-        <div className="rounded-2xl bg-blue-50 p-4">
+        <div className="rounded-panel bg-blue-50 p-4">
           <p className="text-xs font-medium text-blue-700">Processing</p>
-          <p className="mt-1 text-2xl font-black text-blue-800">
+          <p className="mt-1 text-2xl font-semibold text-blue-800">
             {processing}
           </p>
         </div>
 
-        <div className="rounded-2xl bg-green-50 p-4">
+        <div className="rounded-panel bg-green-50 p-4">
           <p className="text-xs font-medium text-green-700">Done</p>
-          <p className="mt-1 text-2xl font-black text-green-800">{done}</p>
+          <p className="mt-1 text-2xl font-semibold text-green-800">{done}</p>
         </div>
 
-        <div className="rounded-2xl bg-red-50 p-4">
+        <div className="rounded-panel bg-red-50 p-4">
           <p className="text-xs font-medium text-red-700">Failed</p>
-          <p className="mt-1 text-2xl font-black text-red-800">{failed}</p>
+          <p className="mt-1 text-2xl font-semibold text-red-800">{failed}</p>
         </div>
       </div>
     </div>
@@ -289,20 +289,20 @@ function WorkerHealthSummary({ stats }: { stats: QueueStats }) {
     (stats.cameraJobs?.failed || 0)
 
   return (
-    <div className="rounded-[30px] border border-black/5 bg-white p-5 shadow-sm">
+    <div className="rounded-hero border border-line bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
             System Health
           </p>
 
-          <h2 className="mt-1 text-[26px] font-black tracking-[-0.05em] text-[#1C0617]">
+          <h2 className="mt-1 text-[26px] font-semibold tracking-[-0.05em] text-ink">
             {health.allOnline && failedTotal === 0
               ? 'All systems operational'
               : 'Attention needed'}
           </h2>
 
-          <p className="mt-2 text-[13px] font-semibold text-[#8E8E93]">
+          <p className="mt-2 text-[13px] font-semibold text-muted">
             Last check:{' '}
             {stats.checkedAt ? new Date(stats.checkedAt).toLocaleString() : '-'}
           </p>
@@ -310,9 +310,9 @@ function WorkerHealthSummary({ stats }: { stats: QueueStats }) {
 
         <div
           className={[
-            'rounded-full px-4 py-2 text-[12px] font-black uppercase',
+            'rounded-full px-4 py-2 text-[12px] font-semibold uppercase',
             health.allOnline && failedTotal === 0
-              ? 'bg-[#D0F578] text-[#1C0617]'
+              ? 'bg-green-50 text-green-700'
               : 'bg-red-50 text-red-600',
           ].join(' ')}
         >
@@ -325,22 +325,22 @@ function WorkerHealthSummary({ stats }: { stats: QueueStats }) {
           health.workers.map((worker) => (
             <div
               key={worker.worker_id || worker.worker_name || worker.worker_type || 'worker'}
-              className="rounded-[22px] bg-[#FAF7F4] p-4"
+              className="rounded-panel bg-ground p-4"
             >
               <div className="flex items-center justify-between gap-3">
-                <p className="truncate text-[13px] font-black text-[#1C0617]">
+                <p className="truncate text-[13px] font-semibold text-ink">
                   {worker.worker_type || worker.worker_name || worker.worker_id}
                 </p>
 
                 <span
                   className={[
                     'h-2.5 w-2.5 rounded-full',
-                    worker.online ? 'bg-[#60D394]' : 'bg-red-500',
+                    worker.online ? 'bg-green-500' : 'bg-red-500',
                   ].join(' ')}
                 />
               </div>
 
-              <p className="mt-2 text-[11px] font-semibold text-[#8E8E93]">
+              <p className="mt-2 text-[11px] font-semibold text-muted">
                 {worker.online ? 'Online' : 'Offline'} ·{' '}
                 {worker.ageSeconds !== null
                   ? `${worker.ageSeconds}s ago`
@@ -349,8 +349,8 @@ function WorkerHealthSummary({ stats }: { stats: QueueStats }) {
             </div>
           ))
         ) : (
-          <div className="rounded-[22px] bg-[#FAF7F4] p-4 md:col-span-3">
-            <p className="text-[13px] font-bold text-[#8E8E93]">
+          <div className="rounded-panel bg-ground p-4 md:col-span-3">
+            <p className="text-[13px] font-bold text-muted">
               No worker heartbeat records
             </p>
           </div>
@@ -358,29 +358,29 @@ function WorkerHealthSummary({ stats }: { stats: QueueStats }) {
       </div>
 
       <div className="mt-5 grid grid-cols-3 gap-3">
-        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+        <div className="rounded-panel bg-ground p-4">
+          <p className="text-[11px] font-semibold uppercase text-muted">
             Pending
           </p>
-          <p className="mt-1 text-[24px] font-black text-[#1C0617]">
+          <p className="mt-1 text-[24px] font-semibold text-ink">
             {pendingTotal}
           </p>
         </div>
 
-        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+        <div className="rounded-panel bg-ground p-4">
+          <p className="text-[11px] font-semibold uppercase text-muted">
             Active
           </p>
-          <p className="mt-1 text-[24px] font-black text-[#1C0617]">
+          <p className="mt-1 text-[24px] font-semibold text-ink">
             {activeTotal}
           </p>
         </div>
 
-        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+        <div className="rounded-panel bg-ground p-4">
+          <p className="text-[11px] font-semibold uppercase text-muted">
             Failed
           </p>
-          <p className="mt-1 text-[24px] font-black text-[#1C0617]">
+          <p className="mt-1 text-[24px] font-semibold text-ink">
             {failedTotal}
           </p>
         </div>
@@ -448,19 +448,19 @@ function LiveAlertCard({ stats }: { stats: QueueStats }) {
   }
 
   return (
-    <div className="rounded-[30px] border border-black/5 bg-white p-5 shadow-sm">
+    <div className="rounded-hero border border-line bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
             Monitoring
           </p>
 
-          <h2 className="mt-1 text-[24px] font-black text-[#1C0617]">
+          <h2 className="mt-1 text-[24px] font-semibold text-ink">
             Live Alerts
           </h2>
         </div>
 
-        <span className="rounded-full bg-[#F6F7FA] px-3 py-1 text-[11px] font-black text-[#8E8E93]">
+        <span className="rounded-full bg-ground-sunken px-3 py-1 text-[11px] font-semibold text-muted">
           {alerts.length}
         </span>
       </div>
@@ -470,7 +470,7 @@ function LiveAlertCard({ stats }: { stats: QueueStats }) {
           <div
             key={index}
             className={[
-              'flex items-start gap-3 rounded-[20px] p-4',
+              'flex items-start gap-3 rounded-panel p-4',
               alert.level === 'danger'
                 ? 'bg-red-50'
                 : alert.level === 'warning'
@@ -490,7 +490,7 @@ function LiveAlertCard({ stats }: { stats: QueueStats }) {
             />
 
             <div>
-              <p className="text-[13px] font-black text-[#1C0617]">
+              <p className="text-[13px] font-semibold text-ink">
                 {alert.title}
               </p>
 
@@ -557,19 +557,19 @@ function SystemOverviewCard({ stats }: { stats: QueueStats }) {
   ]
 
   return (
-    <div className="rounded-[30px] border border-black/5 bg-white p-5 shadow-sm">
+    <div className="rounded-hero border border-line bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
             Monitoring
           </p>
 
-          <h2 className="mt-1 text-[24px] font-black tracking-[-0.04em] text-[#1C0617]">
+          <h2 className="mt-1 text-[24px] font-semibold tracking-[-0.04em] text-ink">
             System Overview
           </h2>
         </div>
 
-        <span className="rounded-full bg-[#D0F578] px-3 py-1 text-[11px] font-black text-[#1C0617]">
+        <span className="rounded-full bg-green-50 px-3 py-1 text-[11px] font-semibold text-green-700">
           Live
         </span>
       </div>
@@ -578,22 +578,22 @@ function SystemOverviewCard({ stats }: { stats: QueueStats }) {
         {items.map((item) => (
           <div
             key={item.label}
-            className="rounded-[22px] bg-[#FAF7F4] p-4"
+            className="rounded-panel bg-ground p-4"
           >
             <div className="flex items-center justify-between gap-3">
-              <p className="text-[12px] font-black text-[#1C0617]">
+              <p className="text-[12px] font-semibold text-ink">
                 {item.label}
               </p>
 
               <span
                 className={[
                   'h-2.5 w-2.5 rounded-full',
-                  item.healthy ? 'bg-[#60D394]' : 'bg-red-500',
+                  item.healthy ? 'bg-green-500' : 'bg-red-500',
                 ].join(' ')}
               />
             </div>
 
-            <p className="mt-2 text-[11px] font-semibold text-[#8E8E93]">
+            <p className="mt-2 text-[11px] font-semibold text-muted">
               {item.healthy ? 'Healthy' : 'Attention'} · {item.value}
             </p>
           </div>
@@ -643,19 +643,19 @@ function LivePerformanceCard({ stats }: { stats: QueueStats }) {
   ]
 
   return (
-    <div className="rounded-[30px] border border-black/5 bg-white p-5 shadow-sm">
+    <div className="rounded-hero border border-line bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
             Performance
           </p>
 
-          <h2 className="mt-1 text-[24px] font-black tracking-[-0.04em] text-[#1C0617]">
+          <h2 className="mt-1 text-[24px] font-semibold tracking-[-0.04em] text-ink">
             Live Processing Load
           </h2>
         </div>
 
-        <span className="rounded-full bg-[#F6F7FA] px-3 py-1 text-[11px] font-black text-[#8E8E93]">
+        <span className="rounded-full bg-ground-sunken px-3 py-1 text-[11px] font-semibold text-muted">
           Auto refresh
         </span>
       </div>
@@ -663,14 +663,14 @@ function LivePerformanceCard({ stats }: { stats: QueueStats }) {
       <div className="mt-5 space-y-4">
         {rows.map((row) => (
           <div key={row.label}>
-            <div className="mb-1 flex items-center justify-between text-[12px] font-bold text-[#1C0617]">
+            <div className="mb-1 flex items-center justify-between text-[12px] font-bold text-ink">
               <span>{row.label}</span>
               <span>{row.value} active</span>
             </div>
 
-            <div className="h-3 overflow-hidden rounded-full bg-[#FAF7F4]">
+            <div className="h-3 overflow-hidden rounded-full bg-ground">
               <div
-                className="h-full rounded-full bg-[#D0F578] transition-all duration-300"
+                className="h-full rounded-full bg-gold transition-all duration-300"
                 style={{ width: row.width }}
               />
             </div>
@@ -679,20 +679,20 @@ function LivePerformanceCard({ stats }: { stats: QueueStats }) {
       </div>
 
       <div className="mt-5 grid grid-cols-2 gap-3">
-        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+        <div className="rounded-panel bg-ground p-4">
+          <p className="text-[11px] font-semibold uppercase text-muted">
             Total Done
           </p>
-          <p className="mt-1 text-[24px] font-black text-[#1C0617]">
+          <p className="mt-1 text-[24px] font-semibold text-ink">
             {totalDone}
           </p>
         </div>
 
-        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+        <div className="rounded-panel bg-ground p-4">
+          <p className="text-[11px] font-semibold uppercase text-muted">
             Failed
           </p>
-          <p className="mt-1 text-[24px] font-black text-[#1C0617]">
+          <p className="mt-1 text-[24px] font-semibold text-ink">
             {totalFailed}
           </p>
         </div>
@@ -713,59 +713,59 @@ function UploadRecoveryWatchCard({
     stuckPhotos.length > 0 || stuckJobs.length > 0 || failedPhotos.length > 0
 
   return (
-    <div className="rounded-[30px] border border-black/5 bg-white p-5 shadow-sm">
+    <div className="rounded-hero border border-line bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
             Recovery
           </p>
 
-          <h2 className="mt-1 text-[24px] font-black text-[#1C0617]">
+          <h2 className="mt-1 text-[24px] font-semibold text-ink">
             Upload Recovery Watch
           </h2>
         </div>
 
         <span
           className={[
-            'rounded-full px-3 py-1 text-[11px] font-black uppercase',
+            'rounded-full px-3 py-1 text-[11px] font-semibold uppercase',
             hasIssue
               ? 'bg-yellow-50 text-yellow-700'
-              : 'bg-[#D0F578] text-[#1C0617]',
+              : 'bg-green-50 text-green-700',
           ].join(' ')}
         >
           {hasIssue ? 'Check' : 'Clear'}
         </span>
       </div>
 
-      <p className="mt-2 text-[12px] font-semibold text-[#8E8E93]">
+      <p className="mt-2 text-[12px] font-semibold text-muted">
         Detect pending / processing items older than {data?.stuckMinutes || 10}{' '}
         minutes. Read only.
       </p>
 
       <div className="mt-5 grid gap-3 md:grid-cols-3">
-        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+        <div className="rounded-panel bg-ground p-4">
+          <p className="text-[11px] font-semibold uppercase text-muted">
             Stuck Photos
           </p>
-          <p className="mt-1 text-[26px] font-black text-[#1C0617]">
+          <p className="mt-1 text-[26px] font-semibold text-ink">
             {stuckPhotos.length}
           </p>
         </div>
 
-        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+        <div className="rounded-panel bg-ground p-4">
+          <p className="text-[11px] font-semibold uppercase text-muted">
             Stuck Jobs
           </p>
-          <p className="mt-1 text-[26px] font-black text-[#1C0617]">
+          <p className="mt-1 text-[26px] font-semibold text-ink">
             {stuckJobs.length}
           </p>
         </div>
 
-        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+        <div className="rounded-panel bg-ground p-4">
+          <p className="text-[11px] font-semibold uppercase text-muted">
             Failed Photos
           </p>
-          <p className="mt-1 text-[26px] font-black text-[#1C0617]">
+          <p className="mt-1 text-[26px] font-semibold text-ink">
             {failedPhotos.length}
           </p>
         </div>
@@ -776,24 +776,24 @@ function UploadRecoveryWatchCard({
           {[...stuckPhotos, ...failedPhotos].slice(0, 8).map((item) => (
             <div
               key={item.id}
-              className="rounded-[18px] bg-[#FAF7F4] p-3"
+              className="rounded-card bg-ground p-3"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-[13px] font-black text-[#1C0617]">
+                  <p className="truncate text-[13px] font-semibold text-ink">
                     {item.filename || item.id}
                   </p>
-                  <p className="mt-1 text-[11px] font-semibold text-[#8E8E93]">
+                  <p className="mt-1 text-[11px] font-semibold text-muted">
                     Album: {item.album_id || '-'}
                   </p>
                 </div>
 
-                <span className="shrink-0 rounded-full bg-white px-3 py-1 text-[11px] font-black uppercase text-[#1C0617]">
+                <span className="shrink-0 rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase text-ink">
                   {item.processing_status || 'unknown'}
                 </span>
               </div>
 
-              <p className="mt-2 text-[11px] font-semibold text-[#8E8E93]">
+              <p className="mt-2 text-[11px] font-semibold text-muted">
                 Updated: {formatDate(item.updated_at)}
               </p>
             </div>
@@ -810,18 +810,18 @@ function RecentCameraImports({
   items?: RecentCameraImport[]
 }) {
   return (
-    <div className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
+    <div className="rounded-panel border border-line bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
             Camera
           </p>
-          <h2 className="mt-1 text-[22px] font-black tracking-[-0.04em] text-[#1C0617]">
+          <h2 className="mt-1 text-[22px] font-semibold tracking-[-0.04em] text-ink">
             Recent Imports
           </h2>
         </div>
 
-        <span className="rounded-full bg-[#F6F7FA] px-3 py-1 text-[11px] font-black text-[#8E8E93]">
+        <span className="rounded-full bg-ground-sunken px-3 py-1 text-[11px] font-semibold text-muted">
           {items.length} latest
         </span>
       </div>
@@ -831,34 +831,34 @@ function RecentCameraImports({
           items.map((item) => (
             <div
               key={item.id}
-              className="rounded-[18px] border border-black/5 bg-[#FAF7F4] p-3"
+              className="rounded-card border border-line bg-ground p-3"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-[13px] font-black text-[#1C0617]">
+                  <p className="truncate text-[13px] font-semibold text-ink">
                     {item.filename || 'Untitled file'}
                   </p>
 
-                  <p className="mt-1 truncate text-[11px] font-semibold text-[#8E8E93]">
+                  <p className="mt-1 truncate text-[11px] font-semibold text-muted">
                     Album: {item.album_id || '-'}
                   </p>
                 </div>
 
-                <span className="shrink-0 rounded-full bg-white px-3 py-1 text-[11px] font-black uppercase text-[#1C0617]">
+                <span className="shrink-0 rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase text-ink">
                   {item.status || 'unknown'}
                 </span>
               </div>
 
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
                 <div
-                  className="h-full rounded-full bg-[#D0F578]"
+                  className="h-full rounded-full bg-gold"
                   style={{
                     width: `${Math.max(0, Math.min(100, Number(item.progress || 0)))}%`,
                   }}
                 />
               </div>
 
-              <div className="mt-2 flex items-center justify-between text-[11px] font-semibold text-[#8E8E93]">
+              <div className="mt-2 flex items-center justify-between text-[11px] font-semibold text-muted">
                 <span>{Number(item.progress || 0)}%</span>
                 <span>
                   {item.created_at
@@ -868,15 +868,15 @@ function RecentCameraImports({
               </div>
 
               {item.error ? (
-                <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-[11px] font-bold text-red-600">
+                <p className="mt-2 rounded-card bg-red-50 px-3 py-2 text-[11px] font-bold text-red-600">
                   {item.error}
                 </p>
               ) : null}
             </div>
           ))
         ) : (
-          <div className="rounded-[20px] bg-[#FAF7F4] px-4 py-8 text-center">
-            <p className="text-[13px] font-bold text-[#8E8E93]">
+          <div className="rounded-panel bg-ground px-4 py-8 text-center">
+            <p className="text-[13px] font-bold text-muted">
               No recent camera imports
             </p>
           </div>
@@ -897,62 +897,62 @@ function PerformanceAnalyticsCard({
   }
 
   return (
-    <div className="rounded-[30px] border border-black/5 bg-white p-5 shadow-sm">
+    <div className="rounded-hero border border-line bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
             Analytics
           </p>
 
-          <h2 className="mt-1 text-[24px] font-black text-[#1C0617]">
+          <h2 className="mt-1 text-[24px] font-semibold text-ink">
             Performance Analytics
           </h2>
         </div>
 
-        <span className="rounded-full bg-[#F6F7FA] px-3 py-1 text-[11px] font-black text-[#8E8E93]">
+        <span className="rounded-full bg-ground-sunken px-3 py-1 text-[11px] font-semibold text-muted">
           Last {data?.windowMinutes || 60} min
         </span>
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-4">
-        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+        <div className="rounded-panel bg-ground p-4">
+          <p className="text-[11px] font-semibold uppercase text-muted">
             Camera
           </p>
-          <p className="mt-1 text-[24px] font-black text-[#1C0617]">
+          <p className="mt-1 text-[24px] font-semibold text-ink">
             {formatSeconds(data?.cameraAvgSeconds)}
           </p>
         </div>
 
-        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+        <div className="rounded-panel bg-ground p-4">
+          <p className="text-[11px] font-semibold uppercase text-muted">
             Photo
           </p>
-          <p className="mt-1 text-[24px] font-black text-[#1C0617]">
+          <p className="mt-1 text-[24px] font-semibold text-ink">
             {formatSeconds(data?.photoAvgSeconds)}
           </p>
         </div>
 
-        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+        <div className="rounded-panel bg-ground p-4">
+          <p className="text-[11px] font-semibold uppercase text-muted">
             Face
           </p>
-          <p className="mt-1 text-[24px] font-black text-[#1C0617]">
+          <p className="mt-1 text-[24px] font-semibold text-ink">
             {formatSeconds(data?.faceAvgSeconds)}
           </p>
         </div>
 
-        <div className="rounded-[22px] bg-[#D0F578] p-4">
-          <p className="text-[11px] font-black uppercase text-[#344318]">
+        <div className="rounded-panel bg-gold-soft p-4">
+          <p className="text-[11px] font-semibold uppercase text-gold-deep">
             Throughput
           </p>
-          <p className="mt-1 text-[24px] font-black text-[#1C0617]">
+          <p className="mt-1 text-[24px] font-semibold text-ink">
             {data?.throughputPerMinute ?? 0}/min
           </p>
         </div>
       </div>
 
-      <p className="mt-4 text-[12px] font-semibold text-[#8E8E93]">
+      <p className="mt-4 text-[12px] font-semibold text-muted">
         Completed jobs in window: {data?.totalDone || 0}
       </p>
     </div>
@@ -965,18 +965,18 @@ function CameraSessionMonitor({
   sessions?: CameraSessionMonitorItem[]
 }) {
   return (
-    <div className="rounded-[28px] border border-black/5 bg-white p-5 shadow-sm">
+    <div className="rounded-panel border border-line bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
             Camera
           </p>
-          <h2 className="mt-1 text-[22px] font-black tracking-[-0.04em] text-[#1C0617]">
+          <h2 className="mt-1 text-[22px] font-semibold tracking-[-0.04em] text-ink">
             Live Sessions
           </h2>
         </div>
 
-        <span className="rounded-full bg-[#F6F7FA] px-3 py-1 text-[11px] font-black text-[#8E8E93]">
+        <span className="rounded-full bg-ground-sunken px-3 py-1 text-[11px] font-semibold text-muted">
           {sessions.length} sessions
         </span>
       </div>
@@ -990,25 +990,25 @@ function CameraSessionMonitor({
             return (
               <div
                 key={session.id}
-                className="rounded-[22px] border border-black/5 bg-[#FAF7F4] p-4"
+                className="rounded-panel border border-line bg-ground p-4"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-[13px] font-black text-[#1C0617]">
+                    <p className="truncate text-[13px] font-semibold text-ink">
                       Album: {session.album_id || '-'}
                     </p>
 
-                    <p className="mt-1 text-[11px] font-semibold text-[#8E8E93]">
+                    <p className="mt-1 text-[11px] font-semibold text-muted">
                       Resize: {(session.resize_mode || 'original').toUpperCase()}
                     </p>
                   </div>
 
                   <span
                     className={[
-                      'shrink-0 rounded-full px-3 py-1 text-[11px] font-black uppercase',
+                      'shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold uppercase',
                       active
-                        ? 'bg-[#D0F578] text-[#1C0617]'
-                        : 'bg-white text-[#8E8E93]',
+                        ? 'bg-gold text-ink'
+                        : 'bg-white text-muted',
                     ].join(' ')}
                   >
                     {session.status || 'unknown'}
@@ -1016,37 +1016,37 @@ function CameraSessionMonitor({
                 </div>
 
                 <div className="mt-4 grid grid-cols-3 gap-2">
-                  <div className="rounded-2xl bg-white p-3">
-                    <p className="text-[10px] font-black uppercase text-[#8E8E93]">
+                  <div className="rounded-panel bg-white p-3">
+                    <p className="text-[10px] font-semibold uppercase text-muted">
                       Pending
                     </p>
-                    <p className="mt-1 text-[20px] font-black text-[#1C0617]">
+                    <p className="mt-1 text-[20px] font-semibold text-ink">
                       {counts.pending || 0}
                     </p>
                   </div>
 
-                  <div className="rounded-2xl bg-white p-3">
-                    <p className="text-[10px] font-black uppercase text-[#8E8E93]">
+                  <div className="rounded-panel bg-white p-3">
+                    <p className="text-[10px] font-semibold uppercase text-muted">
                       Active
                     </p>
-                    <p className="mt-1 text-[20px] font-black text-[#1C0617]">
+                    <p className="mt-1 text-[20px] font-semibold text-ink">
                       {(counts.imported || 0) +
                         (counts.uploading || 0) +
                         (counts.finalizing || 0)}
                     </p>
                   </div>
 
-                  <div className="rounded-2xl bg-white p-3">
-                    <p className="text-[10px] font-black uppercase text-[#8E8E93]">
+                  <div className="rounded-panel bg-white p-3">
+                    <p className="text-[10px] font-semibold uppercase text-muted">
                       Done
                     </p>
-                    <p className="mt-1 text-[20px] font-black text-[#1C0617]">
+                    <p className="mt-1 text-[20px] font-semibold text-ink">
                       {counts.done || 0}
                     </p>
                   </div>
                 </div>
 
-                <div className="mt-3 text-[11px] font-semibold text-[#8E8E93]">
+                <div className="mt-3 text-[11px] font-semibold text-muted">
                   <p>
                     Latest:{' '}
                     {session.latest_import_filename || 'No import yet'}
@@ -1064,8 +1064,8 @@ function CameraSessionMonitor({
             )
           })
         ) : (
-          <div className="rounded-[20px] bg-[#FAF7F4] px-4 py-8 text-center">
-            <p className="text-[13px] font-bold text-[#8E8E93]">
+          <div className="rounded-panel bg-ground px-4 py-8 text-center">
+            <p className="text-[13px] font-bold text-muted">
               No camera sessions found
             </p>
           </div>
@@ -1091,15 +1091,15 @@ function SummaryCard({
         ? 'text-blue-600'
         : tone === 'green'
           ? 'text-green-600'
-          : 'text-slate-800'
+          : 'text-ink'
 
   return (
-    <div className="rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-black/5">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+    <div className="rounded-panel bg-white p-5 shadow-sm ring-1 ring-line">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted">
         {label}
       </p>
 
-      <p className={`mt-2 text-3xl font-black ${colorClass}`}>{value}</p>
+      <p className={`mt-2 text-3xl font-semibold ${colorClass}`}>{value}</p>
     </div>
   )
 }
@@ -1108,11 +1108,11 @@ function WorkerCard({ workers }: { workers: WorkerHeartbeat[] }) {
   const onlineCount = workers.filter(isWorkerOnline).length
 
   return (
-    <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-black/5">
+    <div className="rounded-panel bg-white p-5 shadow-sm ring-1 ring-line">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Workers</h2>
-          <p className="mt-1 text-xs text-slate-400">
+          <h2 className="text-lg font-bold text-ink">Workers</h2>
+          <p className="mt-1 text-xs text-muted">
             Online {onlineCount} / {workers.length}
           </p>
         </div>
@@ -1132,7 +1132,7 @@ function WorkerCard({ workers }: { workers: WorkerHeartbeat[] }) {
 
       <div className="mt-4 space-y-3">
         {workers.length === 0 ? (
-          <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+          <div className="rounded-panel bg-ground-sunken p-4 text-sm text-muted">
             No worker heartbeat found.
           </div>
         ) : (
@@ -1142,14 +1142,14 @@ function WorkerCard({ workers }: { workers: WorkerHeartbeat[] }) {
             return (
               <div
                 key={worker.worker_id}
-                className="rounded-2xl bg-slate-50 p-4"
+                className="rounded-panel bg-ground-sunken p-4"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-slate-900">
+                    <p className="truncate text-sm font-bold text-ink">
                       {worker.worker_name || worker.worker_id}
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs text-muted">
                       {worker.worker_type || '-'} • last seen{' '}
                       {formatDate(worker.last_seen_at || worker.last_seen)}
                     </p>
@@ -1182,17 +1182,17 @@ function FailedJobsCard({
   jobs: FailedJob[]
 }) {
   return (
-    <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-black/5">
-      <h2 className="text-lg font-bold text-slate-900">{title}</h2>
+    <div className="rounded-panel bg-white p-5 shadow-sm ring-1 ring-line">
+      <h2 className="text-lg font-bold text-ink">{title}</h2>
 
       <div className="mt-4 space-y-3">
         {jobs.length === 0 ? (
-          <div className="rounded-2xl bg-green-50 p-4 text-sm font-medium text-green-700">
+          <div className="rounded-panel bg-green-50 p-4 text-sm font-medium text-green-700">
             No recent failed jobs.
           </div>
         ) : (
           jobs.map((job) => (
-            <div key={job.id} className="rounded-2xl bg-red-50 p-4">
+            <div key={job.id} className="rounded-panel bg-red-50 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-xs font-bold text-red-800">
@@ -1227,38 +1227,38 @@ function RecentJobsCard({
   jobs: FailedJob[]
 }) {
   return (
-    <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-black/5">
-      <h2 className="text-lg font-bold text-slate-900">{title}</h2>
+    <div className="rounded-panel bg-white p-5 shadow-sm ring-1 ring-line">
+      <h2 className="text-lg font-bold text-ink">{title}</h2>
 
       <div className="mt-4 space-y-3">
         {jobs.length === 0 ? (
-          <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+          <div className="rounded-panel bg-ground-sunken p-4 text-sm text-muted">
             No recent jobs.
           </div>
         ) : (
           jobs.map((job) => (
-            <div key={job.id} className="rounded-2xl bg-slate-50 p-4">
+            <div key={job.id} className="rounded-panel bg-ground-sunken p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-xs font-bold text-slate-900">
+                  <p className="truncate text-xs font-bold text-ink">
                     {job.id}
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-muted">
                     Photo: {job.photo_id || '-'}
                   </p>
                 </div>
 
-                <span className="shrink-0 rounded-full bg-white px-3 py-1 text-[11px] font-bold uppercase text-slate-700">
+                <span className="shrink-0 rounded-full bg-white px-3 py-1 text-[11px] font-bold uppercase text-ink-soft">
                   {job.status || 'unknown'}
                 </span>
               </div>
 
-              <p className="mt-2 text-[11px] text-slate-400">
+              <p className="mt-2 text-[11px] text-muted">
                 {formatDate(job.finished_at || job.started_at || job.created_at)}
               </p>
 
               {job.error ? (
-                <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-[11px] font-bold text-red-600">
+                <p className="mt-2 rounded-card bg-red-50 px-3 py-2 text-[11px] font-bold text-red-600">
                   {job.error}
                 </p>
               ) : null}
@@ -1272,31 +1272,31 @@ function RecentJobsCard({
 
 function RecentErrorsCard({ logs }: { logs: WorkerLog[] }) {
   return (
-    <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-black/5">
-      <h2 className="text-lg font-bold text-slate-900">Recent Worker Errors</h2>
+    <div className="rounded-panel bg-white p-5 shadow-sm ring-1 ring-line">
+      <h2 className="text-lg font-bold text-ink">Recent Worker Errors</h2>
 
       <div className="mt-4 space-y-3">
         {logs.length === 0 ? (
-          <div className="rounded-2xl bg-green-50 p-4 text-sm font-medium text-green-700">
+          <div className="rounded-panel bg-green-50 p-4 text-sm font-medium text-green-700">
             No recent worker errors.
           </div>
         ) : (
           logs.map((log, index) => (
             <div
               key={log.id || `${log.created_at}-${index}`}
-              className="rounded-2xl bg-slate-50 p-4"
+              className="rounded-panel bg-ground-sunken p-4"
             >
               <div className="flex items-start justify-between gap-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                <p className="text-xs font-bold uppercase tracking-wide text-muted">
                   {log.worker_type || 'worker'} / {log.level || 'error'}
                 </p>
 
-                <p className="shrink-0 text-[11px] text-slate-400">
+                <p className="shrink-0 text-[11px] text-muted">
                   {formatDate(log.created_at)}
                 </p>
               </div>
 
-              <p className="mt-2 line-clamp-3 text-sm text-slate-700">
+              <p className="mt-2 line-clamp-3 text-sm text-ink-soft">
                 {log.message || 'Unknown error'}
               </p>
             </div>
@@ -1309,40 +1309,40 @@ function RecentErrorsCard({ logs }: { logs: WorkerLog[] }) {
 
 function WorkerTimeline({ logs }: { logs: WorkerLog[] }) {
   return (
-    <div className="rounded-[30px] border border-black/5 bg-white p-5 shadow-sm">
+    <div className="rounded-hero border border-line bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
             Activity
           </p>
 
-          <h2 className="mt-1 text-[22px] font-black text-[#1C0617]">
+          <h2 className="mt-1 text-[22px] font-semibold text-ink">
             Worker Timeline
           </h2>
         </div>
 
-        <span className="rounded-full bg-[#D0F578] px-3 py-1 text-[11px] font-black">
+        <span className="rounded-full bg-green-50 px-3 py-1 text-[11px] font-semibold text-green-700">
           LIVE
         </span>
       </div>
 
       <div className="mt-5 space-y-3">
         {logs.length === 0 ? (
-          <div className="rounded-2xl bg-[#FAF7F4] p-6 text-center text-[#8E8E93]">
+          <div className="rounded-panel bg-ground p-6 text-center text-muted">
             No activity
           </div>
         ) : (
           logs.map((log, index) => (
             <div key={log.id || index} className="flex gap-3">
-              <div className="mt-1 h-2.5 w-2.5 rounded-full bg-[#D0F578]" />
+              <div className="mt-1 h-2.5 w-2.5 rounded-full bg-green-500" />
 
-              <div className="flex-1 rounded-2xl bg-[#FAF7F4] p-3">
+              <div className="flex-1 rounded-panel bg-ground p-3">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-[12px] font-black text-[#1C0617]">
+                  <p className="text-[12px] font-semibold text-ink">
                     {log.worker_type || 'worker'}
                   </p>
 
-                  <span className="shrink-0 text-[11px] text-[#8E8E93]">
+                  <span className="shrink-0 text-[11px] text-muted">
                     {formatDate(log.created_at)}
                   </span>
                 </div>
@@ -1352,7 +1352,7 @@ function WorkerTimeline({ logs }: { logs: WorkerLog[] }) {
                 </p>
 
                 {log.photo_id || log.album_id ? (
-                  <p className="mt-2 truncate text-[10px] font-semibold text-[#8E8E93]">
+                  <p className="mt-2 truncate text-[10px] font-semibold text-muted">
                     {log.photo_id ? `Photo: ${log.photo_id}` : ''}
                     {log.photo_id && log.album_id ? ' · ' : ''}
                     {log.album_id ? `Album: ${log.album_id}` : ''}
@@ -1547,15 +1547,15 @@ useEffect(() => {
 
 
   return (
-    <main className="min-h-screen bg-[#F8F9FC] px-4 py-6">
+    <main className="min-h-screen bg-ground-sunken px-4 py-6">
       <div className="mx-auto max-w-5xl space-y-5">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-slate-400">
+            <p className="text-xs uppercase tracking-[0.24em] text-muted">
               Ciiya Admin
             </p>
 
-            <h1 className="mt-2 text-3xl font-black text-slate-950">
+            <h1 className="mt-2 text-3xl font-semibold text-ink">
               Queue Dashboard
             </h1>
 
@@ -1565,7 +1565,7 @@ useEffect(() => {
                   ? 'bg-green-100 text-green-700'
                   : systemStatus === 'warning'
                     ? 'bg-yellow-100 text-yellow-700'
-                    : 'bg-slate-100 text-slate-500'
+                    : 'bg-ground-sunken text-muted'
               }`}
             >
               {systemStatus === 'healthy'
@@ -1581,14 +1581,14 @@ useEffect(() => {
               type="button"
               disabled={refreshing || loading}
               onClick={() => loadStats()}
-              className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-black/5 disabled:opacity-50"
+              className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-ink-soft shadow-sm ring-1 ring-line disabled:opacity-50"
             >
               {refreshing ? 'Refreshing...' : 'Refresh'}
             </button>
 
             <Link
               href="/albums"
-              className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-black/5"
+              className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-ink-soft shadow-sm ring-1 ring-line"
             >
               Albums
             </Link>
@@ -1618,7 +1618,7 @@ useEffect(() => {
           <button
             disabled={loading}
             onClick={() => runAction('reset_stuck_photo_jobs')}
-            className="rounded-2xl bg-yellow-500 px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
+            className="rounded-card border border-line-strong bg-surface px-4 py-3 text-sm font-semibold text-ink transition hover:bg-ground-sunken disabled:opacity-50"
           >
             Reset Stuck Photo Jobs
           </button>
@@ -1626,7 +1626,7 @@ useEffect(() => {
           <button
             disabled={loading}
             onClick={() => runAction('reset_stuck_face_jobs')}
-            className="rounded-2xl bg-orange-500 px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
+            className="rounded-card border border-line-strong bg-surface px-4 py-3 text-sm font-semibold text-ink transition hover:bg-ground-sunken disabled:opacity-50"
           >
             Reset Stuck Face Jobs
           </button>
@@ -1634,7 +1634,7 @@ useEffect(() => {
           <button
             disabled={loading}
             onClick={() => runAction('retry_failed_photo_jobs')}
-            className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
+            className="rounded-card border border-line-strong bg-surface px-4 py-3 text-sm font-semibold text-ink transition hover:bg-ground-sunken disabled:opacity-50"
           >
             Retry Failed Photo Jobs
           </button>
@@ -1642,18 +1642,18 @@ useEffect(() => {
           <button
             disabled={loading}
             onClick={() => runAction('retry_failed_face_jobs')}
-            className="rounded-2xl bg-purple-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
+            className="rounded-card border border-line-strong bg-surface px-4 py-3 text-sm font-semibold text-ink transition hover:bg-ground-sunken disabled:opacity-50"
           >
             Retry Failed Face Jobs
           </button>
         </div>
 
-        <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-black/5">
-          <h2 className="text-lg font-bold text-slate-900">
+        <div className="rounded-panel bg-white p-5 shadow-sm ring-1 ring-line">
+          <h2 className="text-lg font-bold text-ink">
             Storage Cleanup
           </h2>
 
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-muted">
             Scan and remove files in Supabase Storage that are no longer linked
             to any photo record.
           </p>
@@ -1662,7 +1662,7 @@ useEffect(() => {
             <button
               disabled={loading}
               onClick={() => runCleanup(true)}
-              className="rounded-2xl bg-slate-800 px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
+              className="rounded-card bg-ink px-4 py-3 text-sm font-semibold text-white transition hover:bg-ink-soft disabled:opacity-50"
             >
               Scan Orphan Files
             </button>
@@ -1670,39 +1670,39 @@ useEffect(() => {
             <button
               disabled={loading}
               onClick={() => runCleanup(false)}
-              className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
+              className="rounded-card bg-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
             >
               Delete Orphan Files
             </button>
           </div>
 
           {cleanupResult ? (
-            <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+            <div className="mt-4 rounded-panel bg-ground-sunken p-4 text-sm text-ink-soft">
               <div className="grid gap-2 md:grid-cols-4">
                 <div>
-                  <p className="text-xs text-slate-400">Scanned</p>
-                  <p className="font-bold text-slate-900">
+                  <p className="text-xs text-muted">Scanned</p>
+                  <p className="font-bold text-ink">
                     {cleanupResult.scanned}
                   </p>
                 </div>
 
                 <div>
-                  <p className="text-xs text-slate-400">Used</p>
-                  <p className="font-bold text-slate-900">
+                  <p className="text-xs text-muted">Used</p>
+                  <p className="font-bold text-ink">
                     {cleanupResult.used}
                   </p>
                 </div>
 
                 <div>
-                  <p className="text-xs text-slate-400">Orphan</p>
+                  <p className="text-xs text-muted">Orphan</p>
                   <p className="font-bold text-red-600">
                     {cleanupResult.orphanCount}
                   </p>
                 </div>
 
                 <div>
-                  <p className="text-xs text-slate-400">Deleted</p>
-                  <p className="font-bold text-slate-900">
+                  <p className="text-xs text-muted">Deleted</p>
+                  <p className="font-bold text-ink">
                     {cleanupResult.deletedCount}
                   </p>
                 </div>
@@ -1710,11 +1710,11 @@ useEffect(() => {
 
               {cleanupResult.sample?.length > 0 ? (
                 <div className="mt-4">
-                  <p className="text-xs font-semibold text-slate-500">
+                  <p className="text-xs font-semibold text-muted">
                     Sample orphan files
                   </p>
 
-                  <div className="mt-2 max-h-40 overflow-y-auto rounded-xl bg-white p-3 text-xs text-slate-500">
+                  <div className="mt-2 max-h-40 overflow-y-auto rounded-card bg-white p-3 text-xs text-muted">
                     {cleanupResult.sample.map((item) => (
                       <p key={item} className="truncate">
                         {item}
@@ -1728,13 +1728,13 @@ useEffect(() => {
         </div>
 
         {message ? (
-          <div className="rounded-2xl bg-white p-4 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-black/5">
+          <div className="rounded-panel bg-white p-4 text-sm font-medium text-ink-soft shadow-sm ring-1 ring-line">
             {message}
           </div>
         ) : null}
 
         {!stats ? (
-          <div className="rounded-[28px] bg-white p-6 text-center text-sm text-red-500 shadow-sm ring-1 ring-black/5">
+          <div className="rounded-panel bg-white p-6 text-center text-sm text-red-500 shadow-sm ring-1 ring-line">
             Cannot load queue stats.
           </div>
         ) : (
@@ -1745,9 +1745,9 @@ useEffect(() => {
   <PerformanceAnalyticsCard data={stats.performanceAnalytics} />
   <UploadRecoveryWatchCard data={stats.uploadRecoveryWatch} />
   <WorkerHealthSummary stats={stats} />
-            <div className="rounded-[24px] bg-white p-4 text-sm text-slate-500 shadow-sm ring-1 ring-black/5">
+            <div className="rounded-panel bg-white p-4 text-sm text-muted shadow-sm ring-1 ring-line">
               Last checked:{' '}
-              <span className="font-semibold text-slate-800">
+              <span className="font-semibold text-ink">
                 {formatDate(stats.checkedAt)}
               </span>
             </div>

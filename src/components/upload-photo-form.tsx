@@ -544,7 +544,7 @@ if (isMounted()) {
     <div className="space-y-4 rounded-panel bg-surface p-1">
       {/* JPG Photos */}
 <div className="space-y-2">
-  <label className="text-xs font-semibold text-slate-500">
+  <label className="text-xs font-semibold text-muted">
     รูปภาพ JPG
   </label>
 
@@ -603,14 +603,14 @@ setItems((prev) => {
     disabled={uploading}
   />
 
-  <p className="text-xs text-slate-400">
+  <p className="text-xs text-muted">
     เลือกรูป JPG/JPEG ได้ครั้งละหลายรูป
   </p>
 </div>
     
 
      <div className="space-y-2">
-        <label className="text-xs font-semibold text-slate-500">
+        <label className="text-xs font-semibold text-muted">
           พรีเซ็ต Lightroom (.xmp)
         </label>
 
@@ -623,7 +623,7 @@ setItems((prev) => {
             setErrorMsg('')
             setSuccessMsg('')
           }}
-          className="block w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600"
+          className="block w-full rounded-2xl border border-line bg-ground-sunken p-3 text-sm text-ink-soft"
           disabled={uploading}
         />
 
@@ -632,7 +632,7 @@ setItems((prev) => {
             เลือกพรีเซ็ตแล้ว: {presetFile.name}
           </div>
         ) : (
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-muted">
             ไม่บังคับ: เลือกพรีเซ็ต .xmp ก่อนอัปโหลด
           </p>
         )}
@@ -641,7 +641,7 @@ setItems((prev) => {
       <select
         value={size}
         onChange={(e) => setSize(e.target.value)}
-        className="w-full rounded-xl border border-slate-200 p-3 text-sm"
+        className="w-full rounded-xl border border-line p-3 text-sm"
         disabled={uploading}
       >
         <option value="sd">SD (2000px)</option>
@@ -654,7 +654,7 @@ setItems((prev) => {
         <select
           value={categoryId}
           onChange={(e) => setCategoryId(e.target.value)}
-          className="w-full rounded-xl border border-slate-200 p-3 text-sm"
+          className="w-full rounded-xl border border-line p-3 text-sm"
           disabled={uploading}
         >
           <option value="">ไม่ระบุหมวดหมู่</option>
@@ -667,24 +667,24 @@ setItems((prev) => {
       ) : null}
 
       {items.length > 0 ? (
-        <div className="rounded-2xl bg-slate-50 p-3">
-          <div className="flex items-center justify-between text-sm text-slate-700">
+        <div className="rounded-2xl bg-ground-sunken p-3">
+          <div className="flex items-center justify-between text-sm text-ink-soft">
             <span>คิวอัปโหลด {items.length} ไฟล์</span>
             <span>{totalProgress}%</span>
           </div>
 
-          <div className="mt-1 text-xs text-slate-400">
+          <div className="mt-1 text-xs text-muted">
             ขนาดรวม: {formatBytes(totalSelectedBytes)}
           </div>
 
-          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-200">
+          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-ground-sunken">
             <div
               className="h-full rounded-full bg-blue-600 transition-all duration-300"
               style={{ width: `${totalProgress}%` }}
             />
           </div>
 
-          <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+          <div className="mt-2 flex items-center justify-between text-xs text-muted">
             <span>
               อัปโหลดแล้ว {uploadedCount}/{items.length}
             </span>
@@ -694,19 +694,19 @@ setItems((prev) => {
       ) : null}
 
       {items.length > 0 ? (
-        <div className="max-h-56 space-y-2 overflow-y-auto rounded-2xl border border-slate-100 p-2">
+        <div className="max-h-56 space-y-2 overflow-y-auto rounded-2xl border border-line p-2">
           {items.map((item) => (
             <div
               key={item.id}
-              className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-100"
+              className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-line"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-xs font-semibold text-slate-700">
+                  <p className="truncate text-xs font-semibold text-ink-soft">
                     {item.file.name}
                   </p>
 
-                  <p className="mt-0.5 text-[11px] text-slate-400">
+                  <p className="mt-0.5 text-[11px] text-muted">
                     {formatBytes(item.file.size)}
                   </p>
                 </div>
@@ -715,14 +715,14 @@ setItems((prev) => {
                   <button
                     type="button"
                     onClick={() => removeItem(item.id)}
-                    className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[11px] text-slate-500"
+                    className="shrink-0 rounded-full bg-ground-sunken px-2 py-1 text-[11px] text-muted"
                   >
                     นำออก
                   </button>
                 ) : null}
               </div>
 
-              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-ground-sunken">
                 <div
                   className={`h-full rounded-full transition-all duration-300 ${
                     item.status === 'error' ? 'bg-red-500' : 'bg-blue-600'
@@ -740,7 +740,7 @@ setItems((prev) => {
                           item.status === 'done' ||
                           item.status === 'duplicate'
                         ? 'text-green-600'
-                        : 'text-slate-500'
+                        : 'text-muted'
                   }
                 >
                   {item.status === 'waiting' && 'รออัปโหลด'}
@@ -751,7 +751,7 @@ setItems((prev) => {
                   {item.status === 'error' && (item.error || 'เกิดข้อผิดพลาด')}
                 </span>
 
-                <span className="text-slate-400">{item.progress}%</span>
+                <span className="text-muted">{item.progress}%</span>
               </div>
             </div>
           ))}
@@ -759,7 +759,7 @@ setItems((prev) => {
       ) : null}
 
       {currentFileName ? (
-        <p className="truncate text-xs text-slate-400">
+        <p className="truncate text-xs text-muted">
           กำลังอัปโหลด: {currentFileName}
         </p>
       ) : null}
@@ -790,7 +790,7 @@ setItems((prev) => {
             type="button"
             onClick={clearCompleted}
             disabled={uploading}
-            className="w-full rounded-xl bg-slate-100 py-3 text-sm font-semibold text-slate-600 disabled:opacity-50"
+            className="w-full rounded-xl bg-ground-sunken py-3 text-sm font-semibold text-ink-soft disabled:opacity-50"
           >
             ล้างรายการที่เสร็จแล้ว
           </button>

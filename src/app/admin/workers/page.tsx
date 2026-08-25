@@ -26,10 +26,10 @@ export default async function AdminWorkersPage() {
   if (!isAdmin) redirect('/albums')
 
   return (
-    <main className="min-h-screen bg-[#F8F9FC] px-4 py-6 text-slate-950">
+    <main className="min-h-screen bg-[#F8F9FC] px-4 py-6 text-ink">
       <div className="mx-auto max-w-6xl space-y-5">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.24em] text-slate-400">
+          <p className="text-xs font-bold uppercase tracking-[0.24em] text-muted">
             Ciiya Admin
           </p>
 
@@ -37,7 +37,7 @@ export default async function AdminWorkersPage() {
             Worker Monitoring
           </h1>
 
-          <p className="mt-2 text-sm font-medium text-slate-500">
+          <p className="mt-2 text-sm font-medium text-muted">
             Monitor photo worker, face worker, queue backlog, and recent errors.
           </p>
         </div>

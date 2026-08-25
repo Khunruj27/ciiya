@@ -144,13 +144,13 @@ export default function FaceReindexButton({ albumId, photos }: Props) {
         type="button"
         onClick={handleScan}
         disabled={running || photos.length === 0}
-        className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white shadow-sm disabled:opacity-50"
+        className="rounded-full bg-ink px-4 py-2 text-xs font-semibold text-white shadow-sm disabled:opacity-50"
       >
         {running ? `Scanning ${done}/${photos.length}` : 'Scan Faces'}
       </button>
 
       {running ? (
-        <p className="text-[11px] text-slate-400">
+        <p className="text-[11px] text-muted">
           Found {facesFound} faces
         </p>
       ) : null}

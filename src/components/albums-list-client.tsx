@@ -88,7 +88,7 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
                         onClick={() => setIsSearchOpen(false)}
                         className="flex gap-3"
                       >
-                        <div className="relative h-[92px] w-[102px] shrink-0 overflow-hidden rounded-panel bg-slate-100">
+                        <div className="relative h-[92px] w-[102px] shrink-0 overflow-hidden rounded-panel bg-ground-sunken">
                           {album.cover_url ? (
                             <Image
                               src={album.cover_url}
@@ -99,7 +99,7 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
                               className="object-cover"
                             />
                           ) : (
-                            <div className="flex h-full items-center justify-center text-xs font-bold text-slate-400">
+                            <div className="flex h-full items-center justify-center text-xs font-bold text-muted">
                               ไม่มีปก
                             </div>
                           )}

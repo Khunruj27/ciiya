@@ -231,7 +231,7 @@ export default function UpgradePlanList({
                 isCurrent
                   ? 'bg-white/70 text-ink'
                   : cannotDowngrade
-                    ? 'bg-slate-300 text-white'
+                    ? 'bg-line-strong text-white'
                     : 'bg-ink text-white'
               }`}
             >

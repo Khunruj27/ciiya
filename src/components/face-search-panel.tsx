@@ -39,7 +39,7 @@ export default function FaceSearchPanel({ token, onSelect, onClose }: Props) {
                 onSelect(c.photo_ids)
                 onClose()
               }}
-              className="rounded-full bg-slate-100 px-4 py-2 text-sm"
+              className="rounded-full bg-ground-sunken px-4 py-2 text-sm"
             >
               {c.label} ({c.photo_ids.length})
             </button>

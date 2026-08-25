@@ -775,7 +775,7 @@ onError={() => {
                     className="object-cover opacity-60"
                   />
                 ) : (
-                  <div className="aspect-square w-full bg-slate-200" />
+                  <div className="aspect-square w-full bg-ground-sunken" />
                 )}
 
                 <div className="absolute inset-0 flex items-center justify-center bg-red-500/70">
@@ -818,7 +818,7 @@ onError={() => {
                   }`}
                 />
               ) : (
-                <div className="aspect-square w-full bg-slate-200" />
+                <div className="aspect-square w-full bg-ground-sunken" />
               )}
 
               {(isProcessing || isRetrying) && (

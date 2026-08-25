@@ -64,8 +64,8 @@ export default function PublicActionsBar({ shareToken }: Props) {
     <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-black/5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-slate-900">Share Album</h3>
-          <p className="text-xs text-slate-500">
+          <h3 className="text-sm font-semibold text-ink">Share Album</h3>
+          <p className="text-xs text-muted">
             Copy link or share via social
           </p>
         </div>
@@ -83,7 +83,7 @@ export default function PublicActionsBar({ shareToken }: Props) {
         <button
           type="button"
           onClick={handleNativeShare}
-          className="rounded-full bg-slate-900 px-4 py-2 text-sm text-white"
+          className="rounded-full bg-ink px-4 py-2 text-sm text-white"
         >
           Share
         </button>
@@ -116,7 +116,7 @@ export default function PublicActionsBar({ shareToken }: Props) {
         </a>
       </div>
 
-      <p className="mt-4 break-all rounded-2xl bg-slate-50 px-4 py-3 text-xs text-slate-500">
+      <p className="mt-4 break-all rounded-2xl bg-ground-sunken px-4 py-3 text-xs text-muted">
         {shareUrl}
       </p>
     </div>

@@ -37,7 +37,7 @@ export default function ManageBillingButton() {
       type="button"
       onClick={handleOpenBilling}
       disabled={loading}
-      className="flex h-12 items-center justify-center rounded-full border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+      className="flex h-12 items-center justify-center rounded-full border border-line-strong bg-white px-5 text-sm font-bold text-ink-soft transition hover:bg-ground-sunken disabled:opacity-50"
     >
       {loading ? 'Opening...' : 'Manage Billing'}
     </button>

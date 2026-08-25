@@ -36,57 +36,57 @@ export default function StorageAnalyticsCard({
   data: StorageAnalytics
 }) {
   return (
-    <div className="rounded-[30px] border border-black/5 bg-white p-5 shadow-sm">
+    <div className="rounded-hero border border-line bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
             Storage
           </p>
 
-          <h2 className="mt-1 text-[26px] font-black text-[#1C0617]">
+          <h2 className="mt-1 text-[26px] font-semibold text-ink">
             Storage Analytics
           </h2>
         </div>
 
-        <span className="rounded-full bg-[#F6F7FA] px-3 py-1 text-[11px] font-black text-[#8E8E93]">
+        <span className="rounded-full bg-ground-sunken px-3 py-1 text-[11px] font-semibold text-muted">
           {data.totalUsers} users
         </span>
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-3">
-        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+        <div className="rounded-panel bg-ground p-4">
+          <p className="text-[11px] font-semibold uppercase text-muted">
             Total Used
           </p>
 
-          <p className="mt-1 text-[24px] font-black text-[#1C0617]">
+          <p className="mt-1 text-[24px] font-semibold text-ink">
             {formatBytes(data.totalStorageUsed)}
           </p>
         </div>
 
-        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+        <div className="rounded-panel bg-ground p-4">
+          <p className="text-[11px] font-semibold uppercase text-muted">
             Capacity
           </p>
 
-          <p className="mt-1 text-[24px] font-black text-[#1C0617]">
+          <p className="mt-1 text-[24px] font-semibold text-ink">
             {formatBytes(data.totalStorageLimit)}
           </p>
         </div>
 
-        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+        <div className="rounded-panel bg-ground p-4">
+          <p className="text-[11px] font-semibold uppercase text-muted">
             Average/User
           </p>
 
-          <p className="mt-1 text-[24px] font-black text-[#1C0617]">
+          <p className="mt-1 text-[24px] font-semibold text-ink">
             {formatBytes(data.averageStorage)}
           </p>
         </div>
       </div>
 
       <div className="mt-6">
-        <p className="text-[13px] font-black text-[#1C0617]">
+        <p className="text-[13px] font-semibold text-ink">
           Top Storage Users
         </p>
 
@@ -94,20 +94,20 @@ export default function StorageAnalyticsCard({
           {data.topUsers.map((user) => (
             <div
               key={user.userId}
-              className="rounded-[18px] bg-[#FAF7F4] p-4"
+              className="rounded-card bg-ground p-4"
             >
               <div className="flex items-center justify-between">
                 <div className="min-w-0">
-                  <p className="truncate text-[13px] font-black text-[#1C0617]">
+                  <p className="truncate text-[13px] font-semibold text-ink">
                     {user.userId}
                   </p>
 
-                  <p className="text-[11px] font-semibold text-[#8E8E93]">
+                  <p className="text-[11px] font-semibold text-muted">
                     {user.plan}
                   </p>
                 </div>
 
-                <span className="text-[12px] font-black text-[#1C0617]">
+                <span className="text-[12px] font-semibold text-ink">
                   {user.percent}%
                 </span>
               </div>
@@ -119,7 +119,7 @@ export default function StorageAnalyticsCard({
                       ? 'bg-red-500'
                       : user.percent >= 70
                         ? 'bg-yellow-500'
-                        : 'bg-[#D0F578]'
+                        : 'bg-green-500'
                   }`}
                   style={{
                     width: `${Math.min(user.percent, 100)}%`,
@@ -127,7 +127,7 @@ export default function StorageAnalyticsCard({
                 />
               </div>
 
-              <p className="mt-2 text-[11px] font-semibold text-[#8E8E93]">
+              <p className="mt-2 text-[11px] font-semibold text-muted">
                 {formatBytes(user.usedBytes)} / {formatBytes(user.limitBytes)}
               </p>
             </div>

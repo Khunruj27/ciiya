@@ -47,7 +47,7 @@ export default function SetCoverButton({
       type="button"
       onClick={handleSetCover}
       disabled={loading || isCurrentCover}
-      className="rounded-full bg-white/90 px-3 py-1.5 text-xs text-slate-700 shadow disabled:opacity-50"
+      className="rounded-full bg-white/90 px-3 py-1.5 text-xs text-ink-soft shadow disabled:opacity-50"
     >
       {isCurrentCover ? 'Cover' : loading ? 'Saving...' : 'Set Cover'}
     </button>

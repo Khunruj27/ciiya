@@ -70,7 +70,7 @@ function SortablePhotoCard({ photo }: { photo: PhotoItem }) {
         />
       </button>
 
-      <div className="flex items-center justify-between px-3 py-2 text-xs text-slate-500">
+      <div className="flex items-center justify-between px-3 py-2 text-xs text-muted">
         <span className="truncate">{photo.filename || 'Photo'}</span>
         <span>↕️</span>
       </div>
@@ -138,8 +138,8 @@ export default function ReorderPhotosBoard({ albumId, photos }: Props) {
       <div className="rounded-3xl bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Reorder Photos</h2>
-            <p className="text-sm text-slate-500">
+            <h2 className="text-lg font-semibold text-ink">Reorder Photos</h2>
+            <p className="text-sm text-muted">
               Drag photos to arrange them in the order you want
             </p>
           </div>

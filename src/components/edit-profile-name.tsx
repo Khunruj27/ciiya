@@ -62,10 +62,10 @@ export default function EditProfileName({ initialName }: Props) {
           <div className="w-full max-w-sm rounded-[32px] bg-white p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-black text-slate-900">
+                <h2 className="text-lg font-black text-ink">
                   Edit Profile
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-muted">
                   Update your display name.
                 </p>
               </div>
@@ -73,7 +73,7 @@ export default function EditProfileName({ initialName }: Props) {
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-xl text-slate-500"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-ground-sunken text-xl text-muted"
                 disabled={saving}
               >
                 ×
@@ -81,7 +81,7 @@ export default function EditProfileName({ initialName }: Props) {
             </div>
 
             <div className="mt-5">
-              <label className="text-xs font-semibold text-slate-500">
+              <label className="text-xs font-semibold text-muted">
                 Profile name
               </label>
 
@@ -91,7 +91,7 @@ export default function EditProfileName({ initialName }: Props) {
                   setName(e.target.value)
                   setErrorMsg('')
                 }}
-                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-[#2F6BFF] focus:bg-white"
+                className="mt-2 w-full rounded-2xl border border-line bg-ground-sunken px-4 py-3 text-sm font-semibold text-ink outline-none focus:border-[#2F6BFF] focus:bg-white"
                 placeholder="Your name"
                 disabled={saving}
               />
@@ -106,7 +106,7 @@ export default function EditProfileName({ initialName }: Props) {
                 type="button"
                 onClick={() => setOpen(false)}
                 disabled={saving}
-                className="rounded-full bg-slate-100 px-4 py-3 text-sm font-bold text-slate-700 disabled:opacity-50"
+                className="rounded-full bg-ground-sunken px-4 py-3 text-sm font-bold text-ink-soft disabled:opacity-50"
               >
                 Cancel
               </button>

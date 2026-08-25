@@ -137,11 +137,11 @@ function SummaryCard({
   value: string | number
 }) {
   return (
-    <div className="rounded-[26px] border border-black/5 bg-white p-5 shadow-sm">
-      <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+    <div className="rounded-panel border border-line bg-white p-5 shadow-sm">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
         {label}
       </p>
-      <p className="mt-2 text-[28px] font-black tracking-[-0.05em] text-[#1C0617]">
+      <p className="mt-2 text-[28px] font-semibold tracking-[-0.05em] text-ink">
         {value}
       </p>
     </div>
@@ -160,65 +160,65 @@ function GlobalAnalytics({
 
   return (
     <div className="grid gap-5 lg:grid-cols-3">
-      <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-black/5 lg:col-span-2">
+      <div className="rounded-panel bg-white p-5 shadow-sm ring-1 ring-line lg:col-span-2">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
               Global
             </p>
 
-            <h2 className="mt-1 text-[22px] font-black text-[#1C0617]">
+            <h2 className="mt-1 text-[22px] font-semibold text-ink">
               Today Overview
             </h2>
           </div>
 
-          <span className="rounded-full bg-[#D0F578] px-3 py-1 text-[11px] font-black text-[#1C0617]">
+          <span className="rounded-full bg-green-50 px-3 py-1 text-[11px] font-semibold text-green-700">
             Live
           </span>
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-3">
-          <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-            <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+          <div className="rounded-panel bg-ground p-4">
+            <p className="text-[11px] font-semibold uppercase text-muted">
               Uploads Today
             </p>
-            <p className="mt-1 text-[26px] font-black text-[#1C0617]">
+            <p className="mt-1 text-[26px] font-semibold text-ink">
               {summary.todayUploads || 0}
             </p>
           </div>
 
-          <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-            <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+          <div className="rounded-panel bg-ground p-4">
+            <p className="text-[11px] font-semibold uppercase text-muted">
               Active Today
             </p>
-            <p className="mt-1 text-[26px] font-black text-[#1C0617]">
+            <p className="mt-1 text-[26px] font-semibold text-ink">
               {summary.todayActiveUsers || 0}
             </p>
           </div>
 
-          <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-            <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+          <div className="rounded-panel bg-ground p-4">
+            <p className="text-[11px] font-semibold uppercase text-muted">
               New Users
             </p>
-            <p className="mt-1 text-[26px] font-black text-[#1C0617]">
+            <p className="mt-1 text-[26px] font-semibold text-ink">
               {summary.newUsersToday || 0}
             </p>
           </div>
         </div>
 
         <div className="mt-5">
-          <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+          <p className="text-[11px] font-semibold uppercase text-muted">
             Uploads by hour
           </p>
 
-          <div className="mt-3 flex h-28 items-end gap-1 rounded-[22px] bg-[#FAF7F4] p-3">
+          <div className="mt-3 flex h-28 items-end gap-1 rounded-panel bg-ground p-3">
             {(summary.uploadHours || []).map((item) => (
               <div
                 key={item.hour}
                 className="flex flex-1 flex-col items-center justify-end gap-1"
               >
                 <div
-                  className="w-full rounded-t-md bg-[#D0F578]"
+                  className="w-full rounded-t-md bg-gold"
                   style={{
                     height: `${Math.max(
                       4,
@@ -233,12 +233,12 @@ function GlobalAnalytics({
         </div>
       </div>
 
-      <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-black/5">
-        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+      <div className="rounded-panel bg-white p-5 shadow-sm ring-1 ring-line">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
           Growth
         </p>
 
-        <h2 className="mt-1 text-[22px] font-black text-[#1C0617]">
+        <h2 className="mt-1 text-[22px] font-semibold text-ink">
           New Users
         </h2>
 
@@ -248,29 +248,29 @@ function GlobalAnalytics({
               <Link
                 key={user.id}
                 href={`/admin/users/${user.id}`}
-                className="block rounded-[18px] bg-[#FAF7F4] p-3 hover:bg-[#F6F7FA]"
+                className="block rounded-card bg-ground p-3 hover:bg-ground-sunken"
               >
-                <p className="truncate text-[13px] font-black text-[#1C0617]">
+                <p className="truncate text-[13px] font-semibold text-ink">
                   {user.name}
                 </p>
-                <p className="mt-1 truncate text-[11px] font-semibold text-[#8E8E93]">
+                <p className="mt-1 truncate text-[11px] font-semibold text-muted">
                   {user.email || '-'}
                 </p>
-                <p className="mt-1 text-[11px] text-[#8E8E93]">
+                <p className="mt-1 text-[11px] text-muted">
                   {formatDate(user.createdAt)}
                 </p>
               </Link>
             ))
           ) : (
-            <p className="rounded-[18px] bg-[#FAF7F4] p-4 text-sm text-slate-500">
+            <p className="rounded-card bg-ground p-4 text-sm text-muted">
               No new users.
             </p>
           )}
         </div>
       </div>
 
-      <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-black/5">
-        <h2 className="text-lg font-bold text-slate-900">
+      <div className="rounded-panel bg-white p-5 shadow-sm ring-1 ring-line">
+        <h2 className="text-lg font-bold text-ink">
           Top Photo Users
         </h2>
 
@@ -279,18 +279,18 @@ function GlobalAnalytics({
             <Link
               key={user.id}
               href={`/admin/users/${user.id}`}
-              className="flex items-center justify-between rounded-[18px] bg-[#FAF7F4] p-3 hover:bg-[#F6F7FA]"
+              className="flex items-center justify-between rounded-card bg-ground p-3 hover:bg-ground-sunken"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-black text-[#1C0617]">
+                <p className="truncate text-sm font-semibold text-ink">
                   {user.name}
                 </p>
-                <p className="truncate text-xs text-slate-500">
+                <p className="truncate text-xs text-muted">
                   {user.email || '-'}
                 </p>
               </div>
 
-              <span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-black text-slate-700">
+              <span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-soft">
                 {user.photoCount}
               </span>
             </Link>
@@ -298,8 +298,8 @@ function GlobalAnalytics({
         </div>
       </div>
 
-      <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-black/5 lg:col-span-2">
-        <h2 className="text-lg font-bold text-slate-900">
+      <div className="rounded-panel bg-white p-5 shadow-sm ring-1 ring-line lg:col-span-2">
+        <h2 className="text-lg font-bold text-ink">
           Top Storage Users
         </h2>
 
@@ -308,19 +308,19 @@ function GlobalAnalytics({
             <Link
               key={user.id}
               href={`/admin/users/${user.id}`}
-              className="rounded-[18px] bg-[#FAF7F4] p-3 hover:bg-[#F6F7FA]"
+              className="rounded-card bg-ground p-3 hover:bg-ground-sunken"
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-black text-[#1C0617]">
+                  <p className="truncate text-sm font-semibold text-ink">
                     {user.name}
                   </p>
-                  <p className="truncate text-xs text-slate-500">
+                  <p className="truncate text-xs text-muted">
                     {user.email || '-'}
                   </p>
                 </div>
 
-                <span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-black text-slate-700">
+                <span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-soft">
                   {formatBytes(user.storageUsedBytes)}
                 </span>
               </div>
@@ -418,19 +418,19 @@ export default function AdminUsersDashboard() {
   }, [payload, query, statusFilter, planFilter, sortKey])
 
   return (
-    <main className="min-h-screen bg-[#F8F9FC] px-4 py-6">
+    <main className="min-h-screen bg-ground-sunken px-4 py-6">
       <div className="mx-auto max-w-6xl space-y-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-slate-400">
+            <p className="text-xs uppercase tracking-[0.24em] text-muted">
               Ciiya Admin
             </p>
 
-            <h1 className="mt-2 text-3xl font-black text-slate-950">
+            <h1 className="mt-2 text-3xl font-semibold text-ink">
               Users Dashboard
             </h1>
 
-            <p className="mt-2 text-sm font-medium text-slate-500">
+            <p className="mt-2 text-sm font-medium text-muted">
               Monitor app users, activity, albums, photos and storage usage.
             </p>
           </div>
@@ -440,14 +440,14 @@ export default function AdminUsersDashboard() {
               type="button"
               onClick={loadUsers}
               disabled={loading}
-              className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-black/5 disabled:opacity-50"
+              className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-ink-soft shadow-sm ring-1 ring-line disabled:opacity-50"
             >
               {loading ? 'Refreshing...' : 'Refresh'}
             </button>
 
             <Link
               href="/admin/queue"
-              className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-black/5"
+              className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-ink-soft shadow-sm ring-1 ring-line"
             >
               Queue
             </Link>
@@ -455,7 +455,7 @@ export default function AdminUsersDashboard() {
         </div>
 
         {!payload ? (
-          <div className="rounded-[28px] bg-white p-6 text-center text-sm text-red-500 shadow-sm ring-1 ring-black/5">
+          <div className="rounded-panel bg-white p-6 text-center text-sm text-red-500 shadow-sm ring-1 ring-line">
             Cannot load users dashboard.
           </div>
         ) : (
@@ -493,10 +493,10 @@ export default function AdminUsersDashboard() {
                         type="button"
                         onClick={() => setPlanFilter(plan)}
                         className={[
-                          'rounded-full px-4 py-2 text-xs font-black uppercase',
+                          'rounded-full px-4 py-2 text-xs font-semibold uppercase',
                           planFilter === plan
-                            ? 'bg-[#D0F578] text-[#1C0617]'
-                            : 'bg-[#F6F7FA] text-slate-600',
+                            ? 'bg-gold text-ink'
+                            : 'bg-ground-sunken text-ink-soft',
                         ].join(' ')}
                       >
                         {plan}
@@ -508,7 +508,7 @@ export default function AdminUsersDashboard() {
                 <select
                   value={sortKey}
                   onChange={(e) => setSortKey(e.target.value as SortKey)}
-                  className="h-10 rounded-full border border-black/5 bg-[#F6F7FA] px-4 text-xs font-black uppercase text-slate-600 outline-none"
+                  className="h-10 rounded-full border border-line bg-ground-sunken px-4 text-xs font-semibold uppercase text-ink-soft outline-none"
                 >
                   <option value="lastActive">Sort: Last Active</option>
                   <option value="created">Sort: Created</option>
@@ -518,13 +518,13 @@ export default function AdminUsersDashboard() {
                   <option value="plan">Sort: Plan</option>
                 </select>
 
-            <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-black/5">
+            <div className="rounded-panel bg-white p-5 shadow-sm ring-1 ring-line">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search name, email or plan..."
-                  className="h-11 w-full rounded-2xl border border-black/5 bg-[#F6F7FA] px-4 text-sm font-semibold outline-none md:max-w-md"
+                  className="h-11 w-full rounded-panel border border-line bg-ground-sunken px-4 text-sm font-semibold outline-none md:max-w-md"
                 />
 
                 <div className="flex gap-2">
@@ -534,10 +534,10 @@ export default function AdminUsersDashboard() {
                       type="button"
                       onClick={() => setStatusFilter(status)}
                       className={[
-                        'rounded-full px-4 py-2 text-xs font-black uppercase',
+                        'rounded-full px-4 py-2 text-xs font-semibold uppercase',
                         statusFilter === status
-                          ? 'bg-[#1C0617] text-white'
-                          : 'bg-[#F6F7FA] text-slate-600',
+                          ? 'bg-ink text-white'
+                          : 'bg-ground-sunken text-ink-soft',
                       ].join(' ')}
                     >
                       {status}
@@ -546,15 +546,15 @@ export default function AdminUsersDashboard() {
                 </div>
               </div>
 
-              <p className="mt-3 text-xs font-semibold text-slate-400">
+              <p className="mt-3 text-xs font-semibold text-muted">
                 Last checked: {formatDate(payload.checkedAt)}
               </p>
             </div>
 
-            <div className="overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-black/5">
+            <div className="overflow-hidden rounded-panel bg-white shadow-sm ring-1 ring-line">
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
-                  <thead className="bg-[#FAF7F4] text-xs uppercase text-slate-500">
+                  <thead className="bg-ground text-xs uppercase text-muted">
                     <tr>
                       <th className="px-4 py-3">User</th>
                       <th className="px-4 py-3">Status</th>
@@ -572,15 +572,15 @@ export default function AdminUsersDashboard() {
                   <tbody className="divide-y divide-black/5">
                     {filteredUsers.length > 0 ? (
                       filteredUsers.map((user) => (
-                       <tr key={user.id} className="align-top hover:bg-[#FAF7F4]">
+                       <tr key={user.id} className="align-top hover:bg-ground">
                           <td className="px-4 py-4">
                             <Link
   href={`/admin/users/${user.id}`}
-  className="font-black text-[#1C0617] hover:underline"
+  className="font-semibold text-ink hover:underline"
 >
   {user.name}
 </Link>
-                            <p className="mt-1 text-xs text-slate-500">
+                            <p className="mt-1 text-xs text-muted">
                               {user.email || '-'}
                             </p>
                           </td>
@@ -588,37 +588,37 @@ export default function AdminUsersDashboard() {
                           <td className="px-4 py-4">
                             <span
                               className={[
-                                'rounded-full px-3 py-1 text-xs font-black uppercase',
+                                'rounded-full px-3 py-1 text-xs font-semibold uppercase',
                                 user.status === 'active'
                                   ? 'bg-green-50 text-green-700'
-                                  : 'bg-slate-100 text-slate-500',
+                                  : 'bg-ground-sunken text-muted',
                               ].join(' ')}
                             >
                               {user.status}
                             </span>
                           </td>
 
-                          <td className="px-4 py-4 font-semibold text-slate-700">
+                          <td className="px-4 py-4 font-semibold text-ink-soft">
                             {user.plan || 'free'}
                           </td>
 
-                          <td className="px-4 py-4 font-black text-slate-900">
+                          <td className="px-4 py-4 font-semibold text-ink">
                             {user.albumCount}
                           </td>
 
-                          <td className="px-4 py-4 font-black text-slate-900">
+                          <td className="px-4 py-4 font-semibold text-ink">
                             {user.photoCount}
                           </td>
 
-                          <td className="px-4 py-4 font-semibold text-slate-700">
+                          <td className="px-4 py-4 font-semibold text-ink-soft">
                             {formatBytes(user.storageUsedBytes)}
                           </td>
 
-                          <td className="px-4 py-4 text-xs text-slate-500">
+                          <td className="px-4 py-4 text-xs text-muted">
                             {formatDate(user.lastActiveAt)}
                           </td>
 
-                          <td className="px-4 py-4 text-xs text-slate-500">
+                          <td className="px-4 py-4 text-xs text-muted">
                             {formatDate(user.createdAt)}
                           </td>
 
@@ -629,14 +629,14 @@ export default function AdminUsersDashboard() {
                               return (
                                 <span
                                   className={[
-                                    'rounded-full px-3 py-1 text-xs font-black uppercase',
+                                    'rounded-full px-3 py-1 text-xs font-semibold uppercase',
                                     level === 'hot'
                                       ? 'bg-green-50 text-green-700'
                                       : level === 'warm'
                                         ? 'bg-blue-50 text-blue-700'
                                         : level === 'cool'
                                           ? 'bg-yellow-50 text-yellow-700'
-                                          : 'bg-slate-100 text-slate-500',
+                                          : 'bg-ground-sunken text-muted',
                                   ].join(' ')}
                                 >
                                   {getActiveLevelLabel(level)}
@@ -650,7 +650,7 @@ export default function AdminUsersDashboard() {
                               const level = getUsageLevel(user)
 
                               return (
-                                <span className="rounded-full bg-[#F6F7FA] px-3 py-1 text-xs font-black uppercase text-slate-600">
+                                <span className="rounded-full bg-ground-sunken px-3 py-1 text-xs font-semibold uppercase text-ink-soft">
                                   {level}
                                 </span>
                               )
@@ -662,7 +662,7 @@ export default function AdminUsersDashboard() {
                       <tr>
                         <td
                           colSpan={10}
-                          className="px-4 py-10 text-center text-sm text-slate-500"
+                          className="px-4 py-10 text-center text-sm text-muted"
                         >
                           No users found.
                         </td>

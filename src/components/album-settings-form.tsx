@@ -107,38 +107,38 @@ export default function AlbumSettingsForm({
       className="space-y-4 rounded-3xl bg-white p-4 shadow-sm"
     >
       <div>
-        <h2 className="text-lg font-semibold text-slate-900">ตั้งค่าอัลบั้ม</h2>
-        <p className="text-sm text-slate-500">
+        <h2 className="text-lg font-semibold text-ink">ตั้งค่าอัลบั้ม</h2>
+        <p className="text-sm text-muted">
           จัดการข้อมูล ความเป็นส่วนตัว และตัวเลือกดาวน์โหลด
         </p>
       </div>
 
       <div>
-        <label className="mb-2 block text-sm text-slate-500">ชื่ออัลบั้ม</label>
+        <label className="mb-2 block text-sm text-muted">ชื่ออัลบั้ม</label>
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
+          className="w-full rounded-2xl border border-line px-4 py-3 outline-none"
           placeholder="ชื่ออัลบั้ม"
         />
       </div>
 
       <div>
-        <label className="mb-2 block text-sm text-slate-500">คำอธิบาย</label>
+        <label className="mb-2 block text-sm text-muted">คำอธิบาย</label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          className="min-h-[110px] w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
+          className="min-h-[110px] w-full rounded-2xl border border-line px-4 py-3 outline-none"
           placeholder="คำอธิบายอัลบั้ม"
         />
       </div>
 
-      <div className="space-y-4 rounded-2xl border border-slate-200 p-4">
+      <div className="space-y-4 rounded-2xl border border-line p-4">
         <label className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-medium text-slate-900">อนุญาตให้ดาวน์โหลด</p>
-            <p className="text-xs text-slate-500">
+            <p className="text-sm font-medium text-ink">อนุญาตให้ดาวน์โหลด</p>
+            <p className="text-xs text-muted">
               ให้ลูกค้าบันทึกรูปจากหน้าแชร์ได้
             </p>
           </div>
@@ -152,12 +152,12 @@ export default function AlbumSettingsForm({
         </label>
 
         {allowDownload ? (
-          <div className="space-y-3 border-t border-slate-100 pt-4">
+          <div className="space-y-3 border-t border-line pt-4">
             <div>
-              <p className="text-sm font-medium text-slate-900">
+              <p className="text-sm font-medium text-ink">
                 ขนาดไฟล์ดาวน์โหลด
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted">
                 หน้าแชร์จะโหลดตามขนาดนี้เท่านั้น ลูกค้าเลือกขนาดเองไม่ได้
               </p>
             </div>
@@ -169,7 +169,7 @@ export default function AlbumSettingsForm({
                   className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-3 transition ${
                     downloadSize === option.value
                       ? 'border-blue-500 bg-blue-50'
-                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                      : 'border-line bg-white hover:bg-ground-sunken'
                   }`}
                 >
                   <input
@@ -182,10 +182,10 @@ export default function AlbumSettingsForm({
                   />
 
                   <span>
-                    <span className="block text-sm font-semibold text-slate-900">
+                    <span className="block text-sm font-semibold text-ink">
                       {option.label}
                     </span>
-                    <span className="block text-xs text-slate-500">
+                    <span className="block text-xs text-muted">
                       {option.desc}
                     </span>
                   </span>
@@ -196,13 +196,13 @@ export default function AlbumSettingsForm({
         ) : null}
       </div>
 
-      <div className="space-y-3 rounded-2xl border border-slate-200 p-4">
+      <div className="space-y-3 rounded-2xl border border-line p-4">
         <label className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-medium text-slate-900">
+            <p className="text-sm font-medium text-ink">
               ป้องกันด้วยรหัสผ่าน
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted">
               ต้องใส่รหัสผ่านก่อนเปิดดูอัลบั้ม
             </p>
           </div>
@@ -217,14 +217,14 @@ export default function AlbumSettingsForm({
 
         {isPasswordProtected ? (
           <div>
-            <label className="mb-2 block text-sm text-slate-500">
+            <label className="mb-2 block text-sm text-muted">
               รหัสผ่านใหม่
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
+              className="w-full rounded-2xl border border-line px-4 py-3 outline-none"
               placeholder="เว้นว่างเพื่อใช้รหัสผ่านเดิม"
             />
           </div>
@@ -235,7 +235,7 @@ export default function AlbumSettingsForm({
         <button
           type="button"
           onClick={() => history.back()}
-          className="rounded-2xl bg-slate-100 px-4 py-3 text-center text-slate-700"
+          className="rounded-2xl bg-ground-sunken px-4 py-3 text-center text-ink-soft"
         >
           ย้อนกลับ
         </button>

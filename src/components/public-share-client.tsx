@@ -42,7 +42,7 @@ export default function PublicShareClient({ token, photos }: Props) {
             <button
               key={photo.id}
               type="button"
-              className="group relative aspect-square overflow-hidden bg-slate-100"
+              className="group relative aspect-square overflow-hidden bg-ground-sunken"
             >
               <Image
                 src={src}
@@ -58,7 +58,7 @@ export default function PublicShareClient({ token, photos }: Props) {
       </div>
 
       {filteredPhotos.length === 0 ? (
-        <div className="px-6 py-16 text-center text-sm text-slate-400">
+        <div className="px-6 py-16 text-center text-sm text-muted">
           No photos found for this person.
         </div>
       ) : null}

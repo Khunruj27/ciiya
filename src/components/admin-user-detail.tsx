@@ -352,12 +352,12 @@ function StatCard({
   value: string | number
 }) {
   return (
-    <div className="rounded-[24px] border border-black/5 bg-white p-5 shadow-sm">
-      <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+    <div className="rounded-panel border border-line bg-white p-5 shadow-sm">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
         {label}
       </p>
 
-      <p className="mt-2 text-[26px] font-black tracking-[-0.04em] text-[#1C0617]">
+      <p className="mt-2 text-[26px] font-semibold tracking-[-0.04em] text-ink">
         {value}
       </p>
     </div>
@@ -374,24 +374,24 @@ function UserTimeline({
     if (type === 'camera') return 'bg-blue-500'
     if (type === 'face_job') return 'bg-purple-500'
     if (type === 'photo_job') return 'bg-yellow-500'
-    if (type === 'login') return 'bg-slate-700'
-    return 'bg-[#D0F578]'
+    if (type === 'login') return 'bg-ink-soft'
+    return 'bg-gold'
   }
 
   return (
-    <div className="rounded-[30px] border border-black/5 bg-white p-5 shadow-sm">
+    <div className="rounded-hero border border-line bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
             Activity
           </p>
 
-          <h2 className="mt-1 text-[24px] font-black text-[#1C0617]">
+          <h2 className="mt-1 text-[24px] font-semibold text-ink">
             Recent User Timeline
           </h2>
         </div>
 
-        <span className="rounded-full bg-[#F6F7FA] px-3 py-1 text-[11px] font-black text-[#8E8E93]">
+        <span className="rounded-full bg-ground-sunken px-3 py-1 text-[11px] font-semibold text-muted">
           {items.length} events
         </span>
       </div>
@@ -406,19 +406,19 @@ function UserTimeline({
                 )}`}
               />
 
-              <div className="flex-1 rounded-[20px] bg-[#FAF7F4] p-4">
+              <div className="flex-1 rounded-panel bg-ground p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-[13px] font-black text-[#1C0617]">
+                    <p className="text-[13px] font-semibold text-ink">
                       {item.title}
                     </p>
 
-                    <p className="mt-1 line-clamp-2 text-[12px] font-semibold text-[#8E8E93]">
+                    <p className="mt-1 line-clamp-2 text-[12px] font-semibold text-muted">
                       {item.description}
                     </p>
                   </div>
 
-                  <span className="shrink-0 text-[11px] font-semibold text-[#8E8E93]">
+                  <span className="shrink-0 text-[11px] font-semibold text-muted">
                     {formatDate(item.createdAt)}
                   </span>
                 </div>
@@ -426,8 +426,8 @@ function UserTimeline({
             </div>
           ))
         ) : (
-          <div className="rounded-[20px] bg-[#FAF7F4] px-4 py-8 text-center">
-            <p className="text-[13px] font-bold text-[#8E8E93]">
+          <div className="rounded-panel bg-ground px-4 py-8 text-center">
+            <p className="text-[13px] font-bold text-muted">
               No recent activity
             </p>
           </div>
@@ -443,19 +443,19 @@ function UserDiagnosticsCard({
   items: ReturnType<typeof getUserDiagnostics>
 }) {
   return (
-    <div className="rounded-[30px] border border-black/5 bg-white p-5 shadow-sm">
+    <div className="rounded-hero border border-line bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
             Support
           </p>
 
-          <h2 className="mt-1 text-[24px] font-black text-[#1C0617]">
+          <h2 className="mt-1 text-[24px] font-semibold text-ink">
             Diagnostics
           </h2>
         </div>
 
-        <span className="rounded-full bg-[#F6F7FA] px-3 py-1 text-[11px] font-black text-[#8E8E93]">
+        <span className="rounded-full bg-ground-sunken px-3 py-1 text-[11px] font-semibold text-muted">
           {items.length} checks
         </span>
       </div>
@@ -465,7 +465,7 @@ function UserDiagnosticsCard({
           <div
             key={item.label}
             className={[
-              'rounded-[22px] p-4',
+              'rounded-panel p-4',
               item.status === 'danger'
                 ? 'bg-red-50'
                 : item.status === 'warning'
@@ -474,7 +474,7 @@ function UserDiagnosticsCard({
             ].join(' ')}
           >
             <div className="flex items-center justify-between gap-3">
-              <p className="text-[12px] font-black text-[#1C0617]">
+              <p className="text-[12px] font-semibold text-ink">
                 {item.label}
               </p>
 
@@ -568,19 +568,19 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
       : []
 
   return (
-    <main className="min-h-screen bg-[#F8F9FC] px-4 py-6">
+    <main className="min-h-screen bg-ground-sunken px-4 py-6">
       <div className="mx-auto max-w-6xl space-y-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-slate-400">
+            <p className="text-xs uppercase tracking-[0.24em] text-muted">
               Ciiya Admin
             </p>
 
-            <h1 className="mt-2 text-3xl font-black text-slate-950">
+            <h1 className="mt-2 text-3xl font-semibold text-ink">
               User Detail
             </h1>
 
-            <p className="mt-2 text-sm font-medium text-slate-500">
+            <p className="mt-2 text-sm font-medium text-muted">
               Monitor user activity, uploads, albums, storage and processing.
             </p>
           </div>
@@ -590,14 +590,14 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
               type="button"
               onClick={loadDetail}
               disabled={loading}
-              className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-black/5 disabled:opacity-50"
+              className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-ink-soft shadow-sm ring-1 ring-line disabled:opacity-50"
             >
               {loading ? 'Refreshing...' : 'Refresh'}
             </button>
 
             <Link
               href="/admin/users"
-              className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-black/5"
+              className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-ink-soft shadow-sm ring-1 ring-line"
             >
               Users
             </Link>
@@ -605,45 +605,45 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
         </div>
 
         {!data || !profile ? (
-          <div className="rounded-[28px] bg-white p-6 text-center text-sm text-red-500 shadow-sm ring-1 ring-black/5">
+          <div className="rounded-panel bg-white p-6 text-center text-sm text-red-500 shadow-sm ring-1 ring-line">
             Cannot load user detail.
           </div>
         ) : (
           <>
-            <div className="rounded-[30px] border border-black/5 bg-white p-6 shadow-sm">
+            <div className="rounded-hero border border-line bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div>
-                  <h2 className="text-[30px] font-black tracking-[-0.05em] text-[#1C0617]">
+                  <h2 className="text-[30px] font-semibold tracking-[-0.05em] text-ink">
                     {profile.name}
                   </h2>
 
-                  <p className="mt-1 text-sm font-semibold text-slate-500">
+                  <p className="mt-1 text-sm font-semibold text-muted">
                     {profile.email || '-'}
                   </p>
 
                   <div className="mt-4 flex flex-wrap gap-2">
                     <span
                       className={[
-                        'rounded-full px-3 py-1 text-xs font-black uppercase',
+                        'rounded-full px-3 py-1 text-xs font-semibold uppercase',
                         profile.status === 'active'
                           ? 'bg-green-50 text-green-700'
-                          : 'bg-slate-100 text-slate-500',
+                          : 'bg-ground-sunken text-muted',
                       ].join(' ')}
                     >
                       {profile.status}
                     </span>
 
-                    <span className="rounded-full bg-[#D0F578] px-3 py-1 text-xs font-black uppercase text-[#1C0617]">
+                    <span className="rounded-full bg-gold-soft px-3 py-1 text-xs font-semibold uppercase text-gold-deep">
                       {profile.plan || 'free'}
                     </span>
 
-                    <span className="rounded-full bg-[#F6F7FA] px-3 py-1 text-xs font-black uppercase text-slate-500">
+                    <span className="rounded-full bg-ground-sunken px-3 py-1 text-xs font-semibold uppercase text-muted">
                       {profile.subscriptionStatus}
                     </span>
                   </div>
                 </div>
 
-                <div className="text-sm font-semibold text-slate-500 md:text-right">
+                <div className="text-sm font-semibold text-muted md:text-right">
                   <p>Created: {formatDate(profile.createdAt)}</p>
                   <p>Last login: {formatDate(profile.lastLoginAt)}</p>
                   <p>Last active: {formatDate(profile.lastActiveAt)}</p>
@@ -652,18 +652,18 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
             </div>
 
                         {userHealth ? (
-              <div className="rounded-[30px] border border-black/5 bg-white p-5 shadow-sm">
+              <div className="rounded-hero border border-line bg-white p-5 shadow-sm">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+                    <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
                       Health
                     </p>
 
-                    <h2 className="mt-1 text-[26px] font-black tracking-[-0.05em] text-[#1C0617]">
+                    <h2 className="mt-1 text-[26px] font-semibold tracking-[-0.05em] text-ink">
                       User Health
                     </h2>
 
-                    <p className="mt-2 text-[13px] font-semibold text-[#8E8E93]">
+                    <p className="mt-2 text-[13px] font-semibold text-muted">
                       Overall status based on activity, storage, queue and camera imports.
                     </p>
                   </div>
@@ -671,11 +671,11 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
                   <div className="text-left md:text-right">
                     <p
                       className={[
-                        'text-[34px] font-black tracking-[-0.06em]',
+                        'text-[34px] font-semibold tracking-[-0.06em]',
                         userHealth.score >= 90
                           ? 'text-green-600'
                           : userHealth.score >= 70
-                            ? 'text-[#1C0617]'
+                            ? 'text-ink'
                             : userHealth.score >= 50
                               ? 'text-yellow-600'
                               : 'text-red-600',
@@ -684,20 +684,20 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
                       {userHealth.score}%
                     </p>
 
-                    <p className="text-[12px] font-black uppercase text-[#8E8E93]">
+                    <p className="text-[12px] font-semibold uppercase text-muted">
                       {userHealth.label}
                     </p>
                   </div>
                 </div>
 
-                <div className="mt-5 h-3 overflow-hidden rounded-full bg-[#FAF7F4]">
+                <div className="mt-5 h-3 overflow-hidden rounded-full bg-ground">
                   <div
                     className={[
                       'h-full rounded-full transition-all duration-300',
                       userHealth.score >= 90
                         ? 'bg-green-500'
                         : userHealth.score >= 70
-                          ? 'bg-[#D0F578]'
+                          ? 'bg-green-400'
                           : userHealth.score >= 50
                             ? 'bg-yellow-500'
                             : 'bg-red-500',
@@ -709,40 +709,40 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
                 </div>
 
                 <div className="mt-5 grid gap-3 md:grid-cols-4">
-                  <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-                    <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+                  <div className="rounded-panel bg-ground p-4">
+                    <p className="text-[11px] font-semibold uppercase text-muted">
                       Account
                     </p>
-                    <p className="mt-1 text-[14px] font-black text-[#1C0617]">
+                    <p className="mt-1 text-[14px] font-semibold text-ink">
                       {profile.status}
                     </p>
                   </div>
 
-                  <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-                    <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+                  <div className="rounded-panel bg-ground p-4">
+                    <p className="text-[11px] font-semibold uppercase text-muted">
                       Storage
                     </p>
-                    <p className="mt-1 text-[14px] font-black text-[#1C0617]">
+                    <p className="mt-1 text-[14px] font-semibold text-ink">
                       {storageRisk?.label || 'Safe'}
                     </p>
                   </div>
 
-                  <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-                    <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+                  <div className="rounded-panel bg-ground p-4">
+                    <p className="text-[11px] font-semibold uppercase text-muted">
                       Queue
                     </p>
-                    <p className="mt-1 text-[14px] font-black text-[#1C0617]">
+                    <p className="mt-1 text-[14px] font-semibold text-ink">
                       {data.jobs.failed > 0
                         ? `${data.jobs.failed} failed`
                         : 'Clear'}
                     </p>
                   </div>
 
-                  <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-                    <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+                  <div className="rounded-panel bg-ground p-4">
+                    <p className="text-[11px] font-semibold uppercase text-muted">
                       Camera
                     </p>
-                    <p className="mt-1 text-[14px] font-black text-[#1C0617]">
+                    <p className="mt-1 text-[14px] font-semibold text-ink">
                       {data.camera.recentImports.some(
                         (item) => item.status === 'failed'
                       )
@@ -753,8 +753,8 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
                 </div>
 
                 {userHealth.issues.length > 0 ? (
-                  <div className="mt-5 rounded-[22px] bg-yellow-50 p-4">
-                    <p className="text-[12px] font-black uppercase text-yellow-700">
+                  <div className="mt-5 rounded-panel bg-yellow-50 p-4">
+                    <p className="text-[12px] font-semibold uppercase text-yellow-700">
                       Issues
                     </p>
 
@@ -770,8 +770,8 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-5 rounded-[22px] bg-green-50 p-4">
-                    <p className="text-[12px] font-black uppercase text-green-700">
+                  <div className="mt-5 rounded-panel bg-green-50 p-4">
+                    <p className="text-[12px] font-semibold uppercase text-green-700">
                       No active issues
                     </p>
                   </div>
@@ -782,40 +782,40 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
              <UserTimeline items={data.timeline || []} />
              <UserDiagnosticsCard items={diagnostics} />
 
-            <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-black/5">
+            <div className="rounded-panel bg-white p-5 shadow-sm ring-1 ring-line">
   <div className="grid gap-3 md:grid-cols-3">
-    <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-      <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+    <div className="rounded-panel bg-ground p-4">
+      <p className="text-[11px] font-semibold uppercase text-muted">
         Activity
       </p>
-      <p className="mt-1 text-[22px] font-black text-[#1C0617]">
+      <p className="mt-1 text-[22px] font-semibold text-ink">
         {activityLevel}
       </p>
     </div>
 
-    <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-      <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+    <div className="rounded-panel bg-ground p-4">
+      <p className="text-[11px] font-semibold uppercase text-muted">
         Storage Risk
       </p>
       <p
         className={[
-          'mt-1 text-[22px] font-black',
+          'mt-1 text-[22px] font-semibold',
           storageRisk?.level === 'danger'
             ? 'text-red-600'
             : storageRisk?.level === 'warning'
               ? 'text-yellow-600'
-              : 'text-[#1C0617]',
+              : 'text-ink',
         ].join(' ')}
       >
         {storageRisk?.label || 'Safe'}
       </p>
     </div>
 
-    <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-      <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+    <div className="rounded-panel bg-ground p-4">
+      <p className="text-[11px] font-semibold uppercase text-muted">
         Last Upload
       </p>
-      <p className="mt-1 text-[14px] font-black text-[#1C0617]">
+      <p className="mt-1 text-[14px] font-semibold text-ink">
         {formatDate(profile.lastUploadAt)}
       </p>
     </div>
@@ -835,31 +835,31 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
               />
             </div>
 
-            <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-black/5">
+            <div className="rounded-panel bg-white p-5 shadow-sm ring-1 ring-line">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
                     Storage
                   </p>
 
-                  <h2 className="mt-1 text-[22px] font-black text-[#1C0617]">
+                  <h2 className="mt-1 text-[22px] font-semibold text-ink">
                     Usage
                   </h2>
                 </div>
 
-                <span className="rounded-full bg-[#F6F7FA] px-3 py-1 text-xs font-black text-slate-500">
+                <span className="rounded-full bg-ground-sunken px-3 py-1 text-xs font-semibold text-muted">
                   {storagePercent}%
                 </span>
               </div>
 
-              <div className="mt-4 h-3 overflow-hidden rounded-full bg-[#FAF7F4]">
+              <div className="mt-4 h-3 overflow-hidden rounded-full bg-ground">
                 <div
-                  className="h-full rounded-full bg-[#D0F578]"
+                  className="h-full rounded-full bg-gold"
                   style={{ width: `${storagePercent}%` }}
                 />
               </div>
 
-              <p className="mt-3 text-sm font-semibold text-slate-500">
+              <p className="mt-3 text-sm font-semibold text-muted">
                 {formatBytes(profile.storageUsedBytes)} /{' '}
                 {profile.storageLimitBytes > 0
                   ? formatBytes(profile.storageLimitBytes)
@@ -868,8 +868,8 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
             </div>
 
             <div className="grid gap-5 lg:grid-cols-2">
-              <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-black/5">
-                <h2 className="text-lg font-bold text-slate-900">
+              <div className="rounded-panel bg-white p-5 shadow-sm ring-1 ring-line">
+                <h2 className="text-lg font-bold text-ink">
                   Albums
                 </h2>
 
@@ -878,27 +878,27 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
                     data.albums.map((album) => (
                       <div
                         key={album.id}
-                        className="rounded-2xl bg-[#FAF7F4] p-4"
+                        className="rounded-panel bg-ground p-4"
                       >
-                        <p className="font-black text-[#1C0617]">
+                        <p className="font-semibold text-ink">
                           {album.title}
                         </p>
-                        <p className="mt-1 text-xs font-semibold text-slate-500">
+                        <p className="mt-1 text-xs font-semibold text-muted">
                           {album.photoCount} photos · Updated{' '}
                           {formatDate(album.updatedAt)}
                         </p>
                       </div>
                     ))
                   ) : (
-                    <p className="rounded-2xl bg-[#FAF7F4] p-4 text-sm text-slate-500">
+                    <p className="rounded-panel bg-ground p-4 text-sm text-muted">
                       No albums.
                     </p>
                   )}
                 </div>
               </div>
 
-              <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-black/5">
-                <h2 className="text-lg font-bold text-slate-900">
+              <div className="rounded-panel bg-white p-5 shadow-sm ring-1 ring-line">
+                <h2 className="text-lg font-bold text-ink">
                   Recent Uploads
                 </h2>
 
@@ -907,10 +907,10 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
                     data.recentUploads.map((photo) => (
                       <div
                         key={photo.id}
-                        className="flex items-center gap-3 rounded-2xl bg-[#FAF7F4] p-3"
+                        className="flex items-center gap-3 rounded-panel bg-ground p-3"
                       >
                         {photo.previewUrl ? (
-                          <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl">
+                          <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-card">
                             <Image
                               src={photo.previewUrl}
                               alt={photo.filename}
@@ -921,21 +921,21 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
                             />
                           </div>
                         ) : (
-                          <div className="h-12 w-12 rounded-xl bg-slate-200" />
+                          <div className="h-12 w-12 rounded-card bg-ground-sunken" />
                         )}
 
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-black text-[#1C0617]">
+                          <p className="truncate text-sm font-semibold text-ink">
                             {photo.filename}
                           </p>
-                          <p className="text-xs font-semibold text-slate-500">
+                          <p className="text-xs font-semibold text-muted">
                             {photo.status} · {formatBytes(photo.fileSizeBytes)}
                           </p>
                         </div>
                       </div>
                     ))
                   ) : (
-                    <p className="rounded-2xl bg-[#FAF7F4] p-4 text-sm text-slate-500">
+                    <p className="rounded-panel bg-ground p-4 text-sm text-muted">
                       No uploads.
                     </p>
                   )}
@@ -944,8 +944,8 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
             </div>
 
             <div className="grid gap-5 lg:grid-cols-2">
-              <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-black/5">
-                <h2 className="text-lg font-bold text-slate-900">
+              <div className="rounded-panel bg-white p-5 shadow-sm ring-1 ring-line">
+                <h2 className="text-lg font-bold text-ink">
                   Processing
                 </h2>
 
@@ -957,8 +957,8 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
                 </div>
               </div>
 
-              <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-black/5">
-                <h2 className="text-lg font-bold text-slate-900">
+              <div className="rounded-panel bg-white p-5 shadow-sm ring-1 ring-line">
+                <h2 className="text-lg font-bold text-ink">
                   Camera Recent Imports
                 </h2>
 
@@ -967,26 +967,26 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
                     data.camera.recentImports.map((item) => (
                       <div
                         key={item.id}
-                        className="rounded-2xl bg-[#FAF7F4] p-4"
+                        className="rounded-panel bg-ground p-4"
                       >
                         <div className="flex justify-between gap-3">
-                          <p className="truncate text-sm font-black text-[#1C0617]">
+                          <p className="truncate text-sm font-semibold text-ink">
                             {item.filename || 'Camera file'}
                           </p>
 
-                          <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black uppercase text-slate-600">
+                          <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase text-ink-soft">
                             {item.status || 'unknown'}
                           </span>
                         </div>
 
-                        <p className="mt-1 text-xs font-semibold text-slate-500">
+                        <p className="mt-1 text-xs font-semibold text-muted">
                           {Number(item.progress || 0)}% ·{' '}
                           {formatDate(item.created_at)}
                         </p>
                       </div>
                     ))
                   ) : (
-                    <p className="rounded-2xl bg-[#FAF7F4] p-4 text-sm text-slate-500">
+                    <p className="rounded-panel bg-ground p-4 text-sm text-muted">
                       No camera imports.
                     </p>
                   )}
@@ -994,7 +994,7 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
               </div>
             </div>
 
-            <p className="text-center text-xs font-semibold text-slate-400">
+            <p className="text-center text-xs font-semibold text-muted">
               Last checked: {formatDate(data.checkedAt)}
             </p>
           </>

@@ -136,19 +136,19 @@ export default function AlertCenter({
   }
 
   return (
-    <div className="rounded-[30px] border border-black/5 bg-white p-5 shadow-sm">
+    <div className="rounded-hero border border-line bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
             Alerts
           </p>
 
-          <h2 className="mt-1 text-[26px] font-black text-[#1C0617]">
+          <h2 className="mt-1 text-[26px] font-semibold text-ink">
             Active Alerts
           </h2>
         </div>
 
-        <span className="rounded-full bg-[#F6F7FA] px-3 py-1 text-[11px] font-black text-[#8E8E93]">
+        <span className="rounded-full bg-ground-sunken px-3 py-1 text-[11px] font-semibold text-muted">
           {alerts.length} alert(s)
         </span>
       </div>
@@ -159,7 +159,7 @@ export default function AlertCenter({
             <div
               key={`${alert.title}-${index}`}
               className={[
-                'rounded-[22px] border p-4',
+                'rounded-panel border p-4',
                 alert.level === 'danger'
                   ? 'border-red-200 bg-red-50'
                   : 'border-yellow-200 bg-yellow-50',
@@ -167,7 +167,7 @@ export default function AlertCenter({
             >
               <p
                 className={[
-                  'text-[13px] font-black',
+                  'text-[13px] font-semibold',
                   alert.level === 'danger'
                     ? 'text-red-700'
                     : 'text-yellow-700',
@@ -189,8 +189,8 @@ export default function AlertCenter({
             </div>
           ))
         ) : (
-          <div className="rounded-[22px] bg-green-50 p-5">
-            <p className="text-[13px] font-black text-green-700">
+          <div className="rounded-panel bg-green-50 p-5">
+            <p className="text-[13px] font-semibold text-green-700">
               ✅ No active alerts
             </p>
 

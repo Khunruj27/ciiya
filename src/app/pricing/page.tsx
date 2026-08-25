@@ -113,16 +113,16 @@ const currentSubscription = activeSubscription
               totalBytes={totalBytes}
             />
           ) : (
-            <div className="rounded-panel border border-dashed border-slate-300 bg-ground-sunken p-6 text-center">
+            <div className="rounded-panel border border-dashed border-line-strong bg-ground-sunken p-6 text-center">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white text-2xl">
                 📦
               </div>
 
-              <h2 className="mt-4 text-base font-semibold text-slate-900">
+              <h2 className="mt-4 text-base font-semibold text-ink">
                 ยังไม่พบแพ็กเกจ
               </h2>
 
-              <p className="mt-2 text-xs leading-5 text-slate-500">
+              <p className="mt-2 text-xs leading-5 text-muted">
                 กรุณาเพิ่มข้อมูลแพ็กเกจ แล้วโหลดหน้านี้ใหม่
               </p>
             </div>

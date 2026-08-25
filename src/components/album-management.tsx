@@ -51,7 +51,7 @@ export default function AlbumManagement({
             className={`pb-2 ${
               activeTab === 'photos'
                 ? 'border-b-2 border-blue-500 text-blue-600'
-                : 'text-slate-500'
+                : 'text-muted'
             }`}
           >
             Photos ({photos.length})
@@ -59,12 +59,12 @@ export default function AlbumManagement({
 
           <button
             onClick={() => setActiveTab('videos')}
-            className="pb-2 text-slate-500"
+            className="pb-2 text-muted"
           >
             Videos (0)
           </button>
 
-          <div className="ml-auto flex gap-3 text-slate-500">
+          <div className="ml-auto flex gap-3 text-muted">
             <button>Sort</button>
             <button>Filters</button>
           </div>
@@ -80,7 +80,7 @@ export default function AlbumManagement({
       </div>
 
       {/* 🔥 GRID */}
-      <div className="grid grid-cols-3 gap-[2px] bg-slate-200">
+      <div className="grid grid-cols-3 gap-[2px] bg-ground-sunken">
         {photos.map((photo) => (
           <div key={photo.id} className="bg-white">
             <div className="relative aspect-square w-full">
@@ -94,7 +94,7 @@ export default function AlbumManagement({
               />
             </div>
 
-            <div className="p-1 text-[10px] text-center text-slate-500 truncate">
+            <div className="p-1 text-[10px] text-center text-muted truncate">
               {photo.filename}
             </div>
           </div>

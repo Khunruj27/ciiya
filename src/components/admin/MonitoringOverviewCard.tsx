@@ -36,12 +36,12 @@ function Metric({
   value: number
 }) {
   return (
-    <div className="rounded-[20px] bg-[#FAF7F4] p-4">
-      <p className="text-[11px] font-black uppercase text-[#8E8E93]">
+    <div className="rounded-panel bg-ground p-4">
+      <p className="text-[11px] font-semibold uppercase text-muted">
         {title}
       </p>
 
-      <p className="mt-2 text-[28px] font-black text-[#1C0617]">
+      <p className="mt-2 text-[28px] font-semibold text-ink">
         {value}
       </p>
     </div>
@@ -58,14 +58,14 @@ export default function MonitoringOverviewCard({
     return null
   }
   return (
-    <div className="rounded-[30px] border border-black/5 bg-white p-6 shadow-sm">
+    <div className="rounded-hero border border-line bg-white p-6 shadow-sm">
 
       <div className="mb-5">
-        <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
+        <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
           Monitoring
         </p>
 
-        <h2 className="mt-1 text-[28px] font-black text-[#1C0617]">
+        <h2 className="mt-1 text-[28px] font-semibold text-ink">
           Live Production
         </h2>
       </div>
@@ -94,8 +94,8 @@ export default function MonitoringOverviewCard({
 
       <div className="mt-6 grid gap-5 lg:grid-cols-3">
 
-        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-          <p className="font-black">
+        <div className="rounded-panel bg-ground p-4">
+          <p className="font-semibold">
             Photo Queue
           </p>
 
@@ -104,8 +104,8 @@ export default function MonitoringOverviewCard({
           </pre>
         </div>
 
-        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-          <p className="font-black">
+        <div className="rounded-panel bg-ground p-4">
+          <p className="font-semibold">
             Face Queue
           </p>
 
@@ -114,8 +114,8 @@ export default function MonitoringOverviewCard({
           </pre>
         </div>
 
-        <div className="rounded-[22px] bg-[#FAF7F4] p-4">
-          <p className="font-black">
+        <div className="rounded-panel bg-ground p-4">
+          <p className="font-semibold">
             Camera Queue
           </p>
 

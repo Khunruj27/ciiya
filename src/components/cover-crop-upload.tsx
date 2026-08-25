@@ -184,7 +184,7 @@ function closeModal() {
         </label>
       ) : (
         <div className="rounded-hero bg-white p-5 shadow-sm ring-1 ring-line">
-          <div className="rounded-panel bg-gradient-to-br from-slate-950 to-slate-700 p-5 text-white">
+          <div className="rounded-panel bg-gradient-to-br from-ink to-ink-soft p-5 text-white">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/55">
               Album Cover
             </p>
@@ -251,7 +251,7 @@ function closeModal() {
                   จัดตำแหน่งรูปหน้าปก
                 </h2>
 
-                <p className="mt-2 text-sm font-medium text-slate-500">
+                <p className="mt-2 text-sm font-medium text-muted">
                   สัดส่วนภาพ 1125:600
                 </p>
               </div>
@@ -268,7 +268,7 @@ function closeModal() {
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-[max(24px,env(safe-area-inset-bottom))]">
-              <div className="relative h-[320px] sm:h-[420px] w-full overflow-hidden rounded-panel bg-slate-950 ring-1 ring-black/10">
+              <div className="relative h-[320px] sm:h-[420px] w-full overflow-hidden rounded-panel bg-ink ring-1 ring-line-strong">
                 <Cropper
                   image={imageSrc}
                   crop={crop}
@@ -282,11 +282,11 @@ function closeModal() {
 
               <div className="mt-5 rounded-panel bg-ground-sunken p-4 ring-1 ring-line">
                 <div className="mb-3 flex items-center justify-between">
-                  <label className="text-sm font-bold text-slate-700">
+                  <label className="text-sm font-bold text-ink-soft">
                     ขยายภาพ
                   </label>
 
-                  <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500 shadow-sm">
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-muted shadow-sm">
                     {zoom.toFixed(1)}x
                   </span>
                 </div>

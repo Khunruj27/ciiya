@@ -47,7 +47,7 @@ export default function DowngradePlanButton({
       type="button"
       onClick={handleDowngrade}
       disabled={loading}
-      className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 disabled:opacity-50"
+      className="rounded-full border border-line-strong bg-white px-4 py-2 text-sm font-bold text-ink-soft disabled:opacity-50"
     >
       {loading ? 'Downgrading...' : `Downgrade to ${targetPlanName}`}
     </button>

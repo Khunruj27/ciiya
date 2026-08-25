@@ -97,7 +97,7 @@ export default function AdminWorkersLivePage() {
 
   if (loading) {
     return (
-      <main className="p-5 text-sm font-semibold text-slate-500">
+      <main className="p-5 text-sm font-semibold text-muted">
         Loading worker metrics...
       </main>
     )
@@ -117,7 +117,7 @@ export default function AdminWorkersLivePage() {
     <main className="space-y-5 p-5">
       <div className="grid gap-3 md:grid-cols-4">
         <div className="rounded-[24px] bg-white p-5 ring-1 ring-black/5">
-          <p className="text-xs font-bold uppercase text-slate-400">
+          <p className="text-xs font-bold uppercase text-muted">
             Online Workers
           </p>
           <p className="mt-2 text-3xl font-black">
@@ -126,7 +126,7 @@ export default function AdminWorkersLivePage() {
         </div>
 
         <div className="rounded-[24px] bg-white p-5 ring-1 ring-black/5">
-          <p className="text-xs font-bold uppercase text-slate-400">
+          <p className="text-xs font-bold uppercase text-muted">
             Photo Queue
           </p>
           <p className="mt-2 text-3xl font-black">
@@ -135,7 +135,7 @@ export default function AdminWorkersLivePage() {
         </div>
 
         <div className="rounded-[24px] bg-white p-5 ring-1 ring-black/5">
-          <p className="text-xs font-bold uppercase text-slate-400">
+          <p className="text-xs font-bold uppercase text-muted">
             Face Queue
           </p>
           <p className="mt-2 text-3xl font-black">
@@ -144,7 +144,7 @@ export default function AdminWorkersLivePage() {
         </div>
 
         <div className="rounded-[24px] bg-white p-5 ring-1 ring-black/5">
-          <p className="text-xs font-bold uppercase text-slate-400">
+          <p className="text-xs font-bold uppercase text-muted">
             Failed Jobs
           </p>
           <p className="mt-2 text-3xl font-black text-red-600">
@@ -159,7 +159,7 @@ export default function AdminWorkersLivePage() {
 
           <div className="mt-4 space-y-3">
             {data.workers.length === 0 ? (
-              <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+              <div className="rounded-2xl bg-ground-sunken p-4 text-sm text-muted">
                 No workers found.
               </div>
             ) : (
@@ -169,14 +169,14 @@ export default function AdminWorkersLivePage() {
                 return (
                   <div
                     key={worker.worker_id}
-                    className="rounded-2xl bg-slate-50 p-4"
+                    className="rounded-2xl bg-ground-sunken p-4"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-black">
                           {worker.worker_name || worker.worker_id}
                         </p>
-                        <p className="mt-1 text-xs text-slate-500">
+                        <p className="mt-1 text-xs text-muted">
                           {worker.worker_type || '-'} · last seen{' '}
                           {formatDate(worker.last_seen_at || worker.last_seen)}
                         </p>
@@ -232,7 +232,7 @@ export default function AdminWorkersLivePage() {
         </div>
       </section>
 
-      <p className="text-center text-xs text-slate-400">
+      <p className="text-center text-xs text-muted">
         Last checked: {formatDate(data.checkedAt)}
       </p>
     </main>
@@ -247,22 +247,22 @@ function QueueCard({
   data: { pending: number; processing: number; failed: number }
 }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4">
+    <div className="rounded-2xl bg-ground-sunken p-4">
       <p className="text-sm font-black">{title}</p>
 
       <div className="mt-3 grid grid-cols-3 gap-2 text-center">
         <div className="rounded-xl bg-white p-3">
-          <p className="text-xs text-slate-400">Pending</p>
+          <p className="text-xs text-muted">Pending</p>
           <p className="font-black">{data.pending}</p>
         </div>
 
         <div className="rounded-xl bg-white p-3">
-          <p className="text-xs text-slate-400">Processing</p>
+          <p className="text-xs text-muted">Processing</p>
           <p className="font-black">{data.processing}</p>
         </div>
 
         <div className="rounded-xl bg-white p-3">
-          <p className="text-xs text-slate-400">Failed</p>
+          <p className="text-xs text-muted">Failed</p>
           <p className="font-black text-red-600">{data.failed}</p>
         </div>
       </div>

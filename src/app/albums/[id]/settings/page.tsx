@@ -35,7 +35,7 @@ export default async function AlbumSettingsPage({ params }: PageProps) {
       <div className="mx-auto max-w-2xl space-y-4">
         <Link
           href={`/albums/${album.id}`}
-          className="text-xs uppercase tracking-[0.2em] text-slate-400"
+          className="text-xs uppercase tracking-[0.2em] text-muted"
         >
           ← กลับไปหน้าอัลบั้ม
         </Link>

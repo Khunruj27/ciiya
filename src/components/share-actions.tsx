@@ -66,7 +66,7 @@ export default function ShareActions({ shareToken }: Props) {
         setCopied(false)
       }, 1800)
     } catch {
-      alert('Copy failed')
+      alert('คัดลอกลิงก์ไม่สำเร็จ')
     }
   }
 
@@ -99,8 +99,8 @@ export default function ShareActions({ shareToken }: Props) {
         <button
           type="button"
           onClick={() => setShowQR(true)}
-          aria-label="Show QR code"
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-black transition active:scale-95"
+          aria-label="แสดงคิวอาร์โค้ด"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-ground-sunken text-ink transition active:scale-95"
         >
           <AppIcon name="code" size={24} className="opacity-90" />
         </button>
@@ -108,11 +108,11 @@ export default function ShareActions({ shareToken }: Props) {
         <button
           type="button"
           onClick={handleCopy}
-          aria-label="Copy public share link"
+          aria-label="คัดลอกลิงก์สาธารณะ"
           className={`flex h-11 w-11 items-center justify-center rounded-full transition-all duration-200 active:scale-95 ${
             copied
-              ? 'bg-[#F0B1DE] text-white'
-              : 'bg-[#F6F7FA] text-black'
+              ? 'bg-gold text-ink'
+              : 'bg-ground-sunken text-ink'
           }`}
         >
           <AppIcon
@@ -126,8 +126,8 @@ export default function ShareActions({ shareToken }: Props) {
           href={sharePath}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="Open public share page"
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-[#F6F7FA] text-black transition active:scale-95"
+          aria-label="เปิดหน้าแชร์สาธารณะ"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-ground-sunken text-ink transition active:scale-95"
         >
           <AppIcon name="forward" size={24} className="opacity-90" />
         </a>
@@ -137,36 +137,37 @@ export default function ShareActions({ shareToken }: Props) {
         <div className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/45 px-5 pt-[max(60px,env(safe-area-inset-top))] pb-[max(40px,env(safe-area-inset-bottom))] backdrop-blur-md sm:items-center">
           <button
             type="button"
-            aria-label="Close QR backdrop"
+            aria-label="ปิดหน้าต่างคิวอาร์โค้ด"
             onClick={() => setShowQR(false)}
             className="absolute inset-0 cursor-default"
           />
 
-          <div className="relative z-10 w-full max-w-[360px] overflow-hidden rounded-[30px] bg-white sm:max-w-[390px] sm:rounded-[34px]">
+          <div className="relative z-10 w-full max-w-[360px] overflow-hidden rounded-hero border border-line bg-surface sm:max-w-[390px]">
             <div className="flex items-start justify-between px-5 pb-3 pt-4 sm:px-6 sm:pb-4 sm:pt-5">
               <div>
-                <h2 className="mt-2 text-[26px] font-black leading-none tracking-[-0.05em] text-black sm:text-[30px]">
-                  QR Code
+                <h2 className="mt-2 text-[22px] font-semibold leading-none tracking-[-0.035em] text-ink sm:text-[24px]">
+                  คิวอาร์โค้ด
                 </h2>
               </div>
 
               <button
                 type="button"
                 onClick={() => setShowQR(false)}
-                className="flex h-11 w-11 items-center justify-center rounded-full bg-[#F6F7FA] text-2xl font-black leading-none text-black transition active:scale-95"
-                aria-label="Close QR modal"
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-ground-sunken text-2xl font-normal leading-none text-ink transition active:scale-95"
+                aria-label="ปิดหน้าต่างคิวอาร์โค้ด"
               >
                 ×
               </button>
             </div>
 
             <div className="px-6">
-              <div className="rounded-[26px] bg-[#D0F578] p-4 text-white sm:rounded-[30px] sm:p-5">
-
-                <div className="mt-4 flex justify-center">
+              <div className="rounded-panel border border-gold/30 bg-gold-soft p-4 sm:p-5">
+                <div className="flex justify-center">
+                  {/* Pure white, not a token: scanners need the quiet zone
+                      at full contrast, so this one surface stays literal. */}
                   <div
                     ref={qrWrapperRef}
-                    className="rounded-[28px] bg-white p-5"
+                    className="rounded-card bg-white p-5"
                   >
                     <QRCodeSVG value={fullShareUrl || sharePath} size={210} />
                   </div>
@@ -178,17 +179,17 @@ export default function ShareActions({ shareToken }: Props) {
               <button
                 type="button"
                 onClick={handleCopy}
-                className="flex h-14 w-full items-center justify-center rounded-[18px] bg-[#F5F5F7]  text-[15px] font-bold text-black border border-black/5 transition active:scale-[0.98]"
+                className="flex h-14 w-full items-center justify-center rounded-control border border-line bg-surface text-[14px] font-medium text-ink transition hover:border-line-strong active:scale-[0.98]"
               >
-                {copied ? 'Copied!' : 'Copy Link'}
+                {copied ? 'คัดลอกแล้ว' : 'คัดลอกลิงก์'}
               </button>
 
               <button
                 type="button"
                 onClick={handleDownloadQR}
-                className="flex h-14 w-full items-center justify-center rounded-[18px] bg-[#F0B1DE] border border-black/5 text-[15px] font-bold text-white transition active:scale-[0.98]"
+                className="flex h-14 w-full items-center justify-center rounded-control bg-ink text-[14px] font-medium text-white transition hover:bg-ink-soft active:scale-[0.98]"
               >
-                Download QR Code
+                ดาวน์โหลดคิวอาร์โค้ด
               </button>
             </div>
           </div>

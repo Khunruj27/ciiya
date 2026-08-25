@@ -13,27 +13,27 @@
    ============================================================ */
 
 :root {
-  --ciiya-ground: #f7f4ef;
-  --ciiya-ground-sunken: #efe9e0;
+  --ciiya-ground: #f8f6f1;
+  --ciiya-ground-sunken: #f0ece4;
   --ciiya-surface: #ffffff;
 
-  --ciiya-ink: #171512;
-  --ciiya-ink-soft: #3a3630;
-  /* Darkened from #7a736a, which measured 4.27:1 on the cream ground —
-     under AA for the body copy it carries. */
-  --ciiya-muted: #6e675e;
+  --ciiya-ink: #171717;
+  --ciiya-ink-soft: #343434;
+  /* Nudged two steps darker than the reference's #77736d, which measured
+     4.36:1 on this cream — just under AA for the body copy it carries. */
+  --ciiya-muted: #747067;
 
-  --ciiya-gold: #c2a15e;
-  /* Label colour on gold-soft cards. The lighter #9a7f45 sat at 3.03:1
-     against that fill, failing AA for the 12px labels using it. */
-  --ciiya-gold-deep: #75602f;
-  --ciiya-gold-soft: #efe4ce;
+  --ciiya-gold: #c7a86b;
+  /* Label colour on gold-soft cards. #806a3d measured 4.34:1 against that
+     fill, which fails AA for the 12px labels sitting on it. */
+  --ciiya-gold-deep: #7b6538;
+  --ciiya-gold-soft: #f3ead7;
 
   /* Status only — never decoration. */
-  --ciiya-rose: #f0b1de;
+  --ciiya-rose: #b95757;
 
-  --ciiya-line: rgba(23, 21, 18, 0.09);
-  --ciiya-line-strong: rgba(23, 21, 18, 0.18);
+  --ciiya-line: #e8e4dc;
+  --ciiya-line-strong: #d6d0c5;
 
   /*
    * One scale, replacing the ten ad-hoc corner values the pages had
@@ -92,4 +92,29 @@ body {
   background: var(--ciiya-ground);
   color: var(--ciiya-ink);
   font-family: var(--font-anuphan), "Helvetica Neue", Arial, sans-serif;
+}
+
+* {
+  border-color: var(--ciiya-line);
+}
+
+html {
+  background: var(--ciiya-ground);
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a {
+  touch-action: manipulation;
+}
+
+::selection {
+  background: rgba(199, 168, 107, 0.3);
 }

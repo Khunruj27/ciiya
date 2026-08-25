@@ -182,7 +182,7 @@ useEffect(() => {
 
       setCameraState({
   connected: true,
-  cameraName: json.cameraName || 'Camera Connected',
+  cameraName: json.cameraName || 'เชื่อมต่อกล้องแล้ว',
 })
 
 setAutoUploadActive(false)
@@ -428,11 +428,11 @@ useEffect(() => {
 
   return (
     <section className="pt-5">
-      <div className="rounded-[24px] border border-black/5 bg-white p-4">
+      <div className="rounded-panel border border-line bg-surface p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[12px] font-black uppercase tracking-[0.14em] text-[#8E8E93]">
-              Camera
+            <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
+              กล้อง
             </p>
 
              {errorMsg ? (
@@ -441,58 +441,58 @@ useEffect(() => {
   </p>
 ) : null}
 
-            <p className="mt-1 truncate text-[16px] font-black text-[#1C0617]">
+            <p className="mt-1 truncate text-[16px] font-semibold text-ink">
               {cameraState?.connected
-                ? cameraState.cameraName || 'Camera Connected'
-                : 'No Camera Connected'}
+                ? cameraState.cameraName || 'เชื่อมต่อกล้องแล้ว'
+                : 'ยังไม่ได้เชื่อมต่อกล้อง'}
             </p>
 
-            <p className="mt-1 text-[12px] font-semibold text-[#8E8E93]">
+            <p className="mt-1 text-[12px] font-semibold text-muted">
               {cameraState?.connected
                 ? autoUploadActive
-                  ? 'Auto upload is running'
-                  : 'Configure processing before shooting'
-                : 'Connect camera via USB-C'}
+                  ? 'กำลังอัปโหลดอัตโนมัติ'
+                  : 'ตั้งค่าการประมวลผลก่อนถ่ายภาพ'
+                : 'เชื่อมต่อกล้องผ่าน USB-C'}
             </p>
           </div>
 
           <div
             className={[
-              'flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-black uppercase',
+              'flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase',
               cameraState?.connected
-                ? 'bg-[#D0F578] text-[#1C0617]'
-                : 'bg-[#FAF7F4] text-[#8E8E93]',
+                ? 'bg-gold-soft text-gold-deep'
+                : 'bg-ground-sunken text-muted',
             ].join(' ')}
           >
             <span
               className={[
                 'h-2 w-2 rounded-full',
-                cameraState?.connected ? 'bg-[#1C0617]' : 'bg-[#C7C7CC]',
+                cameraState?.connected ? 'bg-rose' : 'bg-line-strong',
               ].join(' ')}
             />
 
-            {cameraState?.connected ? 'Connected' : 'Offline'}
+            {cameraState?.connected ? 'เชื่อมต่อแล้ว' : 'ออฟไลน์'}
           </div>
         </div>
 
           
       {showSettings && cameraState?.connected && (
   <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
-    <div className="w-full max-w-[380px] rounded-[28px] bg-white p-5">
+    <div className="w-full max-w-[380px] rounded-panel bg-surface p-5">
 
-      <h3 className="text-[18px] font-black text-[#1C0617]">
-        Processing Settings
+      <h3 className="text-[18px] font-semibold text-ink">
+        ตั้งค่าการประมวลผล
       </h3>
 
-      <p className="mt-1 text-[12px] text-[#8E8E93]">
-        Configure resize and preset
+      <p className="mt-1 text-[12px] text-muted">
+        เลือกขนาดภาพและพรีเซ็ต
       </p>
 
       {/* Resize */}
 
       <div className="mt-5">
-        <div className="mb-2 text-[11px] font-black uppercase tracking-[0.12em] text-[#8E8E93]">
-          Resize
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+          ขนาดภาพ
         </div>
 
         <div className="grid grid-cols-4 gap-2">
@@ -504,10 +504,10 @@ useEffect(() => {
                 setResizeMode(size as ResizeMode)
               }
               className={[
-                'h-11 rounded-2xl text-[12px] font-black transition',
+                'h-11 rounded-card text-[12px] font-semibold transition',
                 resizeMode === size
-                  ? 'bg-[#1C0617] text-white'
-                  : 'bg-[#F6F7FA] text-[#1C0617]',
+                  ? 'bg-ink text-white'
+                  : 'bg-ground-sunken text-ink',
               ].join(' ')}
             >
               {size.toUpperCase()}
@@ -519,8 +519,8 @@ useEffect(() => {
       {/* XMP */}
 
       <div className="mt-5">
-        <div className="mb-2 text-[11px] font-black uppercase tracking-[0.12em] text-[#8E8E93]">
-          XMP Preset
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
+          พรีเซ็ต XMP
         </div>
 
        {recentPresets.length > 0 ? (
@@ -531,10 +531,10 @@ useEffect(() => {
         type="button"
         onClick={() => setPresetPath(preset.path)}
         className={[
-          'shrink-0 rounded-full px-3 py-2 text-[11px] font-black',
+          'shrink-0 rounded-full px-3 py-2 text-[11px] font-semibold',
           presetPath === preset.path
-            ? 'bg-[#1C0617] text-white'
-            : 'bg-[#F6F7FA] text-[#1C0617]',
+            ? 'bg-ink text-white'
+            : 'bg-ground-sunken text-ink',
         ].join(' ')}
       >
         {preset.name}
@@ -546,9 +546,9 @@ useEffect(() => {
         <select
           value={presetPath}
           onChange={(e) => setPresetPath(e.target.value)}
-          className="h-12 w-full rounded-2xl border border-black/5 bg-[#F6F7FA] px-4 text-[13px] font-bold"
+          className="h-12 w-full rounded-card border border-line bg-ground-sunken px-4 text-[13px] font-bold"
         >
-          <option value="">None</option>
+          <option value="">ไม่ใช้พรีเซ็ต</option>
 
           {presets.slice(0, 3).map((preset) => (
             <option
@@ -579,13 +579,13 @@ useEffect(() => {
   <label
     htmlFor="camera-xmp-upload"
     className={[
-      'flex h-11 cursor-pointer items-center justify-center rounded-2xl border border-dashed border-black/10 bg-[#F6F7FA] text-[12px] font-black',
+      'flex h-11 cursor-pointer items-center justify-center rounded-card border border-dashed border-line-strong bg-ground-sunken text-[12px] font-semibold',
       uploadingPreset
         ? 'pointer-events-none opacity-50'
         : '',
     ].join(' ')}
   >
-    {uploadingPreset ? 'Uploading...' : '+ Upload XMP'}
+    {uploadingPreset ? 'กำลังอัปโหลด…' : '+ อัปโหลด XMP'}
   </label>
 </div>
 
@@ -595,18 +595,18 @@ useEffect(() => {
         <button
           type="button"
           onClick={cancelSettings}
-          className="h-11 flex-1 rounded-full bg-[#F6F7FA] font-black"
+          className="h-11 flex-1 rounded-full bg-ground-sunken font-semibold"
         >
-          Cancel
+          ยกเลิก
         </button>
 
         <button
           type="button"
           onClick={() => startAutoUpload()}
           disabled={busy}
-          className="h-11 flex-1 rounded-full bg-[#1C0617] font-black text-white"
+          className="h-11 flex-1 rounded-full bg-ink font-semibold text-white"
         >
-          Start
+          เริ่มใช้งาน
         </button>
       </div>
     </div>
@@ -621,9 +621,9 @@ useEffect(() => {
           type="button"
           onClick={openSettingsFromActiveSession}
           disabled={busy}
-          className="rounded-full bg-[#F6F7FA] px-4 py-2 text-[12px] font-black text-[#1C0617] disabled:opacity-50"
+          className="rounded-full bg-ground-sunken px-4 py-2 text-[12px] font-semibold text-ink disabled:opacity-50"
         >
-          Settings
+          ตั้งค่า
         </button>
       ) : null}
 
@@ -631,9 +631,9 @@ useEffect(() => {
         type="button"
         onClick={disconnectCamera}
         disabled={busy}
-        className="rounded-full bg-[#1C0617] px-4 py-2 text-[12px] font-black text-white disabled:opacity-50"
+        className="rounded-full bg-ink px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-50"
       >
-        {busy ? 'Stopping...' : 'Disconnect'}
+        {busy ? 'กำลังหยุด…' : 'ยกเลิกการเชื่อมต่อ'}
       </button>
     </>
   ) : (
@@ -641,9 +641,9 @@ useEffect(() => {
       type="button"
       onClick={() => connectCamera()}
       disabled={busy}
-      className="rounded-full bg-[#D0F578] px-4 py-2 text-[12px] font-black text-[#1C0617] disabled:opacity-50"
+      className="rounded-full bg-gold px-4 py-2 text-[12px] font-semibold text-ink disabled:opacity-50"
     >
-      {busy ? 'Connecting...' : 'Connect Camera'}
+      {busy ? 'กำลังเชื่อมต่อ…' : 'เชื่อมต่อกล้อง'}
     </button>
   )}
 </div>

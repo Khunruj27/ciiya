@@ -3,98 +3,54 @@ import Image from 'next/image'
 
 export default function HomePage() {
   return (
-    <main className="min-h-dvh overflow-hidden bg-[#FAF7F4] text-[#1C0617]">
-      <div className="pointer-events-none fixed inset-0">
-        <div className="absolute -top-24 left-1/2 h-[360px] w-[360px] -translate-x-1/2 rounded-full bg-[#F0B1DE]/45 blur-3xl" />
-        <div className="absolute bottom-[-120px] right-[-140px] h-[340px] w-[340px] rounded-full bg-[#D0F578]/50 blur-3xl" />
-      </div>
+    <main className="min-h-dvh overflow-hidden bg-ground text-ink">
+      <header className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between px-5 pb-4 pt-[max(24px,env(safe-area-inset-top))] sm:px-8 lg:px-12">
+        <Image src="/logo-usage.svg" alt="Ciiya" width={132} height={48} priority className="h-9 w-auto sm:h-10" />
+        <div className="flex items-center gap-2">
+          <Link href="/login" className="flex h-11 items-center rounded-control border border-line bg-surface px-4 text-sm font-medium transition hover:border-line-strong sm:px-5">เข้าสู่ระบบ</Link>
+          <Link href="/signup" className="hidden h-11 items-center rounded-control bg-ink px-5 text-sm font-medium text-white transition hover:bg-ink-soft sm:flex">เริ่มใช้งาน</Link>
+        </div>
+      </header>
 
-      <div className="relative mx-auto flex min-h-dvh w-full max-w-[393px] flex-col px-5 pt-[max(52px,env(safe-area-inset-top))] pb-[max(28px,env(safe-area-inset-bottom))]">
-        <header className="flex items-center justify-between">
-          <Image
-            src="/logo-usage.svg"
-            alt="Ciiya Logo"
-            width={120}
-            height={40}
-            priority
-            className="h-9 w-auto"
-          />
-
-          <Link
-            href="/login"
-            className="flex h-11 items-center justify-center rounded-full border border-black/5 bg-white/80 px-5 text-[13px] font-black text-[#1C0617] backdrop-blur-xl transition active:scale-95"
-          >
-            Login
-          </Link>
-        </header>
-
-        <section className="flex flex-1 flex-col justify-center py-8">
-          <div className="mb-5 px-1">
-            <div className="inline-flex items-center gap-2 rounded-full border border-black/5 bg-white/70 px-3 py-2 backdrop-blur-xl">
-              <span className="h-2.5 w-2.5 rounded-full bg-[#F0B1DE]" />
-              <span className="text-[12px] font-black uppercase tracking-[0.16em] text-[#8E8E93]">
-                Ciiya Gallery
-              </span>
-            </div>
-
-            <h1 className="mt-6 text-[52px] font-black leading-[0.86] tracking-[-0.08em] text-[#1C0617]">
-              Share
-              <br />
-              photos
-              <br />
-              beautifully.
-            </h1>
-
-            <p className="mt-4 max-w-[310px] text-[15px] font-semibold leading-6 text-[#8E8E93]">
-              Create albums, upload photos, and share beautiful galleries with
-              your clients.
-            </p>
+      <section className="relative mx-auto grid w-full max-w-7xl items-center gap-10 px-5 pb-16 pt-8 sm:px-8 sm:pt-14 lg:min-h-[calc(100dvh-92px)] lg:grid-cols-[0.9fr_1.1fr] lg:gap-16 lg:px-12 lg:pb-24 lg:pt-8">
+        <div className="relative z-10 max-w-2xl">
+          <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-2 text-xs font-medium text-muted shadow-card">
+            <span className="h-2 w-2 rounded-full bg-gold" />พื้นที่สำหรับทุกช่วงเวลาสำคัญ
           </div>
+          <h1 className="mt-6 text-[clamp(2.65rem,8vw,5.75rem)] font-semibold leading-[0.96] tracking-[-0.055em] text-balance">เก็บภาพสำคัญ<br />ให้สวยและปลอดภัย</h1>
+          <p className="mt-5 max-w-xl text-base font-normal leading-7 text-muted sm:text-lg sm:leading-8">อัปโหลด จัดเก็บ แชร์ และดาวน์โหลดภาพจากทุกงานได้อย่างง่ายดาย ในแกลเลอรีที่ออกแบบให้รูปของคุณโดดเด่นที่สุด</p>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <Link href="/signup" className="flex h-13 items-center justify-center rounded-control bg-ink px-6 text-sm font-medium text-white transition hover:bg-ink-soft sm:min-w-40">เริ่มจัดเก็บภาพ</Link>
+            <Link href="/login" className="flex h-13 items-center justify-center rounded-control border border-line bg-surface px-6 text-sm font-medium transition hover:border-line-strong sm:min-w-40">ดูงานของฉัน</Link>
+          </div>
+          <div className="mt-9 grid max-w-xl grid-cols-3 divide-x divide-line border-y border-line py-4 text-sm">
+            <div className="pr-3"><p className="font-semibold">ปลอดภัย</p><p className="mt-1 text-xs text-muted">ข้อมูลเป็นส่วนตัว</p></div>
+            <div className="px-3"><p className="font-semibold">แชร์ง่าย</p><p className="mt-1 text-xs text-muted">เปิดดูได้ทันที</p></div>
+            <div className="pl-3"><p className="font-semibold">ภาพชัด</p><p className="mt-1 text-xs text-muted">เก็บไฟล์ต้นฉบับ</p></div>
+          </div>
+        </div>
 
-          <div className="overflow-hidden rounded-[38px] border border-black/5 bg-white/90 p-4 backdrop-blur-xl">
-            <div className="rounded-[30px] bg-[#F0B1DE] p-5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-[13px] font-black text-[#1C0617]">
-                  <span className="h-3 w-3 rounded-full bg-white" />
-                  Event Gallery
+        <div className="relative mx-auto w-full max-w-[660px] lg:mx-0">
+          <div className="absolute -inset-16 -z-10 bg-[radial-gradient(circle,rgba(199,168,107,0.2),transparent_65%)]" />
+          <div className="rounded-[28px] border border-line bg-surface p-3 shadow-[0_18px_60px_rgba(23,23,23,0.08)] sm:rounded-[36px] sm:p-4">
+            <div className="relative aspect-[4/5] overflow-hidden rounded-[20px] bg-ink sm:aspect-[5/4] sm:rounded-[28px]">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,#c7a86b_0%,#6e5b3c_20%,#343434_52%,#171717_100%)]" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/15" />
+              <div className="absolute left-5 right-5 top-5 flex items-center justify-between text-white sm:left-7 sm:right-7 sm:top-7">
+                <span className="rounded-full border border-white/20 bg-black/15 px-3 py-2 text-xs backdrop-blur-md">Ciiya Gallery</span>
+                <span className="rounded-full bg-gold px-3 py-2 text-xs font-medium text-ink">พร้อมแชร์</span>
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 p-5 text-white sm:p-8">
+                <p className="text-xs uppercase tracking-[0.18em] text-white/60">งานล่าสุด</p>
+                <h2 className="mt-2 text-3xl font-semibold tracking-[-0.04em] sm:text-5xl">ทุกความทรงจำ<br />ในที่เดียว</h2>
+                <div className="mt-5 grid grid-cols-3 gap-2">
+                  {[1, 2, 3].map((item) => <div key={item} className="aspect-[4/3] rounded-card border border-white/15 bg-white/10 backdrop-blur-sm" />)}
                 </div>
-
-                <span className="rounded-full bg-white/70 px-3 py-1 text-[11px] font-black text-[#1C0617]">
-                  2026
-                </span>
               </div>
-
-              <div className="mt-8 grid grid-cols-3 gap-1.5">
-                <div className="aspect-[3/4] rounded-[18px] bg-white/50" />
-                <div className="aspect-[3/4] rounded-[18px] bg-[#D0F578]" />
-                <div className="aspect-[3/4] rounded-[18px] bg-white/60" />
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3">
-              <Link
-                href="/login"
-                className="flex h-14 items-center justify-center rounded-full border border-black/5 bg-[#1C0617] px-6 text-[15px] font-black text-white transition active:scale-[0.98]"
-              >
-                Log in
-              </Link>
-
-              <Link
-                href="/signup"
-                className="flex h-14 items-center justify-center rounded-full border border-black/5 bg-[#D0F578] px-6 text-[15px] font-black text-[#1C0617] transition active:scale-[0.98]"
-              >
-                Create account
-              </Link>
             </div>
           </div>
-        </section>
-
-        <footer className="text-center">
-          <p className="text-xs font-semibold text-[#8E8E93]">
-            © 2026 Ciiya. Photo sharing platform
-          </p>
-        </footer>
-      </div>
+        </div>
+      </section>
     </main>
   )
 }

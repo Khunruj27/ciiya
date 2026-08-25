@@ -69,16 +69,16 @@ export default function UploadPhotoModal({
           <div className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/45 px-4 pt-[max(60px,env(safe-area-inset-top))] pb-[max(22px,calc(env(safe-area-inset-bottom)+18px))] backdrop-blur-md sm:items-center sm:pb-8">
             <button
               type="button"
-              aria-label="Close upload modal backdrop"
+              aria-label="ปิดหน้าต่างอัปโหลด"
               onClick={closeModal}
               className="absolute inset-0 cursor-default"
             />
 
-            <div className="relative z-10 flex max-h-[88vh] w-full max-w-[430px] flex-col overflow-hidden rounded-[34px] bg-white shadow-[0_30px_100px_rgba(15,23,42,0.35)]">
+            <div className="relative z-10 flex max-h-[88vh] w-full max-w-xl flex-col overflow-hidden rounded-[24px] border border-line bg-surface shadow-float">
               <div className="flex shrink-0 items-center justify-between px-6 pb-4 pt-5">
                 <div>
                   <h2 className="mt-3 text-[30px] font-black leading-none tracking-[-0.05em] text-black">
-                    Photos
+                    อัปโหลดรูปภาพ
                   </h2>
                 </div>
 
@@ -86,7 +86,7 @@ export default function UploadPhotoModal({
                   type="button"
                   onClick={closeModal}
                   className="flex h-11 w-11 items-center justify-center rounded-full border border-black/5 text-2xl font-black leading-none text-black"
-                  aria-label="Close upload modal"
+                  aria-label="ปิดหน้าต่างอัปโหลด"
                 >
                   ×
                 </button>
@@ -114,8 +114,8 @@ export default function UploadPhotoModal({
       <button
         type="button"
         onClick={openModal}
-        aria-label="Upload photos"
-        className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F0B1DE] text-white border border-black/5 transition active:scale-95 disabled:opacity-60"
+        aria-label="อัปโหลดรูปภาพ"
+        className="flex h-12 w-12 items-center justify-center rounded-full bg-ink text-gold transition active:scale-95 disabled:opacity-60"
         disabled={open}
       >
         <span className="text-[34px] font-light leading-none">+</span>

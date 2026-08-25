@@ -31,13 +31,13 @@ export default async function AlbumSettingsPage({ params }: PageProps) {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-6">
-      <div className="mx-auto max-w-md space-y-4">
+    <main className="min-h-screen bg-ground px-5 py-8 text-ink sm:px-8">
+      <div className="mx-auto max-w-2xl space-y-4">
         <Link
           href={`/albums/${album.id}`}
           className="text-xs uppercase tracking-[0.2em] text-slate-400"
         >
-          ← Back to Album
+          ← กลับไปหน้าอัลบั้ม
         </Link>
 
         <AlbumSettingsForm

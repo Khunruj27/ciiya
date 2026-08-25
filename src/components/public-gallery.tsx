@@ -594,7 +594,7 @@ useEffect(() => {
                   tab === 'live' ? 'text-ink' : 'text-muted'
                 }`}
               >
-                Live Photos
+                รูปล่าสุด
               </p>
               {tab === 'live' ? (
                 <div className="mx-auto mt-2 h-[3px] w-8 rounded-full bg-gold" />
@@ -607,7 +607,7 @@ useEffect(() => {
                   tab === 'popular' ? 'text-ink' : 'text-muted'
                 }`}
               >
-                Popular🔥
+                รูปยอดนิยม
               </p>
               {tab === 'popular' ? (
                 <div className="mx-auto mt-2 h-[3px] w-8 rounded-full bg-gold" />
@@ -770,7 +770,7 @@ useEffect(() => {
               />
             ) : (
               <div className="rounded-3xl bg-white/10 px-5 py-4 text-sm text-white/70">
-                Image is not ready
+                รูปภาพยังไม่พร้อมแสดง
               </div>
             )}
           </div>
@@ -817,7 +817,7 @@ useEffect(() => {
                 )}&token=${encodeURIComponent(shareToken)}`}
                 className="pointer-events-auto flex items-center gap-2 rounded-full bg-white px-6 py-3 text-[13px] font-semibold text-ink shadow-lg transition-transform active:scale-95"
               >
-                ⬇ Download photo
+                ดาวน์โหลดรูปภาพ
               </a>
 
               {activePhoto.filename ? (

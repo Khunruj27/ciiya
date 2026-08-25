@@ -107,7 +107,7 @@ export default function SharePreviewClient({
   const remainingCount = Math.max(0, photoCount - photos.length)
 
   return (
-    <main className="min-h-screen bg-[#f4f1eb] text-[#1b1b18] selection:bg-[#d9ff74]">
+    <main className="min-h-screen bg-[#F8F6F1] text-[#171717] selection:bg-[#C7A86B]/30">
       <header className="sticky top-0 z-40 border-b border-black/8 bg-[#f4f1eb]/90 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between px-4 sm:px-7 lg:px-10">
           <a href="#top" className="flex items-center gap-2.5" aria-label="Ciiya gallery home">
@@ -149,12 +149,12 @@ export default function SharePreviewClient({
 
           <div className="relative flex min-h-[610px] flex-col justify-between p-5 text-white sm:min-h-[660px] sm:p-9 lg:p-12">
             <div className="flex items-start justify-between gap-4">
-              <span className="rounded-full border border-white/30 bg-black/15 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] backdrop-blur-md">Live gallery</span>
-              <span className="rounded-full bg-[#d9ff74] px-4 py-2 text-xs font-black text-[#1b1b18]">อัปเดตล่าสุด 2 นาทีที่แล้ว</span>
+              <span className="rounded-full border border-white/30 bg-black/15 px-4 py-2 text-xs font-medium backdrop-blur-md">แกลเลอรีออนไลน์</span>
+              <span className="rounded-full bg-[#C7A86B] px-4 py-2 text-xs font-medium text-[#171717]">อัปเดตล่าสุด 2 นาทีที่แล้ว</span>
             </div>
 
             <div className="max-w-4xl">
-              <p className="mb-4 text-sm font-bold uppercase tracking-[0.2em] text-white/70">Shared Album</p>
+              <p className="mb-4 text-sm font-medium tracking-[0.12em] text-white/70">อัลบั้มที่แชร์</p>
               <h1 className="max-w-3xl text-[clamp(3.4rem,9vw,8.5rem)] font-black leading-[0.78] tracking-[-0.085em]">{albumTitle}</h1>
               <div className="mt-7 border-t border-white/25 pt-5">
                 <p className="max-w-lg text-base font-medium leading-7 text-white/76 sm:text-lg">
@@ -169,7 +169,7 @@ export default function SharePreviewClient({
           <button
             type="button"
             onClick={() => setFaceSearchOpen(true)}
-            className="group flex min-h-28 items-center justify-between rounded-[26px] bg-[#d9ff74] px-5 text-left transition hover:-translate-y-0.5 sm:px-7"
+            className="group flex min-h-28 items-center justify-between rounded-[20px] border border-[#E8E4DC] bg-white px-5 text-left transition hover:border-[#C7A86B] sm:px-7"
           >
             <div className="flex items-center gap-4">
               <span className="grid h-14 w-14 place-items-center rounded-full bg-[#1b1b18] text-white">
@@ -183,26 +183,26 @@ export default function SharePreviewClient({
             <Search className="mr-2 h-6 w-6 transition group-hover:scale-110" />
           </button>
 
-          <div className="flex items-center justify-between gap-5 rounded-[26px] bg-[#e8ddff] px-6 py-5 sm:min-w-80">
+          <div className="flex items-center justify-between gap-5 rounded-[20px] border border-[#E8E4DC] bg-white px-6 py-5 sm:min-w-80">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-black/50">Your picks</p>
+              <p className="text-xs font-medium text-black/50">รูปที่เลือกไว้</p>
               <p className="mt-1 text-xl font-black">{liked.size} รูปที่ชอบ</p>
             </div>
-            <Heart className="h-7 w-7 fill-[#ff5c7c] text-[#ff5c7c]" />
+            <Heart className="h-7 w-7 fill-[#C7A86B] text-[#C7A86B]" />
           </div>
         </section>
 
         <section className="pt-12">
           <div className="mb-7 flex items-end justify-between gap-5">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-black/45">The collection</p>
+              <p className="text-xs font-medium text-black/45">รูปภาพในอัลบั้ม</p>
               <h2 className="mt-2 text-4xl font-black tracking-[-0.065em] sm:text-6xl">ทุกช่วงเวลา</h2>
             </div>
             <button
               type="button"
               onClick={() => setCompactGrid((value) => !value)}
               className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-black/10 bg-white/65 transition hover:bg-white"
-              aria-label="Change gallery layout"
+              aria-label="เปลี่ยนรูปแบบแกลเลอรี"
             >
               {compactGrid ? <Images className="h-5 w-5" /> : <Grid2X2 className="h-5 w-5" />}
             </button>
@@ -220,7 +220,7 @@ export default function SharePreviewClient({
                     type="button"
                     onClick={() => setSelectedPhoto(photo.id)}
                     className="absolute inset-0 z-10"
-                    aria-label={`Open ${photo.alt}`}
+                    aria-label={`เปิดรูป ${photo.alt}`}
                   />
                   <img
                     src={photo.src}
@@ -235,7 +235,7 @@ export default function SharePreviewClient({
                   <button
                     type="button"
                     onClick={() => toggleLike(photo.id)}
-                    className={`absolute right-3 top-3 z-20 grid h-10 w-10 place-items-center rounded-full backdrop-blur-md transition ${isLiked ? 'bg-[#ff5c7c] text-white' : 'bg-black/25 text-white hover:bg-white hover:text-black'}`}
+                    className={`absolute right-3 top-3 z-20 grid h-10 w-10 place-items-center rounded-full backdrop-blur-md transition ${isLiked ? 'bg-[#C7A86B] text-[#171717]' : 'bg-black/25 text-white hover:bg-white hover:text-black'}`}
                     aria-label={isLiked ? 'Remove from favorites' : 'Add to favorites'}
                   >
                     <Heart className={`h-4 w-4 ${isLiked ? 'fill-current' : ''}`} />
@@ -264,26 +264,26 @@ export default function SharePreviewClient({
         </section>
 
         <footer className="mt-20 flex flex-col gap-4 border-t border-black/10 py-8 text-sm font-semibold text-black/45 sm:flex-row sm:items-center sm:justify-between">
-          <p>Gallery by Ciiya · Made for your moments</p>
+          <p>แกลเลอรีโดย Ciiya · เพื่อทุกช่วงเวลาของคุณ</p>
           <p>{albumTitle}</p>
         </footer>
       </div>
 
       {activePhoto ? (
         <div className="fixed inset-0 z-[70] grid place-items-center bg-[#171714]/98 p-3 sm:p-8" role="dialog" aria-modal="true" aria-label="Photo preview">
-          <button type="button" onClick={() => setSelectedPhoto(null)} className="absolute right-4 top-4 z-20 grid h-11 w-11 place-items-center rounded-full bg-white/12 text-white backdrop-blur-md" aria-label="Close photo">
+          <button type="button" onClick={() => setSelectedPhoto(null)} className="absolute right-4 top-4 z-20 grid h-11 w-11 place-items-center rounded-full bg-white/12 text-white backdrop-blur-md" aria-label="ปิดรูปภาพ">
             <X className="h-5 w-5" />
           </button>
-          <button type="button" onClick={() => moveLightbox(-1)} className="absolute left-3 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/12 text-white sm:left-6" aria-label="Previous photo">
+          <button type="button" onClick={() => moveLightbox(-1)} className="absolute left-3 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/12 text-white sm:left-6" aria-label="รูปก่อนหน้า">
             <ChevronLeft className="h-5 w-5" />
           </button>
           <img src={activePhoto.src} alt={activePhoto.alt} className="max-h-[86vh] max-w-full rounded-[20px] object-contain" />
-          <button type="button" onClick={() => moveLightbox(1)} className="absolute right-3 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/12 text-white sm:right-6" aria-label="Next photo">
+          <button type="button" onClick={() => moveLightbox(1)} className="absolute right-3 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/12 text-white sm:right-6" aria-label="รูปถัดไป">
             <ChevronRight className="h-5 w-5" />
           </button>
           <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2 rounded-full bg-white px-3 py-2 shadow-2xl">
-            <button type="button" onClick={() => toggleLike(activePhoto.id)} className="grid h-10 w-10 place-items-center rounded-full bg-[#f4f1eb]" aria-label="Favorite photo">
-              <Heart className={`h-4 w-4 ${liked.has(activePhoto.id) ? 'fill-[#ff5c7c] text-[#ff5c7c]' : ''}`} />
+            <button type="button" onClick={() => toggleLike(activePhoto.id)} className="grid h-10 w-10 place-items-center rounded-full bg-[#F8F6F1]" aria-label="เลือกรูปโปรด">
+              <Heart className={`h-4 w-4 ${liked.has(activePhoto.id) ? 'fill-[#C7A86B] text-[#C7A86B]' : ''}`} />
             </button>
             <button type="button" onClick={() => showNotice('เตรียมดาวน์โหลดรูปนี้')} className="flex h-10 items-center gap-2 rounded-full bg-[#1b1b18] px-4 text-sm font-bold text-white">
               <ArrowDownToLine className="h-4 w-4" /> ดาวน์โหลด
@@ -293,13 +293,13 @@ export default function SharePreviewClient({
       ) : null}
 
       {faceSearchOpen ? (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/55 p-0 backdrop-blur-sm sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-label="Face search preview">
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/55 p-0 backdrop-blur-sm sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-label="ค้นหารูปด้วยใบหน้า">
           <div className="w-full max-w-lg rounded-t-[34px] bg-[#f7f4ee] p-6 shadow-2xl sm:rounded-[34px] sm:p-8">
             <div className="flex items-start justify-between">
-              <span className="grid h-12 w-12 place-items-center rounded-full bg-[#d9ff74]">
+              <span className="grid h-12 w-12 place-items-center rounded-full bg-[#C7A86B]">
                 <Sparkles className="h-5 w-5" />
               </span>
-              <button type="button" onClick={() => setFaceSearchOpen(false)} className="grid h-10 w-10 place-items-center rounded-full bg-black/5" aria-label="Close face search">
+              <button type="button" onClick={() => setFaceSearchOpen(false)} className="grid h-10 w-10 place-items-center rounded-full bg-black/5" aria-label="ปิดการค้นหาใบหน้า">
                 <X className="h-5 w-5" />
               </button>
             </div>

@@ -56,12 +56,12 @@ export default async function AlbumsPage() {
 
   return (
     <main className="min-h-dvh overflow-x-hidden bg-ground text-ink">
-      <div className="mx-auto flex min-h-dvh w-full max-w-[393px] flex-col px-4 pt-[max(54px,env(safe-area-inset-top))] pb-[calc(104px+env(safe-area-inset-bottom))]">
+      <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-5 pt-[max(28px,env(safe-area-inset-top))] pb-[calc(112px+env(safe-area-inset-bottom))] sm:px-8 sm:pt-8 lg:px-12">
         {/* HEADER */}
        <section className="shrink-0">
           <div className="flex w-full items-center justify-between">
             <Image
-              src="/Ciiya.svg"
+              src="/logo-usage.svg"
               alt="Ciiya Logo"
               width={120}
               height={40}
@@ -79,18 +79,19 @@ export default async function AlbumsPage() {
         </section>
 
         {/* HERO */}
-       <section className="pt-6">
-          <h1 className="mt-4 text-[38px] font-bold leading-[0.94] tracking-[-0.045em] text-ink">
-  Hello, {(
+       <section className="pt-10 sm:pt-14">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-gold-deep">พื้นที่ของคุณ</p>
+          <h1 className="mt-3 text-[clamp(2.4rem,6vw,4.5rem)] font-semibold leading-[0.96] tracking-[-0.045em] text-ink">
+  สวัสดี {(
     user.user_metadata?.full_name ||
     user.user_metadata?.name ||
     user.email?.split('@')[0] ||
-    'User'
-  ).split(' ')[0]}!  
+    'คุณ'
+  ).split(' ')[0]}
 </h1>
 
           <p className="mt-3 text-[14px] font-medium tracking-[-0.01em] text-muted">
-            {albums.length} albums · {totalPhotos} photos
+            {albums.length} งาน · {totalPhotos} รูป
           </p>
         </section>
 
@@ -100,8 +101,8 @@ export default async function AlbumsPage() {
 />
 
         {/* ACTION CARDS */}
-      <section className="pt-6">
-          <div className="flex min-h-[124px] w-full items-center justify-center rounded-hero border border-gold/25 bg-gold-soft p-5 transition active:scale-[0.98]">
+      <section className="pt-7">
+          <div className="flex min-h-[112px] w-full items-center justify-center rounded-panel border border-gold/30 bg-gold-soft p-5 transition active:scale-[0.99] sm:min-h-[124px]">
              
              <CreateAlbumModal />
              
@@ -113,16 +114,16 @@ export default async function AlbumsPage() {
           <div className="w-full">
             <div className="mb-3 flex items-center justify-between px-1">
               <h2 className="text-[20px] font-bold tracking-[-0.035em] text-ink">
-              Your albums
+              งานของฉัน
             </h2>
 
               <span className="shrink-0 text-[13px] font-semibold text-muted">
-                See all
+                ทั้งหมด {albums.length} งาน
               </span>
             </div>
 
             {albums.length > 0 ? (
-              <div className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {albums.map((album) => (
                   <div
                     key={album.id}
@@ -138,7 +139,7 @@ export default async function AlbumsPage() {
                           <Image
                             src={album.cover_url}
                             loading="lazy"
-                            alt={album.title || 'Album cover'}
+                            alt={album.title || 'ปกงาน'}
                             fill
                             sizes="96px"
                             unoptimized
@@ -146,7 +147,7 @@ export default async function AlbumsPage() {
                           />
                         ) : (
                           <div className="flex h-full items-center justify-center text-xs text-muted">
-                            No Cover
+                            ไม่มีปก
                           </div>
                         )}
 
@@ -161,11 +162,11 @@ export default async function AlbumsPage() {
                         </p>
 
                         <span className="mt-1.5 inline-block rounded-full border border-gold/40 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-gold-deep">
-                          Album
+                          งานภาพ
                         </span>
 
                         <p className="mt-2 line-clamp-2 text-[12px] font-normal leading-snug text-muted">
-                          {album.description || 'No description'}
+                          {album.description || 'ยังไม่มีคำอธิบาย'}
                         </p>
                       </div>
                     </Link>
@@ -176,10 +177,10 @@ export default async function AlbumsPage() {
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <AppIcon name="gallery" size={46} className="mb-3 opacity-35" />
                 <p className="text-[17px] font-semibold text-ink">
-                  No albums yet
+                  ยังไม่มีงาน
                 </p>
                 <p className="mt-1 text-[13px] font-normal text-muted">
-                  Create your first album to start
+                  สร้างงานแรกแล้วเริ่มอัปโหลดภาพได้เลย
                 </p>
               </div>
             )}
@@ -189,7 +190,7 @@ export default async function AlbumsPage() {
 
       {/* FLOATING BOTTOM NAV */}
       <nav className="fixed left-0 right-0 z-50 bottom-[max(20px,env(safe-area-inset-bottom))] flex justify-center px-5">
-        <div className="inline-flex items-center gap-5 rounded-full border border-line bg-surface/90 px-4 py-3 shadow-lift backdrop-blur-xl">
+        <div className="inline-flex items-center gap-2 rounded-[18px] border border-line bg-surface/95 px-2 py-2 shadow-lift backdrop-blur-xl sm:gap-3">
           <Link
             href="/albums"
             className="flex h-11 w-11 items-center justify-center rounded-full bg-gold-soft text-gold-deep"
@@ -198,19 +199,15 @@ export default async function AlbumsPage() {
           </Link>
 
            <Link
-            href="/portfolio"
+            href="/albums"
             className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95"
           >
-            <AppIcon name="portfolio" size={22} />
+            <AppIcon name="gallery" size={22} />
           </Link>
 
-          <button className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
-            <AppIcon name="magic-wand" size={22} />
-          </button>
+          <Link href="/pricing" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95"><AppIcon name="magic-wand" size={22} /></Link>
 
-          <button className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
-            <AppIcon name="bell" size={20} />
-          </button>
+          <Link href="/me" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95"><AppIcon name="bell" size={20} /></Link>
 
           <Link
             href="/me"

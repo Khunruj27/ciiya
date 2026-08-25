@@ -38,7 +38,7 @@ export default function UploadDashboard() {
 
   return (
     <div className="rounded-3xl bg-white p-4 shadow-sm">
-      <h3 className="text-sm font-semibold">Upload Status</h3>
+      <h3 className="text-sm font-semibold">สถานะการอัปโหลด</h3>
 
       <p className="mt-2 text-xl">
         📸 {count} photos

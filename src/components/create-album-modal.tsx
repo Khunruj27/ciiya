@@ -35,15 +35,15 @@ export default function CreateAlbumModal() {
              className="absolute inset-0"
             />
 
-            <div className="relative z-10 w-full max-w-[390px] rounded-[32px] bg-white p-4 shadow-[0_30px_100px_rgba(15,23,42,0.35)]">
+            <div className="relative z-10 w-full max-w-lg rounded-[24px] border border-line bg-surface p-5 shadow-float sm:p-7">
               <div className="mb-3 flex items-center justify-between">
                 <div>
-                  <h2 className="mt-2 text-[34px] font-black tracking-[-0.06em] text-black">
-                    Create Album
+                  <h2 className="mt-2 text-[28px] font-semibold tracking-[-0.04em] text-ink">
+                    สร้างงานใหม่
                   </h2>
 
                   <p className="mt-2 text-[15px] text-[#8E8E93]">
-                    Create a new photo collection
+                    ตั้งชื่องานแล้วเริ่มอัปโหลดภาพได้ทันที
                   </p>
                 </div>
 
@@ -51,7 +51,7 @@ export default function CreateAlbumModal() {
                   type="button"
                   onClick={() => setOpen(false)}
                   className="flex h-11 w-11 items-center justify-center rounded-full bg-[#F2F3F7] text-[22px] font-bold text-black transition active:scale-[0.95]"
-                  aria-label="Close create album modal"
+                  aria-label="ปิดหน้าต่างสร้างงาน"
                 >
                   ✕
                 </button>
@@ -80,7 +80,7 @@ export default function CreateAlbumModal() {
 />
 
         <span className="text-[15px] text-black font-semibold leading-none tracking-[-0.02em]">
-          New Album
+          สร้างงานใหม่
         </span>
       </button>
 

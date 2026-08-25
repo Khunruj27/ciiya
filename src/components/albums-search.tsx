@@ -42,13 +42,13 @@ export default function AlbumsSearch({ albums, onSearchChange }: Props) {
 
   return (
   <div className="mt-3">
-      <div className="flex h-[56px] items-center gap-3 rounded-full border border-black/5 bg-white px-5">
+      <div className="flex h-13 items-center gap-3 rounded-control border border-line bg-surface px-4">
         <AppIcon name="search" size={22} className="opacity-50" />
 
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search albums"
+          placeholder="ค้นหาจากชื่อหรือคำอธิบาย"
           className="flex-1 bg-transparent text-[16px] font-medium outline-none"
         />
 
@@ -65,7 +65,7 @@ export default function AlbumsSearch({ albums, onSearchChange }: Props) {
 
       {query.trim() ? (
         <p className="mt-3 px-2 text-[13px] font-semibold text-[#8E8E93]">
-          {filteredIds.length} result{filteredIds.length !== 1 ? 's' : ''}
+          พบ {filteredIds.length} งาน
         </p>
       ) : null}
     </div>

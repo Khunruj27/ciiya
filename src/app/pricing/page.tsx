@@ -63,10 +63,10 @@ const currentSubscription = activeSubscription
   )
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#FAF7F4] px-5 pt-[max(54px,env(safe-area-inset-top))] pb-[max(42px,env(safe-area-inset-bottom))] text-[#1C0617]">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(240,177,222,0.32),transparent_38%),radial-gradient(circle_at_100%_20%,rgba(208,245,120,0.22),transparent_32%)]" />
+    <main className="min-h-screen overflow-hidden bg-ground px-5 pt-[max(28px,env(safe-area-inset-top))] pb-[max(42px,env(safe-area-inset-bottom))] text-ink sm:px-8 lg:px-12">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(199,168,107,0.18),transparent_42%)]" />
 
-      <div className="relative mx-auto w-full max-w-[393px]">
+      <div className="relative mx-auto w-full max-w-5xl">
         <div className="flex items-center justify-between">
           <Link
             href="/me"
@@ -76,28 +76,28 @@ const currentSubscription = activeSubscription
           </Link>
 
           <div className="rounded-full border border-black/5 bg-white/80 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-[#8E8E93] backdrop-blur-xl">
-            Pricing
+            แพ็กเกจ
           </div>
         </div>
 
         <section className="mt-8">
           <p className="text-[13px] font-black uppercase tracking-[0.18em] text-[#8E8E93]">
-            Storage Plans
+            พื้นที่สำหรับทุกงาน
           </p>
 
           <h1 className="mt-3 text-[44px] font-black leading-[0.9] tracking-[-0.08em] text-[#1C0617]">
-            Upgrade your space.
+            เลือกพื้นที่ที่พอดีกับคุณ
           </h1>
         </section>
 
-        <section className="mt-5 rounded-[32px] border border-black/5 bg-white/90 p-4 backdrop-blur-xl">
+        <section className="mt-7 rounded-hero border border-line bg-surface/90 p-4 shadow-card backdrop-blur-xl sm:p-6 lg:p-8">
           <div className="mb-5 flex items-center justify-between">
             <div>
               <h2 className="text-[24px] font-black tracking-[-0.05em]">
-                Available Plans
+                แพ็กเกจที่พร้อมใช้งาน
               </h2>
               <p className="mt-1 text-xs font-semibold text-[#8E8E93]">
-                Upgrade, downgrade, or keep your current plan.
+                เปลี่ยนแพ็กเกจได้ตามปริมาณงานของคุณ
               </p>
             </div>
 
@@ -119,11 +119,11 @@ const currentSubscription = activeSubscription
               </div>
 
               <h2 className="mt-4 text-base font-black text-slate-900">
-                No plans found
+                ยังไม่พบแพ็กเกจ
               </h2>
 
               <p className="mt-2 text-xs leading-5 text-slate-500">
-                Please add plans in the database first, then reload this page.
+                กรุณาเพิ่มข้อมูลแพ็กเกจ แล้วโหลดหน้านี้ใหม่
               </p>
             </div>
           )}

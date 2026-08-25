@@ -20,7 +20,7 @@ export default function SharePasswordGate({ token, albumTitle }: Props) {
     setErrorMsg('')
 
     if (!password) {
-      setErrorMsg('Please enter the password')
+      setErrorMsg('กรุณาใส่รหัสผ่าน')
       return
     }
 
@@ -38,13 +38,13 @@ export default function SharePasswordGate({ token, albumTitle }: Props) {
       const data = await res.json().catch(() => null)
 
       if (!res.ok) {
-        throw new Error(data?.error || 'Incorrect password')
+        throw new Error(data?.error || 'รหัสผ่านไม่ถูกต้อง')
       }
 
       router.refresh()
     } catch (error) {
       setErrorMsg(
-        error instanceof Error ? error.message : 'Incorrect password'
+        error instanceof Error ? error.message : 'รหัสผ่านไม่ถูกต้อง'
       )
     } finally {
       setLoading(false)
@@ -53,17 +53,17 @@ export default function SharePasswordGate({ token, albumTitle }: Props) {
 
   return (
     <main className="min-h-screen bg-ground px-4 py-10 text-black">
-      <div className="mx-auto max-w-[430px] rounded-[36px] bg-surface p-7 shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+      <div className="mx-auto max-w-[430px] rounded-hero border border-line bg-surface p-7 shadow-lift">
         <p className="text-[13px] font-semibold text-muted">
           Ciiya Gallery
         </p>
 
         <h1 className="mt-3 text-[26px] font-semibold tracking-[-0.05em]">
-          {albumTitle || 'This album is protected'}
+          {albumTitle || 'อัลบั้มนี้ได้รับการป้องกัน'}
         </h1>
 
         <p className="mt-2 text-[14px] font-medium leading-6 text-muted">
-          Enter the password from the photographer to view this gallery.
+          ใส่รหัสผ่านที่ได้รับจากเจ้าของงานเพื่อเปิดดูแกลเลอรี
         </p>
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-3">
@@ -71,9 +71,9 @@ export default function SharePasswordGate({ token, albumTitle }: Props) {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
+            placeholder="รหัสผ่าน"
             autoFocus
-            className="w-full rounded-[16px] border border-black/10 px-4 py-3 text-[15px] font-medium outline-none focus:border-black/30"
+            className="w-full rounded-control border border-line px-4 py-3 text-[15px] font-medium outline-none focus:border-gold"
           />
 
           {errorMsg ? (
@@ -85,9 +85,9 @@ export default function SharePasswordGate({ token, albumTitle }: Props) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-[16px] bg-black py-3 text-[15px] font-bold text-white disabled:opacity-50"
+            className="w-full rounded-control bg-ink py-3 text-[15px] font-medium text-white disabled:opacity-50"
           >
-            {loading ? 'Checking...' : 'View Gallery'}
+            {loading ? 'กำลังตรวจสอบ…' : 'เปิดดูแกลเลอรี'}
           </button>
         </form>
       </div>

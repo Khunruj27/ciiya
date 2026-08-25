@@ -297,7 +297,7 @@ const cameraProcessingGridItems = (cameraImportsData || [])
 
       {/* FLOATING BOTTOM NAV */}
 <nav className="fixed left-0 right-0 z-50 bottom-[max(20px,env(safe-area-inset-bottom))] flex justify-center px-5">
-        <div className="inline-flex items-center gap-3 rounded-[18px] bg-surface/95 border border-line px-3 py-2 shadow-lift backdrop-blur-xl">
+        <div className="inline-flex items-center gap-2 rounded-[18px] border border-line bg-surface/95 px-2 py-2 shadow-lift backdrop-blur-xl sm:gap-3">
     <Link
       href="/albums"
       className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95"

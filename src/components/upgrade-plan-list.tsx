@@ -102,11 +102,11 @@ export default function UpgradePlanList({
         </div>
 
         <h2 className="mt-4 text-base font-black text-[#1C0617]">
-          No plans found
+          ยังไม่พบแพ็กเกจ
         </h2>
 
         <p className="mt-2 text-xs font-semibold leading-5 text-[#8E8E93]">
-          Please add plans in the database first.
+          กรุณาเพิ่มข้อมูลแพ็กเกจก่อน
         </p>
       </div>
     )
@@ -116,13 +116,13 @@ export default function UpgradePlanList({
     <div className="space-y-2.5">
       {isSuccess ? (
         <div className="rounded-[22px] border border-green-200 bg-green-50 px-4 py-3 text-xs font-bold leading-5 text-green-700">
-          Payment successful. Your plan has been updated.
+          ชำระเงินสำเร็จ แพ็กเกจของคุณได้รับการอัปเดตแล้ว
         </div>
       ) : null}
 
       {isCanceled ? (
         <div className="rounded-[22px] border border-yellow-200 bg-yellow-50 px-4 py-3 text-xs font-bold leading-5 text-yellow-700">
-          Payment was canceled. You can choose another plan anytime.
+          ยกเลิกการชำระเงินแล้ว คุณสามารถเลือกแพ็กเกจใหม่ได้ทุกเมื่อ
         </div>
       ) : null}
 
@@ -145,12 +145,12 @@ export default function UpgradePlanList({
         return (
           <div
             key={plan.id}
-            className={`relative overflow-hidden rounded-[30px] border p-4 transition active:scale-[0.99] ${
+            className={`relative overflow-hidden rounded-panel border p-4 transition active:scale-[0.99] ${
               isCurrent
-                ? 'border-black/10 bg-[#F0B1DE]'
+                ? 'border-gold bg-gold-soft'
                 : isPopular
-                  ? 'border-black/10 bg-[#D0F578]'
-                  : 'border-black/5 bg-[#F6F7FA]'
+                  ? 'border-gold/50 bg-surface'
+                  : 'border-line bg-ground'
             }`}
           >
             <div className="flex items-start justify-between gap-3">
@@ -162,35 +162,35 @@ export default function UpgradePlanList({
 
                   {isCurrent ? (
                     <span className="rounded-full bg-white/75 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#1C0617]">
-                      Current
+                      ปัจจุบัน
                     </span>
                   ) : null}
 
                   {isPopular && !isCurrent ? (
                     <span className="rounded-full bg-white/75 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#344318]">
-                      Best
+                      แนะนำ
                     </span>
                   ) : null}
                 </div>
 
                 <p className="mt-2 text-xs font-bold leading-5 text-[#4A3140]/75">
-                  Storage up to {storageLabel}
+                  พื้นที่จัดเก็บสูงสุด {storageLabel}
                 </p>
 
                 {isPopular ? (
                   <p className="mt-1 text-xs font-bold leading-5 text-[#344318]">
-                    Recommended for photographers and client galleries.
+                    เหมาะสำหรับช่างภาพและแกลเลอรีลูกค้า
                   </p>
                 ) : null}
               </div>
 
               <div className="shrink-0 text-right">
                 <p className="text-[28px] font-black leading-none tracking-[-0.07em] text-[#1C0617]">
-                  {plan.price_thb === 0 ? 'Free' : `฿${plan.price_thb}`}
+                  {plan.price_thb === 0 ? 'ฟรี' : `฿${plan.price_thb}`}
                 </p>
 
                 <p className="mt-1 text-[11px] font-bold text-[#8E8E93]">
-                  {plan.price_thb === 0 ? 'Starter' : '/ month'}
+                  {plan.price_thb === 0 ? 'เริ่มต้น' : '/ เดือน'}
                 </p>
               </div>
             </div>
@@ -198,7 +198,7 @@ export default function UpgradePlanList({
             <div className="mt-4 grid grid-cols-2 gap-2">
               <div className="rounded-[20px] bg-white/65 px-3 py-3">
                 <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8E8E93]">
-                  Space
+                  พื้นที่
                 </p>
                 <p className="mt-1 text-sm font-black text-[#1C0617]">
                   {storageLabel}
@@ -207,17 +207,17 @@ export default function UpgradePlanList({
 
               <div className="rounded-[20px] bg-white/65 px-3 py-3">
                 <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8E8E93]">
-                  Delivery
+                  ส่งมอบงาน
                 </p>
                 <p className="mt-1 text-sm font-black text-[#1C0617]">
-                  Gallery
+                  แกลเลอรี
                 </p>
               </div>
             </div>
 
             {cannotDowngrade ? (
               <p className="mt-3 rounded-[20px] bg-red-50 px-3 py-3 text-xs font-bold leading-5 text-red-600">
-                ⚠️ You are using more storage than this plan allows.
+                พื้นที่ที่ใช้อยู่เกินขีดจำกัดของแพ็กเกจนี้
               </p>
             ) : null}
 
@@ -236,16 +236,16 @@ export default function UpgradePlanList({
               }`}
             >
               {isCurrent
-                ? 'Current Plan'
+                ? 'แพ็กเกจปัจจุบัน'
                 : cannotDowngrade
-                  ? 'Storage Too Large'
+                  ? 'พื้นที่ไม่เพียงพอ'
                   : loadingPlanId === plan.id
-                    ? 'Processing...'
+                    ? 'กำลังดำเนินการ…'
                     : plan.price_thb === 0
-                      ? 'Use Free'
+                      ? 'ใช้แพ็กเกจฟรี'
                       : isPopular
-                        ? 'Upgrade Plan'
-                        : 'Choose Plan'}
+                        ? 'อัปเกรดแพ็กเกจ'
+                        : 'เลือกแพ็กเกจ'}
             </button>
           </div>
         )

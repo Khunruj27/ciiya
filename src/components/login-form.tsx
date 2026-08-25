@@ -26,7 +26,7 @@ export default function LoginForm({
         <div className="absolute -top-32 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-gold/15 blur-3xl" />
       </div>
 
-      <div className="relative mx-auto flex min-h-dvh w-full max-w-[393px] flex-col px-5 pt-[max(52px,env(safe-area-inset-top))] pb-[max(34px,env(safe-area-inset-bottom))]">
+      <div className="relative mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-5 pt-[max(28px,env(safe-area-inset-top))] pb-[max(28px,env(safe-area-inset-bottom))] sm:px-8 lg:px-12">
         <header className="flex items-center justify-between">
           <Link
             href="/"
@@ -39,32 +39,29 @@ export default function LoginForm({
             href="/signup"
             className="flex h-11 items-center justify-center rounded-full border border-line bg-surface/80 px-5 text-[13px] font-semibold text-ink backdrop-blur-xl transition active:scale-95"
           >
-            Sign up
+            สมัครสมาชิก
           </Link>
         </header>
 
-        <section className="flex flex-1 flex-col justify-center py-8">
-          <div className="mb-7 px-1">
+        <section className="grid flex-1 items-center gap-10 py-10 lg:grid-cols-2 lg:gap-20">
+          <div className="px-1">
             <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/70 px-3 py-1.5 backdrop-blur-xl">
               <span className="h-2 w-2 rounded-full bg-gold" />
               <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
-                Welcome back
+                ยินดีต้อนรับกลับ
               </span>
             </div>
 
-            <h1 className="mt-6 text-[46px] font-bold leading-[0.92] tracking-[-0.055em] text-ink">
-              Log in
-              <br />
-              to Ciiya.
+            <h1 className="mt-6 text-[clamp(2.7rem,7vw,5rem)] font-semibold leading-[0.95] tracking-[-0.05em] text-ink">
+              กลับมาเก็บ<br />ทุกช่วงเวลาต่อ
             </h1>
 
             <p className="mt-4 max-w-[310px] text-[14px] font-normal leading-6 text-muted">
-              Manage albums, upload photos, and share galleries with your
-              clients.
+              จัดการงาน อัปโหลดรูป และแชร์แกลเลอรีให้ลูกค้าของคุณได้จากที่เดียว
             </p>
           </div>
 
-          <div className="rounded-hero border border-line bg-surface/90 p-4 shadow-card backdrop-blur-xl">
+          <div className="w-full rounded-hero border border-line bg-surface/90 p-5 shadow-lift backdrop-blur-xl sm:p-7 lg:ml-auto lg:max-w-md">
             <GoogleSignInButton next="/albums" onError={setErrorMsg} />
 
             {errorMsg ? (

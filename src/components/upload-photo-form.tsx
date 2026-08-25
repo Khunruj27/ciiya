@@ -518,8 +518,8 @@ if (isMounted()) {
 
       safeSetSuccessMsg(
         presetFile
-          ? `Upload queued with preset: ${successCount}/${uploadItems.length} file(s)`
-          : `Upload queued: ${successCount}/${uploadItems.length} file(s)`
+          ? `เพิ่มเข้าคิวพร้อมพรีเซ็ตแล้ว ${successCount}/${uploadItems.length} ไฟล์`
+          : `เพิ่มเข้าคิวแล้ว ${successCount}/${uploadItems.length} ไฟล์`
       )
 
       if (successCount === uploadItems.length) {
@@ -528,11 +528,11 @@ if (isMounted()) {
 
       if (errorCount > 0) {
         safeSetErrorMsg(
-          `${errorCount} file(s) failed. You can press Start Upload again to retry.`
+          `อัปโหลดไม่สำเร็จ ${errorCount} ไฟล์ กดเริ่มอัปโหลดอีกครั้งเพื่อลองใหม่`
         )
       }
     } catch (error) {
-      safeSetErrorMsg(error instanceof Error ? error.message : 'Upload failed')
+      safeSetErrorMsg(error instanceof Error ? error.message : 'อัปโหลดไม่สำเร็จ')
       safeSetCurrentFileName('')
     } finally {
   uploadLockRef.current = false
@@ -541,11 +541,11 @@ if (isMounted()) {
   }
 
   return (
-    <div className="space-y-4 rounded-3xl bg-white p-4 border border-black/5">
+    <div className="space-y-4 rounded-panel bg-surface p-1">
       {/* JPG Photos */}
 <div className="space-y-2">
   <label className="text-xs font-semibold text-slate-500">
-    JPG Photos
+    รูปภาพ JPG
   </label>
 
   <input
@@ -599,19 +599,19 @@ setItems((prev) => {
 
       e.currentTarget.value = ''
     }}
-    className="block w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600"
+    className="block w-full rounded-control border border-line bg-ground p-3 text-sm text-muted"
     disabled={uploading}
   />
 
   <p className="text-xs text-slate-400">
-    Select one or multiple JPG/JPEG photos.
+    เลือกรูป JPG/JPEG ได้ครั้งละหลายรูป
   </p>
 </div>
     
 
      <div className="space-y-2">
         <label className="text-xs font-semibold text-slate-500">
-          Lightroom Preset (.xmp)
+          พรีเซ็ต Lightroom (.xmp)
         </label>
 
         <input
@@ -629,11 +629,11 @@ setItems((prev) => {
 
         {presetFile ? (
           <div className="rounded-2xl bg-blue-50 px-3 py-2 text-xs font-medium text-blue-600">
-            Preset selected: {presetFile.name}
+            เลือกพรีเซ็ตแล้ว: {presetFile.name}
           </div>
         ) : (
           <p className="text-xs text-slate-400">
-            Optional: choose a Lightroom .xmp preset before upload
+            ไม่บังคับ: เลือกพรีเซ็ต .xmp ก่อนอัปโหลด
           </p>
         )}
       </div>
@@ -647,7 +647,7 @@ setItems((prev) => {
         <option value="sd">SD (2000px)</option>
         <option value="hd">HD (3000px)</option>
         <option value="uhd">UHD (4000px)</option>
-        <option value="original">Original (original size)</option>
+        <option value="original">ต้นฉบับ (ขนาดเดิม)</option>
       </select>
 
       {categories.length > 0 ? (
@@ -657,7 +657,7 @@ setItems((prev) => {
           className="w-full rounded-xl border border-slate-200 p-3 text-sm"
           disabled={uploading}
         >
-          <option value="">No Category</option>
+          <option value="">ไม่ระบุหมวดหมู่</option>
           {categories.map((category) => (
             <option key={category.id} value={category.id}>
               {category.name}
@@ -669,12 +669,12 @@ setItems((prev) => {
       {items.length > 0 ? (
         <div className="rounded-2xl bg-slate-50 p-3">
           <div className="flex items-center justify-between text-sm text-slate-700">
-            <span>Queue {items.length} file(s)</span>
+            <span>คิวอัปโหลด {items.length} ไฟล์</span>
             <span>{totalProgress}%</span>
           </div>
 
           <div className="mt-1 text-xs text-slate-400">
-            Total size: {formatBytes(totalSelectedBytes)}
+            ขนาดรวม: {formatBytes(totalSelectedBytes)}
           </div>
 
           <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-200">
@@ -686,9 +686,9 @@ setItems((prev) => {
 
           <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
             <span>
-              Uploaded {uploadedCount}/{items.length}
+              อัปโหลดแล้ว {uploadedCount}/{items.length}
             </span>
-            <span>{failedCount > 0 ? `Failed ${failedCount}` : 'Ready'}</span>
+            <span>{failedCount > 0 ? `ไม่สำเร็จ ${failedCount}` : 'พร้อมอัปโหลด'}</span>
           </div>
         </div>
       ) : null}
@@ -717,7 +717,7 @@ setItems((prev) => {
                     onClick={() => removeItem(item.id)}
                     className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[11px] text-slate-500"
                   >
-                    Remove
+                    นำออก
                   </button>
                 ) : null}
               </div>
@@ -743,12 +743,12 @@ setItems((prev) => {
                         : 'text-slate-500'
                   }
                 >
-                  {item.status === 'waiting' && 'Waiting'}
-                  {item.status === 'uploading' && `Uploading ${item.progress}%`}
-                  {item.status === 'queued' && 'Uploaded • Processing preview'}
-                  {item.status === 'done' && 'Done'}
-                  {item.status === 'duplicate' && 'Duplicate • Already uploaded'}
-                  {item.status === 'error' && (item.error || 'Error')}
+                  {item.status === 'waiting' && 'รออัปโหลด'}
+                  {item.status === 'uploading' && `กำลังอัปโหลด ${item.progress}%`}
+                  {item.status === 'queued' && 'อัปโหลดแล้ว • กำลังสร้างตัวอย่าง'}
+                  {item.status === 'done' && 'เสร็จแล้ว'}
+                  {item.status === 'duplicate' && 'ไฟล์ซ้ำ • อัปโหลดไว้แล้ว'}
+                  {item.status === 'error' && (item.error || 'เกิดข้อผิดพลาด')}
                 </span>
 
                 <span className="text-slate-400">{item.progress}%</span>
@@ -760,7 +760,7 @@ setItems((prev) => {
 
       {currentFileName ? (
         <p className="truncate text-xs text-slate-400">
-          Current: {currentFileName}
+          กำลังอัปโหลด: {currentFileName}
         </p>
       ) : null}
 
@@ -775,9 +775,9 @@ setItems((prev) => {
   type="button"
   onClick={handleUpload}
   disabled={uploading}
-  className="w-full rounded-xl bg-[#F0B1DE] border border-black/5 py-3 text-white disabled:opacity-50"
+  className="w-full rounded-control bg-ink py-3 font-medium text-white disabled:opacity-50"
 >
-  {uploading ? 'Uploading...' : 'Start Upload'}
+  {uploading ? 'กำลังอัปโหลด…' : 'เริ่มอัปโหลด'}
 </button>
 
         {items.some(
@@ -792,7 +792,7 @@ setItems((prev) => {
             disabled={uploading}
             className="w-full rounded-xl bg-slate-100 py-3 text-sm font-semibold text-slate-600 disabled:opacity-50"
           >
-            Clear completed
+            ล้างรายการที่เสร็จแล้ว
           </button>
         ) : null}
       </div>

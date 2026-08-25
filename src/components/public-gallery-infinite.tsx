@@ -215,7 +215,7 @@ export default function PublicGalleryInfinite({
             disabled={loading}
             className="rounded-full border border-line bg-surface px-5 py-3 text-[13px] font-semibold text-ink shadow-card transition hover:bg-ground disabled:opacity-50"
           >
-            {loading ? 'Loading...' : 'Load more photos'}
+            {loading ? 'กำลังโหลด…' : 'โหลดรูปเพิ่มเติม'}
           </button>
         </div>
       ) : null}

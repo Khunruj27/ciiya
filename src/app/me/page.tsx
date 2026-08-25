@@ -105,7 +105,7 @@ const storageLimitBytes = Number(
   const displayName =
     user.user_metadata?.full_name ||
     user.user_metadata?.name ||
-    'User Name'
+    'ผู้ใช้งาน Ciiya'
 
   const avatarUrl =
     user.user_metadata?.avatar_url ||
@@ -121,10 +121,10 @@ const storageLimitBytes = Number(
   }
 
   return (
-    <main className="min-h-screen bg-ground px-5 pt-[max(56px,env(safe-area-inset-top))] pb-[max(120px,calc(env(safe-area-inset-bottom)+40px))] text-ink">
-      <div className="mx-auto w-full max-w-[390px]">
+    <main className="min-h-screen bg-ground px-5 pt-[max(32px,env(safe-area-inset-top))] pb-[max(120px,calc(env(safe-area-inset-bottom)+40px))] text-ink sm:px-8 lg:px-12">
+      <div className="mx-auto w-full max-w-5xl">
         <h1 className="px-1 text-[32px] font-bold leading-none tracking-[-0.045em]">
-          Account
+          โปรไฟล์
         </h1>
 
         {/*
@@ -180,10 +180,10 @@ const storageLimitBytes = Number(
         */}
         <section className="mt-3 grid grid-cols-4 divide-x divide-line rounded-panel border border-line bg-surface py-3">
           {[
-            ['Albums', albumCount || 0],
-            ['Photos', photoCount || 0],
-            ['Views', totalViews],
-            ['Shares', totalShares],
+            ['งาน', albumCount || 0],
+            ['รูปภาพ', photoCount || 0],
+            ['เข้าชม', totalViews],
+            ['แชร์', totalShares],
           ].map(([label, value]) => (
             <div key={String(label)} className="px-1 text-center">
               <p className="text-[20px] font-semibold leading-none tracking-[-0.04em] tabular-nums">
@@ -202,7 +202,7 @@ const storageLimitBytes = Number(
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
-                Storage
+                พื้นที่จัดเก็บ
               </p>
               <p className="mt-2 text-[26px] font-bold leading-none tracking-[-0.045em] tabular-nums">
                 {formatBytes(totalBytes)}
@@ -225,9 +225,9 @@ const storageLimitBytes = Number(
           </div>
 
           <div className="mt-2.5 flex items-center justify-between text-[11px] font-normal text-white/45 tabular-nums">
-            <span>{Math.round(usagePercent)}% used</span>
+            <span>ใช้ไป {Math.round(usagePercent)}%</span>
             <span>
-              {formatBytes(Math.max(0, storageLimitBytes - totalBytes))} left
+              เหลือ {formatBytes(Math.max(0, storageLimitBytes - totalBytes))}
             </span>
           </div>
         </section>
@@ -264,11 +264,11 @@ const storageLimitBytes = Number(
         <section className="mt-7">
           <div className="mb-3 flex items-center justify-between px-1">
             <h2 className="text-[20px] font-bold tracking-[-0.035em]">
-              Recent Albums
+              งานล่าสุด
             </h2>
 
             <Link href="/albums" className="text-[13px] font-semibold text-muted">
-              See all
+              ดูทั้งหมด
             </Link>
           </div>
 
@@ -289,19 +289,19 @@ const storageLimitBytes = Number(
                         />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center text-[10px] font-medium text-muted">
-                          No cover
+                          ไม่มีปก
                         </div>
                       )}
                     </div>
 
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[15px] font-semibold tracking-[-0.02em]">
-                        {album.title || 'Untitled Album'}
+                        {album.title || 'งานที่ยังไม่มีชื่อ'}
                       </p>
 
                       <p className="mt-0.5 text-[12px] font-normal text-muted tabular-nums">
-                        {Number(album.view_count || 0)} views ·{' '}
-                        {Number(album.share_count || 0)} shares
+                        เข้าชม {Number(album.view_count || 0)} ครั้ง · แชร์{' '}
+                        {Number(album.share_count || 0)} ครั้ง
                       </p>
                     </div>
 
@@ -320,11 +320,11 @@ const storageLimitBytes = Number(
                 <AppIcon name="gallery" size={40} className="mb-3 opacity-30" />
 
                 <p className="text-[16px] font-semibold text-ink">
-                  No albums yet
+                  ยังไม่มีงาน
                 </p>
 
                 <p className="mt-1 text-[13px] font-normal text-muted">
-                  Create your first album to start
+                  สร้างงานแรกเพื่อเริ่มจัดเก็บภาพ
                 </p>
               </div>
             )}
@@ -337,33 +337,33 @@ const storageLimitBytes = Number(
             type="submit"
             className="flex h-12 w-full items-center justify-center rounded-full border border-line bg-surface text-[14px] font-semibold text-red-600 transition active:scale-[0.99]"
           >
-            Sign Out
+            ออกจากระบบ
           </button>
         </form>
 
         <footer className="text-center">
           <p className="pt-5 text-[11px] font-normal text-muted">
-            Ciiya Version 23.1
+            Ciiya เวอร์ชัน 23.1
           </p>
         </footer>
       </div>
 
       {/* BOTTOM NAV */}
       <nav className="fixed left-0 right-0 z-50 bottom-[max(20px,env(safe-area-inset-bottom))] flex justify-center px-5">
-        <div className="inline-flex items-center gap-5 rounded-full border border-line bg-surface/90 px-4 py-3 shadow-lift backdrop-blur-xl">
+        <div className="inline-flex items-center gap-2 rounded-[18px] border border-line bg-surface/95 px-2 py-2 shadow-lift backdrop-blur-xl sm:gap-3">
           <Link href="/albums" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
             <AppIcon name="album" size={24} />
           </Link>
 
-          <Link href="/portfolio" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
-            <AppIcon name="portfolio" size={21} />
+          <Link href="/albums" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
+            <AppIcon name="gallery" size={21} />
           </Link>
 
-          <Link href="/ai-retouch" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
+          <Link href="/pricing" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
             <AppIcon name="magic-wand" size={24} />
           </Link>
 
-          <Link href="/notifications" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
+          <Link href="/me/edit" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
             <AppIcon name="bell" size={20} />
           </Link>
 

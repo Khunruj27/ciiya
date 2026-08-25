@@ -465,8 +465,8 @@ async function uploadAvatar() {
   }
 
   return (
-    <main className="min-h-screen bg-ground px-5 pb-28 pt-[max(60px,env(safe-area-inset-top))] text-ink">
-      <div className="mx-auto w-full max-w-[390px]">
+    <main className="min-h-screen bg-ground px-5 pb-28 pt-[max(32px,env(safe-area-inset-top))] text-ink sm:px-8 lg:px-12">
+      <div className="mx-auto w-full max-w-3xl">
         <section className="flex items-center justify-between">
   <button
     type="button"
@@ -477,7 +477,7 @@ async function uploadAvatar() {
   </button>
 
   <h1 className="text-[28px] font-semibold tracking-[-0.05em]">
-    Edit Profile
+    แก้ไขโปรไฟล์
   </h1>
 
   <div className="w-11" />
@@ -519,7 +519,7 @@ async function uploadAvatar() {
           </div>
 
           <h2 className="mt-6 max-w-full truncate text-[24px] sm:text-[32px] font-semibold leading-none tracking-[-0.06em]">
-            {name || 'User Name'}
+            {name || 'ผู้ใช้งาน Ciiya'}
           </h2>
 
           <p className="mt-3 max-w-full truncate text-[14px] sm:text-[19px] font-medium text-muted">
@@ -529,13 +529,13 @@ async function uploadAvatar() {
 
         <section className="mt-7">
           <h2 className="mb-3 px-2 text-[22px] sm:text-[28px] font-semibold tracking-[-0.05em]">
-            Account Info
+            ข้อมูลบัญชี
           </h2>
 
           <div className="overflow-hidden rounded-panel sm:rounded-hero bg-surface border border-line">
             <div className="px-4 py-2.5">
               <label className="block text-[13px] font-semibold text-muted">
-                Name
+                ชื่อ
               </label>
 
               <input
@@ -545,7 +545,7 @@ async function uploadAvatar() {
                   setName(e.target.value)
                   setMessage('')
                 }}
-                placeholder="Your name"
+                placeholder="ชื่อของคุณ"
                 className="mt-1 h-9 w-full appearance-none bg-transparent text-[15px] font-semibold text-ink outline-none"
                 disabled={loading}
               />
@@ -555,7 +555,7 @@ async function uploadAvatar() {
 
             <div className="px-4 py-2.5">
               <label className="block text-[13px] font-semibold text-muted">
-                Email
+                อีเมล
               </label>
 
               <input
@@ -570,7 +570,7 @@ async function uploadAvatar() {
 
             <div className="px-5 py-2.5">
               <label className="block text-[13px] font-semibold text-muted">
-                Region
+                ภูมิภาค
               </label>
 
               <select
@@ -583,7 +583,7 @@ async function uploadAvatar() {
                 disabled={loading}
                 className="mt-1 h-9 w-full appearance-none bg-transparent text-[15px] font-semibold text-ink outline-none"
               >
-                <option value="">Select region</option>
+                <option value="">เลือกภูมิภาค</option>
                 {REGIONS.map((item) => (
                   <option key={item} value={item}>
                     {item}
@@ -596,7 +596,7 @@ async function uploadAvatar() {
 
             <div className="px-5 py-5">
               <label className="block text-[13px] font-semibold text-muted">
-                Province
+                จังหวัด
               </label>
 
               <select
@@ -609,7 +609,7 @@ async function uploadAvatar() {
                 className="mt-2 h-8 w-full appearance-none bg-transparent text-[14px] font-semibold text-ink outline-none disabled:text-muted"
               >
                 <option value="">
-                  {region ? 'Select province' : 'Select region first'}
+                  {region ? 'เลือกจังหวัด' : 'เลือกภูมิภาคก่อน'}
                 </option>
                 {provinceOptions.map((item) => (
                   <option key={item} value={item}>
@@ -632,9 +632,9 @@ async function uploadAvatar() {
             type="button"
             onClick={handleSave}
             disabled={loading}
-            className="flex h-12 w-full items-center justify-center rounded-card bg-ink text-white text-[15px] font-bold text-ink transition active:scale-[0.98] disabled:opacity-50"
+            className="flex h-12 w-full items-center justify-center rounded-control bg-ink text-[15px] font-medium text-white transition active:scale-[0.98] disabled:opacity-50"
           >
-            {loading ? 'Saving...' : 'Save Changes'}
+            {loading ? 'กำลังบันทึก…' : 'บันทึกการเปลี่ยนแปลง'}
           </button>
         </section>
 
@@ -647,12 +647,11 @@ async function uploadAvatar() {
 
               <div>
                 <p className="text-[16px] font-bold tracking-[-0.03em]">
-                  Profile sync
+                  ซิงค์ข้อมูลโปรไฟล์
                 </p>
 
                 <p className="mt-1 text-[13px] font-medium leading-relaxed text-muted">
-                  Your name, avatar, region, and province will refresh across
-                  the app after saving.
+                  ชื่อ รูปโปรไฟล์ ภูมิภาค และจังหวัดจะอัปเดตทั่วทั้งแอปหลังบันทึก
                 </p>
               </div>
             </div>

@@ -43,19 +43,19 @@ export default async function ReorderPhotosPage({ params }: PageProps) {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-6">
-      <div className="mx-auto max-w-md space-y-4">
+    <main className="min-h-screen bg-ground px-5 py-8 text-ink sm:px-8">
+      <div className="mx-auto max-w-4xl space-y-4">
         <Link
           href={`/albums/${album.id}`}
           className="text-xs uppercase tracking-[0.2em] text-slate-400"
         >
-          ← Back to Album
+          ← กลับไปหน้าอัลบั้ม
         </Link>
 
         <div className="rounded-3xl bg-white p-4 shadow-sm">
           <h1 className="text-2xl font-bold text-slate-900">{album.title}</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Arrange the photo sequence for this album
+            จัดลำดับรูปภาพสำหรับอัลบั้มนี้
           </p>
         </div>
 

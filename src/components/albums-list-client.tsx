@@ -44,16 +44,16 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
       >
         <AppIcon name="search" size={22} className="opacity-50" />
         <span className="text-[16px] font-medium text-[#8E8E93]">
-          Search albums
+          ค้นหางาน
         </span>
       </button>
 
       {isSearchOpen ? (
         <div className="fixed inset-0 z-[80] bg-black/20 px-5 pt-[max(92px,env(safe-area-inset-top))] backdrop-blur-sm">
-          <div className="mx-auto w-full max-w-[390px] rounded-[34px] border border-black/5 bg-[#FAF7F4] p-4">
+          <div className="mx-auto w-full max-w-xl rounded-panel border border-line bg-ground p-4 shadow-lift sm:p-6">
             <div className="flex items-center justify-between">
               <p className="text-[22px] font-black tracking-[-0.05em]">
-                Search Albums
+                ค้นหางาน
               </p>
 
               <button
@@ -100,7 +100,7 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
                             />
                           ) : (
                             <div className="flex h-full items-center justify-center text-xs font-bold text-slate-400">
-                              No Cover
+                              ไม่มีปก
                             </div>
                           )}
 
@@ -119,7 +119,7 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
                           </span>
 
                           <p className="mt-2 line-clamp-2 text-[13px] font-semibold leading-snug text-[#8E8E93]">
-                            {album.description || 'No description'}
+                            {album.description || 'ยังไม่มีคำอธิบาย'}
                           </p>
                         </div>
                       </Link>
@@ -130,7 +130,7 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
                     <AppIcon name="gallery" size={42} className="mx-auto opacity-35" />
 
                     <p className="mt-4 text-[18px] font-black text-[#1C0617]">
-                      No albums found
+                      ไม่พบงานที่ค้นหา
                     </p>
 
                     <p className="mt-1 text-[13px] font-semibold text-[#8E8E93]">

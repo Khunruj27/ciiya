@@ -107,37 +107,37 @@ export default function AlbumSettingsForm({
       className="space-y-4 rounded-3xl bg-white p-4 shadow-sm"
     >
       <div>
-        <h2 className="text-lg font-semibold text-slate-900">Album Settings</h2>
+        <h2 className="text-lg font-semibold text-slate-900">ตั้งค่าอัลบั้ม</h2>
         <p className="text-sm text-slate-500">
-          Manage basic info, privacy, and download options
+          จัดการข้อมูล ความเป็นส่วนตัว และตัวเลือกดาวน์โหลด
         </p>
       </div>
 
       <div>
-        <label className="mb-2 block text-sm text-slate-500">Album title</label>
+        <label className="mb-2 block text-sm text-slate-500">ชื่ออัลบั้ม</label>
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
-          placeholder="Album title"
+          placeholder="ชื่ออัลบั้ม"
         />
       </div>
 
       <div>
-        <label className="mb-2 block text-sm text-slate-500">Description</label>
+        <label className="mb-2 block text-sm text-slate-500">คำอธิบาย</label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           className="min-h-[110px] w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
-          placeholder="Album description"
+          placeholder="คำอธิบายอัลบั้ม"
         />
       </div>
 
       <div className="space-y-4 rounded-2xl border border-slate-200 p-4">
         <label className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-medium text-slate-900">Allow downloads</p>
+            <p className="text-sm font-medium text-slate-900">อนุญาตให้ดาวน์โหลด</p>
             <p className="text-xs text-slate-500">
               ให้ลูกค้าบันทึกรูปจากหน้าแชร์ได้
             </p>
@@ -155,7 +155,7 @@ export default function AlbumSettingsForm({
           <div className="space-y-3 border-t border-slate-100 pt-4">
             <div>
               <p className="text-sm font-medium text-slate-900">
-                Download size
+                ขนาดไฟล์ดาวน์โหลด
               </p>
               <p className="text-xs text-slate-500">
                 หน้าแชร์จะโหลดตามขนาดนี้เท่านั้น ลูกค้าเลือกขนาดเองไม่ได้
@@ -200,10 +200,10 @@ export default function AlbumSettingsForm({
         <label className="flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-medium text-slate-900">
-              Password protection
+              ป้องกันด้วยรหัสผ่าน
             </p>
             <p className="text-xs text-slate-500">
-              Require password before viewing this album
+              ต้องใส่รหัสผ่านก่อนเปิดดูอัลบั้ม
             </p>
           </div>
 
@@ -218,14 +218,14 @@ export default function AlbumSettingsForm({
         {isPasswordProtected ? (
           <div>
             <label className="mb-2 block text-sm text-slate-500">
-              New password
+              รหัสผ่านใหม่
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
-              placeholder="Leave blank to keep current password"
+              placeholder="เว้นว่างเพื่อใช้รหัสผ่านเดิม"
             />
           </div>
         ) : null}
@@ -237,7 +237,7 @@ export default function AlbumSettingsForm({
           onClick={() => history.back()}
           className="rounded-2xl bg-slate-100 px-4 py-3 text-center text-slate-700"
         >
-          Back
+          ย้อนกลับ
         </button>
 
         <button
@@ -245,7 +245,7 @@ export default function AlbumSettingsForm({
           disabled={loading}
           className="rounded-2xl bg-blue-600 px-4 py-3 text-white disabled:opacity-50"
         >
-          {loading ? 'Saving...' : 'Save Settings'}
+          {loading ? 'กำลังบันทึก…' : 'บันทึกการตั้งค่า'}
         </button>
       </div>
 

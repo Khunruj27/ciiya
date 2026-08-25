@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase-client'
 
 export default function GoogleSignInButton({
   next = '/albums',
-  label = 'Continue with Google',
+  label = 'ดำเนินการต่อด้วย Google',
   onError,
 }: {
   next?: string
@@ -52,7 +52,7 @@ export default function GoogleSignInButton({
        * hierarchy at all. Google's brand guidance allows a dark button as
        * long as the mark keeps its own colours, which it does below.
        */
-      className="flex h-14 w-full items-center justify-center gap-3 rounded-full bg-ink px-5 text-[15px] font-semibold text-white transition active:scale-[0.98] disabled:opacity-50"
+      className="flex h-13 w-full items-center justify-center gap-3 rounded-control bg-ink px-5 text-[15px] font-medium text-white transition hover:bg-ink-soft active:scale-[0.98] disabled:opacity-50"
     >
       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white">
         <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">

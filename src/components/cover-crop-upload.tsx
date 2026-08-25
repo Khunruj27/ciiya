@@ -199,7 +199,7 @@ function closeModal() {
           </div>
 
           <label className="mt-4 flex h-14 cursor-pointer items-center justify-center rounded-full bg-[#2F6BFF] text-sm font-black text-white shadow-[0_16px_35px_rgba(47,107,255,0.28)] transition active:scale-[0.98]">
-            Choose Cover Image
+            เลือกรูปหน้าปก
 
             <input
               type="file"
@@ -225,7 +225,7 @@ function closeModal() {
 >
           <button
             type="button"
-            aria-label="Close crop backdrop"
+            aria-label="ปิดหน้าต่างครอบตัดรูป"
             onClick={() => {
             if (!loading) closeModal()
             }}
@@ -248,11 +248,11 @@ function closeModal() {
             <div className="flex shrink-0 items-start justify-between px-5 pb-3 pt-4">
               <div>
                 <h2 className="mt-2 text-[28px] font-black leading-none tracking-[-0.05em]">
-                  Crop Image
+                  จัดตำแหน่งรูปหน้าปก
                 </h2>
 
                 <p className="mt-2 text-sm font-medium text-slate-500">
-                  Aspect ratio 1125:600
+                  สัดส่วนภาพ 1125:600
                 </p>
               </div>
 
@@ -283,7 +283,7 @@ function closeModal() {
               <div className="mt-5 rounded-[20px] bg-[#F8F9FC] p-4 ring-1 ring-black/5">
                 <div className="mb-3 flex items-center justify-between">
                   <label className="text-sm font-bold text-slate-700">
-                    Zoom
+                    ขยายภาพ
                   </label>
 
                   <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500 shadow-sm">
@@ -308,7 +308,7 @@ function closeModal() {
                 disabled={loading}
                 className="mt-5 flex h-[52px] w-full items-center justify-center rounded-[18px] bg-[#F0B1DE] text-[15px] font-black text-white border border-black/5 active:scale-[0.98] disabled:opacity-50"
               >
-                {loading ? 'Saving Cover...' : 'Save Cover'}
+                {loading ? 'กำลังบันทึก…' : 'บันทึกรูปหน้าปก'}
               </button>
             </div>
           </div>

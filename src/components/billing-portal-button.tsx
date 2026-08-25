@@ -36,9 +36,9 @@ export default function BillingPortalButton() {
       type="button"
       onClick={openBillingPortal}
       disabled={loading}
-      className="flex h-12 w-full items-center justify-center rounded-full border border-line bg-surface px-4 text-[14px] font-semibold text-ink transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+      className="flex h-12 w-full items-center justify-center rounded-control border border-line bg-surface px-4 text-[14px] font-medium text-ink transition hover:border-line-strong active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {loading ? 'Opening...' : 'Billing'}
+      {loading ? 'กำลังเปิด…' : 'จัดการการชำระเงิน'}
     </button>
   )
 }

@@ -82,14 +82,14 @@ export default async function AlbumPeoplePage({ params }: PageProps) {
   }))
 
   return (
-    <main className="min-h-screen bg-[#FAF7F4] px-5 pt-[max(56px,env(safe-area-inset-top))] pb-[max(120px,calc(env(safe-area-inset-bottom)+40px))] text-[#1C0617]">
-      <div className="mx-auto w-full max-w-[430px]">
+    <main className="min-h-screen bg-ground px-5 pt-[max(32px,env(safe-area-inset-top))] pb-[max(120px,calc(env(safe-area-inset-bottom)+40px))] text-ink sm:px-8 lg:px-12">
+      <div className="mx-auto w-full max-w-5xl">
         {/* HEADER */}
         <section className="flex items-center justify-between gap-4">
           <Link
             href={`/albums/${albumId}`}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-black/5 bg-white text-[#1C0617] transition active:scale-[0.96]"
-            aria-label="Back to album"
+            aria-label="กลับไปหน้าอัลบั้ม"
           >
             <span className="text-[30px] font-light leading-none">‹</span>
           </Link>
@@ -100,23 +100,23 @@ export default async function AlbumPeoplePage({ params }: PageProps) {
             </p>
 
             <h1 className="mt-1 truncate text-[30px] font-black leading-none tracking-[-0.06em]">
-              People
+              บุคคล
             </h1>
           </div>
         </section>
 
         {/* HERO */}
-        <section className="mt-6 rounded-[34px] border border-black/5 bg-[#F0B1DE] p-5">
+        <section className="mt-6 rounded-hero border border-gold/30 bg-gold-soft p-5 sm:p-7">
           <p className="text-[12px] font-black uppercase tracking-[0.16em] text-[#4A3140]">
-            AI Collection
+            จัดกลุ่มด้วย AI
           </p>
 
           <h2 className="mt-2 text-[34px] font-black leading-[0.95] tracking-[-0.07em]">
-            People in this album
+            บุคคลในอัลบั้มนี้
           </h2>
 
           <p className="mt-3 text-[14px] font-semibold leading-relaxed text-[#4A3140]">
-            Browse faces detected by AI and open each person’s photo collection.
+            ดูใบหน้าที่ระบบตรวจพบ และเปิดชุดรูปของแต่ละบุคคล
           </p>
         </section>
 
@@ -124,7 +124,7 @@ export default async function AlbumPeoplePage({ params }: PageProps) {
         <section className="mt-4 grid grid-cols-2 gap-3">
           <div className="rounded-[24px] border border-black/5 bg-white px-4 py-3">
             <p className="text-[12px] font-bold text-[#8E8E93]">
-              Album
+              อัลบั้ม
             </p>
 
             <p className="mt-1 truncate text-[18px] font-black tracking-[-0.04em]">
@@ -132,9 +132,9 @@ export default async function AlbumPeoplePage({ params }: PageProps) {
             </p>
           </div>
 
-          <div className="rounded-[24px] border border-black/5 bg-[#D0F578] px-4 py-3">
+          <div className="rounded-[24px] border border-gold/30 bg-gold-soft px-4 py-3">
             <p className="text-[12px] font-bold text-[#344318]">
-              Groups
+              กลุ่มบุคคล
             </p>
 
             <p className="mt-1 text-[28px] font-black leading-none tracking-[-0.06em]">
@@ -151,26 +151,26 @@ export default async function AlbumPeoplePage({ params }: PageProps) {
             </div>
 
             <h2 className="mt-5 text-[20px] font-black tracking-[-0.04em]">
-              No people found yet
+              ยังไม่พบบุคคล
             </h2>
 
             <p className="mx-auto mt-2 max-w-[280px] text-[14px] font-semibold leading-relaxed text-[#8E8E93]">
-              Face results will appear after AI processing is complete.
+              ผลลัพธ์จะแสดงหลังระบบ AI ประมวลผลเสร็จ
             </p>
           </section>
         ) : (
           <section className="mt-5">
             <div className="mb-3 flex items-center justify-between px-1">
               <h2 className="text-[24px] font-black tracking-[-0.05em]">
-                Face Gallery
+                แกลเลอรีบุคคล
               </h2>
 
               <span className="rounded-full bg-white px-3 py-1.5 text-[12px] font-black text-[#1C0617]">
-                {people.length} group{people.length === 1 ? '' : 's'}
+                {people.length} กลุ่ม
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {people.map((person, index) => {
                 const photo = person.preview_photo
                 const imageUrl =

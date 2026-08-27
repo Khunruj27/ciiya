@@ -37,7 +37,7 @@ export default async function AlbumSettingsPage({ params }: PageProps) {
           href={`/albums/${album.id}`}
           className="text-xs uppercase tracking-[0.2em] text-muted"
         >
-          ← กลับไปหน้าอัลบั้ม
+          ← Back to albums
         </Link>
 
         <AlbumSettingsForm

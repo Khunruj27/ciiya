@@ -80,18 +80,17 @@ export default async function AlbumsPage() {
 
         {/* HERO */}
        <section className="pt-10 sm:pt-14">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-gold-deep">พื้นที่ของคุณ</p>
           <h1 className="mt-3 text-[clamp(2.4rem,6vw,4.5rem)] font-semibold leading-[0.96] tracking-[-0.045em] text-ink">
-  สวัสดี {(
+  Hi {(
     user.user_metadata?.full_name ||
     user.user_metadata?.name ||
     user.email?.split('@')[0] ||
-    'คุณ'
+    ''
   ).split(' ')[0]}
 </h1>
 
           <p className="mt-3 text-[14px] font-medium tracking-[-0.01em] text-muted">
-            {albums.length} งาน · {totalPhotos} รูป
+            {albums.length} Job · {totalPhotos} photos
           </p>
         </section>
 
@@ -114,11 +113,11 @@ export default async function AlbumsPage() {
           <div className="w-full">
             <div className="mb-3 flex items-center justify-between px-1">
               <h2 className="text-[20px] font-bold tracking-[-0.035em] text-ink">
-              งานของฉัน
+              My Jobs
             </h2>
 
               <span className="shrink-0 text-[13px] font-semibold text-muted">
-                ทั้งหมด {albums.length} งาน
+                All {albums.length} Job
               </span>
             </div>
 
@@ -139,7 +138,7 @@ export default async function AlbumsPage() {
                           <Image
                             src={album.cover_url}
                             loading="lazy"
-                            alt={album.title || 'ปกงาน'}
+                            alt={album.title || 'Job cover'}
                             fill
                             sizes="96px"
                             unoptimized
@@ -147,7 +146,7 @@ export default async function AlbumsPage() {
                           />
                         ) : (
                           <div className="flex h-full items-center justify-center text-xs text-muted">
-                            ไม่มีปก
+                            No cover
                           </div>
                         )}
 
@@ -162,11 +161,11 @@ export default async function AlbumsPage() {
                         </p>
 
                         <span className="mt-1.5 inline-block rounded-full border border-gold/40 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-gold-deep">
-                          งานภาพ
+                          Jobs
                         </span>
 
                         <p className="mt-2 line-clamp-2 text-[12px] font-normal leading-snug text-muted">
-                          {album.description || 'ยังไม่มีคำอธิบาย'}
+                          {album.description || 'No description yet'}
                         </p>
                       </div>
                     </Link>
@@ -177,10 +176,10 @@ export default async function AlbumsPage() {
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <AppIcon name="gallery" size={46} className="mb-3 opacity-35" />
                 <p className="text-[17px] font-semibold text-ink">
-                  ยังไม่มีงาน
+                  No jobs yet
                 </p>
                 <p className="mt-1 text-[13px] font-normal text-muted">
-                  สร้างงานแรกแล้วเริ่มอัปโหลดภาพได้เลย
+                  Create your first job and start uploading photos
                 </p>
               </div>
             )}
@@ -199,7 +198,7 @@ export default async function AlbumsPage() {
           </Link>
 
            <Link
-            href="/albums"
+            href="/portfolio"
             className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95"
           >
             <AppIcon name="gallery" size={22} />

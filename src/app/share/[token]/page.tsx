@@ -43,11 +43,11 @@ export default async function SharePage({ params }: PageProps) {
           </p>
 
           <h1 className="mt-3 text-[30px] font-bold tracking-[-0.045em]">
-            ไม่พบอัลบั้ม
+            Album not found
           </h1>
 
           <p className="mt-3 text-[14px] font-normal leading-6 text-muted">
-            อัลบั้มที่แชร์นี้ไม่มีอยู่หรือหมดอายุแล้ว
+            This shared album doesn’t exist or has expired
           </p>
         </div>
       </main>
@@ -103,11 +103,11 @@ export default async function SharePage({ params }: PageProps) {
         <div className="absolute inset-x-0 top-0">
           <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-2 px-4 pt-4 sm:px-6 sm:pt-5 lg:px-8">
             <div className="rounded-full bg-white/18 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-xl sm:px-4 sm:py-2 sm:text-[12px]">
-              แกลเลอรี
+              Gallery
             </div>
             <div className="flex items-center gap-1.5 rounded-full bg-white/18 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-xl sm:px-4 sm:py-2 sm:text-[12px]">
               <span className="h-1.5 w-1.5 rounded-full bg-rose" />
-              อัลบั้มออนไลน์
+              Online album
             </div>
           </div>
         </div>
@@ -115,7 +115,7 @@ export default async function SharePage({ params }: PageProps) {
         <div className="absolute inset-x-0 bottom-0">
           <div className="mx-auto w-full max-w-5xl px-4 pb-4 sm:px-6 sm:pb-5 lg:px-8">
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/70 sm:text-[11px]">
-              อัลบั้มที่แชร์
+              Shared album
             </p>
             {/*
               The title block is anchored to the bottom of the cover, so an
@@ -128,7 +128,7 @@ export default async function SharePage({ params }: PageProps) {
               {album.title}
             </h1>
             <p className="mt-1.5 line-clamp-2 text-[12px] font-normal leading-snug text-white/80 [@media(max-height:480px)]:hidden sm:mt-2 sm:text-[14px]">
-              {album.description || 'ดูและดาวน์โหลดรูปภาพจากงานนี้ได้อย่างง่ายดาย'}
+              {album.description || 'View and download photos from this job with ease'}
             </p>
           </div>
         </div>
@@ -155,11 +155,11 @@ export default async function SharePage({ params }: PageProps) {
           ) : (
             <div className="rounded-hero border border-line bg-surface px-7 py-14 text-center">
               <p className="text-[20px] font-semibold tracking-[-0.03em] text-ink">
-                ยังไม่มีรูปภาพ
+                No photos yet
               </p>
 
               <p className="mt-2 text-[14px] font-normal leading-6 text-muted">
-                อัลบั้มพร้อมแล้ว แต่ยังไม่มีรูปที่เผยแพร่ในขณะนี้
+                The album is ready, but no photos are published yet
               </p>
             </div>
           )}
@@ -167,10 +167,10 @@ export default async function SharePage({ params }: PageProps) {
            {/* FOOTER */}
         <footer className="text-center">
           <p className="pt-5 text-[12px] font-medium text-muted">
-             สร้างด้วย Ciiya
+             Made with Ciiya
           </p>
           <p className="text-[10px] font-normal text-muted/80">
-              พื้นที่แบ่งปันทุกช่วงเวลาสำคัญ
+              A space to share every important moment
             </p>
         </footer>
         </div>

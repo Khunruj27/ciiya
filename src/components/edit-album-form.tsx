@@ -78,7 +78,7 @@ export default function EditAlbumForm({
       {iconOnly ? (
         <IconButton
           icon="pen"
-          title="แก้ไขอัลบั้ม"
+          title="Edit album"
           onClick={() => setOpen(true)}
           variant="ghost"
           size="sm"
@@ -91,7 +91,7 @@ export default function EditAlbumForm({
           onClick={() => setOpen(true)}
           className="flex h-11 items-center justify-center rounded-full bg-ink px-5 text-sm font-semibold tracking-[-0.02em] text-white shadow-[0_10px_30px_rgba(15,23,42,0.18)] transition active:scale-[0.98]"
         >
-          แก้ไขอัลบั้ม
+          Edit album
         </button>
       )}
 
@@ -113,7 +113,7 @@ export default function EditAlbumForm({
                
 
                 <h2 className="mt-2 text-[28px] font-semibold leading-none tracking-[-0.05em]">
-                  แก้ไขอัลบั้ม
+                  Edit album
                 </h2>
               </div>
 
@@ -136,7 +136,7 @@ disabled={loading}
             >
               <div>
                 <label className="mb-2 block text-sm font-bold text-ink-soft">
-                  ชื่ออัลบั้ม
+                  Album name
                 </label>
 
                 <input
@@ -146,14 +146,14 @@ disabled={loading}
   setTitle(e.target.value)
   setErrorMsg('')
 }}
-                  placeholder="ชื่ออัลบั้ม"
+                  placeholder="Album name"
                   className="min-h-[110px] w-full resize-none rounded-panel border border-line bg-ground-sunken px-4 py-3 text-[15px] font-medium outline-none transition focus:border-gold focus:bg-surface"
                 />
               </div>
 
               <div>
                 <label className="mb-2 block text-sm font-bold text-ink-soft">
-                  คำอธิบาย
+                  Description
                 </label>
 
                 <textarea
@@ -162,7 +162,7 @@ disabled={loading}
   setDescription(e.target.value)
   setErrorMsg('')
 }}
-                  placeholder="คำอธิบายอัลบั้ม"
+                  placeholder="Album description"
                   className="
 min-h-[110px]
 w-full
@@ -190,7 +190,7 @@ transition focus:border-gold focus:bg-surface"
                 disabled={loading}
                 className="flex h-[52px] w-full items-center justify-center rounded-card bg-gold text-[15px] font-semibold text-white border border-line transition active:scale-[0.98] disabled:opacity-50"
               >
-                {loading ? 'กำลังบันทึก…' : 'บันทึกการเปลี่ยนแปลง'}
+                {loading ? 'Saving…' : 'Save changes'}
               </button>
             </form>
           </div>

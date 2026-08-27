@@ -293,9 +293,9 @@ async function ensurePhotoJob(params: {
     !insertJobResult.data?.id
   ) {
     /*
-     * อีก Request อาจสร้าง Job สำเร็จ
-     * หลังจากที่ Request นี้ตรวจ Active Job ไปแล้ว
-     * จึงตรวจซ้ำก่อนถือว่า Enqueue ล้มเหลว
+     * another Request may create Job succeeded
+     * after Request this checks Active Job already
+     * so it re-checks before treating it as Enqueue failed
      */
     const concurrentJobResult =
       await supabaseAdmin

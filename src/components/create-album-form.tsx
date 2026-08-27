@@ -30,7 +30,7 @@ export default function CreateAlbumForm({ onSuccess }: Props) {
     setError('')
 
     if (!title.trim()) {
-      setError('กรุณาใส่ชื่องาน')
+      setError('Please enter a job name')
       return
     }
 
@@ -55,7 +55,7 @@ export default function CreateAlbumForm({ onSuccess }: Props) {
       const data = await res.json().catch(() => null)
 
       if (!res.ok) {
-        setError(data?.error || 'สร้างงานไม่สำเร็จ')
+        setError(data?.error || 'Failed to create job')
         return
       }
 
@@ -71,7 +71,7 @@ export default function CreateAlbumForm({ onSuccess }: Props) {
       router.refresh()
       onSuccess?.()
     } catch {
-      setError('สร้างงานไม่สำเร็จ')
+      setError('Failed to create job')
     } finally {
       setLoading(false)
     }
@@ -82,7 +82,7 @@ export default function CreateAlbumForm({ onSuccess }: Props) {
       <div className="space-y-3">
         <input
           type="text"
-          placeholder="ชื่องาน"
+          placeholder="Job name"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           disabled={loading}
@@ -90,7 +90,7 @@ export default function CreateAlbumForm({ onSuccess }: Props) {
         />
 
         <textarea
-          placeholder="คำอธิบายงาน (ไม่บังคับ)"
+          placeholder="Job description (optional)"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           disabled={loading}
@@ -104,7 +104,7 @@ export default function CreateAlbumForm({ onSuccess }: Props) {
         disabled={loading}
         className="flex h-13 min-h-13 w-full items-center justify-center rounded-control bg-ink px-5 text-[15px] font-medium text-white transition hover:bg-ink-soft disabled:opacity-50"
       >
-        {loading ? 'กำลังสร้างงาน…' : 'สร้างงาน'}
+        {loading ? 'Creating job…' : 'Create job'}
       </button>
       {error ? (
   <p className="px-2 text-sm font-semibold text-red-500">

@@ -94,10 +94,10 @@ export default function SharePreviewEditorial({
       <main className="grid min-h-screen place-items-center bg-[#eee9df] px-6 text-center text-[#181814]">
         <div>
           <p className="text-2xl font-black tracking-[-0.05em]">
-            ยังไม่มีรูปให้พรีวิว
+            No photos to preview yet
           </p>
           <p className="mt-2 text-sm font-medium text-black/50">
-            หน้านี้ดึงรูปจากอัลบั้มสาธารณะล่าสุด — เผยแพร่อัลบั้มสักหนึ่งอัลบั้มแล้วเปิดใหม่อีกครั้ง
+            This page pulls photos from your most recent public album — Publish an album, then reopen this page
           </p>
         </div>
       </main>
@@ -116,7 +116,7 @@ export default function SharePreviewEditorial({
             <span className="hidden sm:inline">Album menu</span>
           </button>
           <a href="#begin" className="text-xl font-black tracking-[-0.06em]">ciiya.</a>
-          <button type="button" onClick={() => showNotice('คัดลอกลิงก์อัลบั้มแล้ว')} className="flex items-center gap-2 justify-self-end text-xs font-bold uppercase tracking-[0.17em]">
+          <button type="button" onClick={() => showNotice('Album link copied')} className="flex items-center gap-2 justify-self-end text-xs font-bold uppercase tracking-[0.17em]">
             <span className="hidden sm:inline">Share</span>
             <Share2 className="h-4 w-4" />
           </button>
@@ -136,7 +136,7 @@ export default function SharePreviewEditorial({
               {albumTitle}
             </h1>
             <p className="mt-10 max-w-md text-sm font-semibold leading-7 text-black/55">
-              {albumDescription || 'ดูและดาวน์โหลดรูปจากงานของคุณ'}
+              {albumDescription || 'View and download photos from your job'}
             </p>
           </div>
 
@@ -153,7 +153,7 @@ export default function SharePreviewEditorial({
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/60">Cover photograph</p>
               <p className="mt-2 font-serif text-xl italic">{coverPhoto.chapter}</p>
             </div>
-            <p className="text-xs font-bold">{photoCount} ภาพ</p>
+            <p className="text-xs font-bold">{photoCount} photos</p>
           </div>
         </div>
       </section>
@@ -193,7 +193,7 @@ export default function SharePreviewEditorial({
                 Find yourself<br />in the story.
               </h2>
               <p className="mt-7 max-w-lg text-sm font-medium leading-7 text-white/50">
-                อัปโหลดเซลฟี่หนึ่งรูป ระบบจะช่วยค้นหาทุกช่วงเวลาที่มีคุณอยู่ในอัลบั้มนี้
+                Upload one selfie and it will help find every moment you appear in this album
               </p>
             </div>
           </div>
@@ -201,7 +201,7 @@ export default function SharePreviewEditorial({
             <span className="grid h-24 w-24 place-items-center rounded-full border border-black/25 transition group-hover:scale-105">
               <ScanFace className="h-10 w-10" />
             </span>
-            <span className="mt-8 text-sm font-black uppercase tracking-[0.16em]">ค้นหารูปของฉัน</span>
+            <span className="mt-8 text-sm font-black uppercase tracking-[0.16em]">Find my photos</span>
           </button>
         </div>
 
@@ -212,7 +212,7 @@ export default function SharePreviewEditorial({
               <h2 className="mt-5 text-5xl font-black leading-[0.88] tracking-[-0.07em]">After<br />the vows.</h2>
               <div className="mt-10 flex items-center gap-3 border-t border-black/15 pt-5 text-xs font-bold">
                 <Heart className="h-4 w-4" />
-                {selected.size} รูปที่เลือกไว้
+                {selected.size} Selected photos
               </div>
             </div>
           </aside>
@@ -234,7 +234,7 @@ export default function SharePreviewEditorial({
                   : 'You have reached the end of the collection.'}
               </p>
             </div>
-            <button type="button" onClick={() => showNotice('กำลังโหลดภาพชุดถัดไป')} className="flex shrink-0 items-center gap-5 rounded-full bg-[#181814] py-2 pl-6 pr-2 text-xs font-black uppercase tracking-[0.14em] text-white">
+            <button type="button" onClick={() => showNotice('Loading the next set of photos')} className="flex shrink-0 items-center gap-5 rounded-full bg-[#181814] py-2 pl-6 pr-2 text-xs font-black uppercase tracking-[0.14em] text-white">
               Load more
               <span className="grid h-11 w-11 place-items-center rounded-full bg-white text-black"><ArrowDown className="h-4 w-4" /></span>
             </button>
@@ -252,9 +252,9 @@ export default function SharePreviewEditorial({
         <div className="fixed inset-x-3 bottom-3 z-50 mx-auto flex max-w-xl items-center justify-between rounded-full bg-[#181814] py-2 pl-5 pr-2 text-white shadow-2xl sm:bottom-5">
           <div className="flex items-center gap-3">
             <span className="grid h-8 w-8 place-items-center rounded-full bg-[#e2ff6f] text-xs font-black text-black">{selected.size}</span>
-            <span className="text-sm font-bold">รูปที่เลือก</span>
+            <span className="text-sm font-bold">Selected photos</span>
           </div>
-          <button type="button" onClick={() => showNotice(`เตรียมดาวน์โหลด ${selected.size} รูป`)} className="flex items-center gap-2 rounded-full bg-white px-5 py-3 text-xs font-black uppercase tracking-[0.12em] text-black">
+          <button type="button" onClick={() => showNotice(`Preparing download ${selected.size} photos`)} className="flex items-center gap-2 rounded-full bg-white px-5 py-3 text-xs font-black uppercase tracking-[0.12em] text-black">
             <ArrowDownToLine className="h-4 w-4" /> Download
           </button>
         </div>
@@ -288,13 +288,13 @@ export default function SharePreviewEditorial({
               </div>
               <div>
                 <h2 className="text-4xl font-black leading-[0.9] tracking-[-0.065em] sm:text-5xl">Find every photo you are in.</h2>
-                <p className="mt-5 text-sm font-medium leading-6 text-black/55">เลือกเซลฟี่ที่เห็นใบหน้าชัด ตัวอย่างนี้จะแสดงเฉพาะขั้นตอนและยังไม่ส่งไฟล์ไปยังระบบจริง</p>
+                <p className="mt-5 text-sm font-medium leading-6 text-black/55">Choose a selfie with a clear face. This preview only shows the steps and doesn’t send files to the real system yet</p>
                 <label className="mt-7 flex cursor-pointer items-center justify-between border-y border-black/15 py-4 text-xs font-black uppercase tracking-[0.14em]">
                   Choose a selfie
                   <Camera className="h-5 w-5" />
-                  <input type="file" accept="image/*" className="hidden" onChange={() => showNotice('ตัวอย่างนี้ยังไม่ส่งรูปไปยังระบบ')} />
+                  <input type="file" accept="image/*" className="hidden" onChange={() => showNotice('This preview doesn’t send photos to the system yet')} />
                 </label>
-                <div className="mt-4 flex gap-2 text-[11px] font-semibold text-black/45"><Check className="h-4 w-4 shrink-0" /> รูปเซลฟี่จะไม่ถูกเพิ่มเข้าอัลบั้ม</div>
+                <div className="mt-4 flex gap-2 text-[11px] font-semibold text-black/45"><Check className="h-4 w-4 shrink-0" /> Your selfie won’t be added to the album</div>
               </div>
             </div>
           </div>

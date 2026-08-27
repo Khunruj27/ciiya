@@ -147,7 +147,7 @@ export async function getPreviewSample() {
           photo.public_url ||
           photo.thumbnail_url ||
           '',
-        alt: photo.filename || 'ภาพจากอัลบั้ม',
+        alt: photo.filename || 'Photo from album',
       }))
       .filter((photo) => photo.src),
   }

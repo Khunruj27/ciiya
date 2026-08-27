@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase-client'
 
 export default function GoogleSignInButton({
   next = '/albums',
-  label = 'ดำเนินการต่อด้วย Google',
+  label = 'Continue with Google',
   onError,
 }: {
   next?: string
@@ -75,7 +75,7 @@ export default function GoogleSignInButton({
         </svg>
       </span>
 
-      {loading ? 'กำลังพาไปหน้า Google…' : label}
+      {loading ? 'Taking you to Google…' : label}
     </button>
   )
 }

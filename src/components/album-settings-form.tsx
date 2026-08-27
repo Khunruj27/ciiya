@@ -19,10 +19,10 @@ const downloadSizeOptions: {
   label: string
   desc: string
 }[] = [
-  { value: 'sd', label: 'SD', desc: '2000px ประหยัดพื้นที่และ bandwidth มากที่สุด' },
-  { value: 'hd', label: 'HD', desc: '3000px แนะนำสำหรับส่งลูกค้าทั่วไป' },
-  { value: 'uhd', label: 'UHD', desc: '4000px คุณภาพสูงกว่า แต่ใช้ bandwidth มากขึ้น' },
-  { value: 'original', label: 'Original', desc: 'ไฟล์ต้นฉบับ ใช้ storage/egress สูงสุด' },
+  { value: 'sd', label: 'SD', desc: '2000px · Saves the most space and bandwidth' },
+  { value: 'hd', label: 'HD', desc: '3000px · Recommended for most client deliveries' },
+  { value: 'uhd', label: 'UHD', desc: '4000px · Higher quality, uses more bandwidth' },
+  { value: 'original', label: 'Original', desc: 'Original files · Uses the most storage and egress' },
 ]
 
 function normalizeDownloadSize(value: string | null | undefined): DownloadSize {
@@ -107,39 +107,39 @@ export default function AlbumSettingsForm({
       className="space-y-4 rounded-3xl bg-white p-4 shadow-sm"
     >
       <div>
-        <h2 className="text-lg font-semibold text-ink">ตั้งค่าอัลบั้ม</h2>
+        <h2 className="text-lg font-semibold text-ink">Album settings</h2>
         <p className="text-sm text-muted">
-          จัดการข้อมูล ความเป็นส่วนตัว และตัวเลือกดาวน์โหลด
+          Manage details, privacy, and download options
         </p>
       </div>
 
       <div>
-        <label className="mb-2 block text-sm text-muted">ชื่ออัลบั้ม</label>
+        <label className="mb-2 block text-sm text-muted">Album name</label>
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           className="w-full rounded-2xl border border-line px-4 py-3 outline-none"
-          placeholder="ชื่ออัลบั้ม"
+          placeholder="Album name"
         />
       </div>
 
       <div>
-        <label className="mb-2 block text-sm text-muted">คำอธิบาย</label>
+        <label className="mb-2 block text-sm text-muted">Description</label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           className="min-h-[110px] w-full rounded-2xl border border-line px-4 py-3 outline-none"
-          placeholder="คำอธิบายอัลบั้ม"
+          placeholder="Album description"
         />
       </div>
 
       <div className="space-y-4 rounded-2xl border border-line p-4">
         <label className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-medium text-ink">อนุญาตให้ดาวน์โหลด</p>
+            <p className="text-sm font-medium text-ink">Allow downloads</p>
             <p className="text-xs text-muted">
-              ให้ลูกค้าบันทึกรูปจากหน้าแชร์ได้
+              Let clients save photos from the share page
             </p>
           </div>
 
@@ -155,10 +155,10 @@ export default function AlbumSettingsForm({
           <div className="space-y-3 border-t border-line pt-4">
             <div>
               <p className="text-sm font-medium text-ink">
-                ขนาดไฟล์ดาวน์โหลด
+                Download file size
               </p>
               <p className="text-xs text-muted">
-                หน้าแชร์จะโหลดตามขนาดนี้เท่านั้น ลูกค้าเลือกขนาดเองไม่ได้
+                The share page loads only this size; clients can’t choose their own
               </p>
             </div>
 
@@ -200,10 +200,10 @@ export default function AlbumSettingsForm({
         <label className="flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-medium text-ink">
-              ป้องกันด้วยรหัสผ่าน
+              Password protection
             </p>
             <p className="text-xs text-muted">
-              ต้องใส่รหัสผ่านก่อนเปิดดูอัลบั้ม
+              A password is required before viewing the album
             </p>
           </div>
 
@@ -218,14 +218,14 @@ export default function AlbumSettingsForm({
         {isPasswordProtected ? (
           <div>
             <label className="mb-2 block text-sm text-muted">
-              รหัสผ่านใหม่
+              New password
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-2xl border border-line px-4 py-3 outline-none"
-              placeholder="เว้นว่างเพื่อใช้รหัสผ่านเดิม"
+              placeholder="Leave blank to keep the current password"
             />
           </div>
         ) : null}
@@ -237,7 +237,7 @@ export default function AlbumSettingsForm({
           onClick={() => history.back()}
           className="rounded-2xl bg-ground-sunken px-4 py-3 text-center text-ink-soft"
         >
-          ย้อนกลับ
+          Back
         </button>
 
         <button
@@ -245,7 +245,7 @@ export default function AlbumSettingsForm({
           disabled={loading}
           className="rounded-2xl bg-blue-600 px-4 py-3 text-white disabled:opacity-50"
         >
-          {loading ? 'กำลังบันทึก…' : 'บันทึกการตั้งค่า'}
+          {loading ? 'Saving…' : 'Save settings'}
         </button>
       </div>
 

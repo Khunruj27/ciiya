@@ -518,8 +518,8 @@ if (isMounted()) {
 
       safeSetSuccessMsg(
         presetFile
-          ? `เพิ่มเข้าคิวพร้อมพรีเซ็ตแล้ว ${successCount}/${uploadItems.length} ไฟล์`
-          : `เพิ่มเข้าคิวแล้ว ${successCount}/${uploadItems.length} ไฟล์`
+          ? `Added to the queue with a preset ${successCount}/${uploadItems.length} files`
+          : `Added to the queue ${successCount}/${uploadItems.length} files`
       )
 
       if (successCount === uploadItems.length) {
@@ -528,11 +528,11 @@ if (isMounted()) {
 
       if (errorCount > 0) {
         safeSetErrorMsg(
-          `อัปโหลดไม่สำเร็จ ${errorCount} ไฟล์ กดเริ่มอัปโหลดอีกครั้งเพื่อลองใหม่`
+          `Upload failed ${errorCount} files. Tap Start upload again to retry`
         )
       }
     } catch (error) {
-      safeSetErrorMsg(error instanceof Error ? error.message : 'อัปโหลดไม่สำเร็จ')
+      safeSetErrorMsg(error instanceof Error ? error.message : 'Upload failed')
       safeSetCurrentFileName('')
     } finally {
   uploadLockRef.current = false
@@ -545,7 +545,7 @@ if (isMounted()) {
       {/* JPG Photos */}
 <div className="space-y-2">
   <label className="text-xs font-semibold text-muted">
-    รูปภาพ JPG
+    Photos JPG
   </label>
 
   <input
@@ -604,14 +604,14 @@ setItems((prev) => {
   />
 
   <p className="text-xs text-muted">
-    เลือกรูป JPG/JPEG ได้ครั้งละหลายรูป
+    Select photos JPG/JPEG multiple at a time
   </p>
 </div>
     
 
      <div className="space-y-2">
         <label className="text-xs font-semibold text-muted">
-          พรีเซ็ต Lightroom (.xmp)
+          preset Lightroom (.xmp)
         </label>
 
         <input
@@ -629,11 +629,11 @@ setItems((prev) => {
 
         {presetFile ? (
           <div className="rounded-2xl bg-blue-50 px-3 py-2 text-xs font-medium text-blue-600">
-            เลือกพรีเซ็ตแล้ว: {presetFile.name}
+            Preset selected: {presetFile.name}
           </div>
         ) : (
           <p className="text-xs text-muted">
-            ไม่บังคับ: เลือกพรีเซ็ต .xmp ก่อนอัปโหลด
+            optional: Choose a preset .xmp before uploading
           </p>
         )}
       </div>
@@ -647,7 +647,7 @@ setItems((prev) => {
         <option value="sd">SD (2000px)</option>
         <option value="hd">HD (3000px)</option>
         <option value="uhd">UHD (4000px)</option>
-        <option value="original">ต้นฉบับ (ขนาดเดิม)</option>
+        <option value="original">Original (Original size)</option>
       </select>
 
       {categories.length > 0 ? (
@@ -657,7 +657,7 @@ setItems((prev) => {
           className="w-full rounded-xl border border-line p-3 text-sm"
           disabled={uploading}
         >
-          <option value="">ไม่ระบุหมวดหมู่</option>
+          <option value="">No category</option>
           {categories.map((category) => (
             <option key={category.id} value={category.id}>
               {category.name}
@@ -669,12 +669,12 @@ setItems((prev) => {
       {items.length > 0 ? (
         <div className="rounded-2xl bg-ground-sunken p-3">
           <div className="flex items-center justify-between text-sm text-ink-soft">
-            <span>คิวอัปโหลด {items.length} ไฟล์</span>
+            <span>Upload queue {items.length} files</span>
             <span>{totalProgress}%</span>
           </div>
 
           <div className="mt-1 text-xs text-muted">
-            ขนาดรวม: {formatBytes(totalSelectedBytes)}
+            Total size: {formatBytes(totalSelectedBytes)}
           </div>
 
           <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-ground-sunken">
@@ -686,9 +686,9 @@ setItems((prev) => {
 
           <div className="mt-2 flex items-center justify-between text-xs text-muted">
             <span>
-              อัปโหลดแล้ว {uploadedCount}/{items.length}
+              Uploaded {uploadedCount}/{items.length}
             </span>
-            <span>{failedCount > 0 ? `ไม่สำเร็จ ${failedCount}` : 'พร้อมอัปโหลด'}</span>
+            <span>{failedCount > 0 ? `failed ${failedCount}` : 'Ready to upload'}</span>
           </div>
         </div>
       ) : null}
@@ -717,7 +717,7 @@ setItems((prev) => {
                     onClick={() => removeItem(item.id)}
                     className="shrink-0 rounded-full bg-ground-sunken px-2 py-1 text-[11px] text-muted"
                   >
-                    นำออก
+                    Remove
                   </button>
                 ) : null}
               </div>
@@ -743,12 +743,12 @@ setItems((prev) => {
                         : 'text-muted'
                   }
                 >
-                  {item.status === 'waiting' && 'รออัปโหลด'}
-                  {item.status === 'uploading' && `กำลังอัปโหลด ${item.progress}%`}
-                  {item.status === 'queued' && 'อัปโหลดแล้ว • กำลังสร้างตัวอย่าง'}
-                  {item.status === 'done' && 'เสร็จแล้ว'}
-                  {item.status === 'duplicate' && 'ไฟล์ซ้ำ • อัปโหลดไว้แล้ว'}
-                  {item.status === 'error' && (item.error || 'เกิดข้อผิดพลาด')}
+                  {item.status === 'waiting' && 'Waiting to upload'}
+                  {item.status === 'uploading' && `Uploading ${item.progress}%`}
+                  {item.status === 'queued' && 'Uploaded • Generating preview'}
+                  {item.status === 'done' && 'Done'}
+                  {item.status === 'duplicate' && 'Duplicate file • Already uploaded'}
+                  {item.status === 'error' && (item.error || 'An error occurred')}
                 </span>
 
                 <span className="text-muted">{item.progress}%</span>
@@ -760,7 +760,7 @@ setItems((prev) => {
 
       {currentFileName ? (
         <p className="truncate text-xs text-muted">
-          กำลังอัปโหลด: {currentFileName}
+          Uploading: {currentFileName}
         </p>
       ) : null}
 
@@ -777,7 +777,7 @@ setItems((prev) => {
   disabled={uploading}
   className="w-full rounded-control bg-ink py-3 font-medium text-white disabled:opacity-50"
 >
-  {uploading ? 'กำลังอัปโหลด…' : 'เริ่มอัปโหลด'}
+  {uploading ? 'Uploading…' : 'Start upload'}
 </button>
 
         {items.some(
@@ -792,7 +792,7 @@ setItems((prev) => {
             disabled={uploading}
             className="w-full rounded-xl bg-ground-sunken py-3 text-sm font-semibold text-ink-soft disabled:opacity-50"
           >
-            ล้างรายการที่เสร็จแล้ว
+            Clear completed
           </button>
         ) : null}
       </div>

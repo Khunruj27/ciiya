@@ -15,7 +15,7 @@ export async function POST(req: Request) {
 
   const { newPlanId } = await req.json()
 
-  // ดึง plan ใหม่
+  // Pulls plan new
   const { data: newPlan } = await supabase
     .from('plans')
     .select('*')
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Plan not found' }, { status: 404 })
   }
 
-  // ดึง plan ปัจจุบัน
+  // Pulls plan Current
   const { data: currentSub } = await supabase
     .from('subscriptions')
     .select('*, plan:plans(*)')
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
   const currentLimit = currentSub?.plan?.storage_limit_bytes || 0
   const newLimit = newPlan.storage_limit_bytes
 
-  // 🔥 เช็คว่าเป็น downgrade ไหม
+  // 🔥 Check whether it’s downgrade 
   const isDowngrade = newLimit < currentLimit
 
   if (isDowngrade) {
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     }
   }
 
-  // ✅ อัปเดต plan
+  // ✅ Update plan
   await supabase
     .from('subscriptions')
     .update({ plan_id: newPlan.id })

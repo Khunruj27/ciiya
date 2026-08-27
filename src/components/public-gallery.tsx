@@ -594,7 +594,7 @@ useEffect(() => {
                   tab === 'live' ? 'text-ink' : 'text-muted'
                 }`}
               >
-                รูปล่าสุด
+                Latest photos
               </p>
               {tab === 'live' ? (
                 <div className="mx-auto mt-2 h-[3px] w-8 rounded-full bg-gold" />
@@ -607,7 +607,7 @@ useEffect(() => {
                   tab === 'popular' ? 'text-ink' : 'text-muted'
                 }`}
               >
-                รูปยอดนิยม
+                Popular photos
               </p>
               {tab === 'popular' ? (
                 <div className="mx-auto mt-2 h-[3px] w-8 rounded-full bg-gold" />
@@ -622,7 +622,7 @@ useEffect(() => {
                   key={cols}
                   type="button"
                   onClick={() => setGridCols(cols)}
-                  aria-label={`ความหนาแน่นระดับ ${cols}`}
+                  aria-label={`Density ${cols}`}
                   aria-pressed={gridCols === cols}
                   className={`flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200 active:scale-90 sm:h-9 sm:w-9 ${
                     gridCols === cols
@@ -707,7 +707,7 @@ useEffect(() => {
               <rect x="3" y="13" width="8" height="8" rx="2" />
               <path d="m14.5 17 2 2 4-4" />
             </svg>
-            เลือกรูปภาพ
+            Select photos
           </button>
         </div>
       ) : null}
@@ -719,13 +719,13 @@ useEffect(() => {
               type="button"
               onClick={toggleSelectMode}
               className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-lg"
-              aria-label="ยกเลิกการเลือก"
+              aria-label="Deselect"
             >
               ✕
             </button>
 
             <p className="whitespace-nowrap px-1 text-sm font-semibold">
-              เลือกแล้ว {selectedIds.size}/{MAX_SELECTION} รูป
+              selected {selectedIds.size}/{MAX_SELECTION} photos
             </p>
 
             <button
@@ -734,7 +734,7 @@ useEffect(() => {
               disabled={selectedIds.size === 0 || batchDownloading}
               className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-gold px-4 py-2 text-[13px] font-semibold text-ink transition-opacity disabled:opacity-40"
             >
-              {batchDownloading ? 'กำลังดาวน์โหลด…' : '⬇ ดาวน์โหลด'}
+              {batchDownloading ? 'Downloading…' : '⬇ Download'}
             </button>
           </div>
         </div>
@@ -770,7 +770,7 @@ useEffect(() => {
               />
             ) : (
               <div className="rounded-3xl bg-white/10 px-5 py-4 text-sm text-white/70">
-                รูปภาพยังไม่พร้อมแสดง
+                Photos aren’t ready to show yet
               </div>
             )}
           </div>
@@ -817,7 +817,7 @@ useEffect(() => {
                 )}&token=${encodeURIComponent(shareToken)}`}
                 className="pointer-events-auto flex items-center gap-2 rounded-full bg-white px-6 py-3 text-[13px] font-semibold text-ink shadow-lg transition-transform active:scale-95"
               >
-                ดาวน์โหลดรูปภาพ
+                Download photos
               </a>
 
               {activePhoto.filename ? (

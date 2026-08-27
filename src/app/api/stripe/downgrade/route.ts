@@ -74,7 +74,7 @@ if (usedBytes > Number(targetPlan.storage_limit_bytes || 0)) {
       return NextResponse.json({ error: 'Subscription not found' }, { status: 404 })
     }
 
-    // Free plan: ยังไม่ยุ่ง Stripe ก่อน ให้เปลี่ยนใน DB หรือทำ cancel_at_period_end ทีหลัง
+    // Free plan: not touched yet Stripe first, change it in DB or do cancel_at_period_end later
     if (!targetPlan.stripe_price_id || targetPlan.price_thb === 0) {
       await supabase
         .from('subscriptions')

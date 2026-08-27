@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
       if (!grouped.has(clusterKey)) {
         grouped.set(clusterKey, {
           id: clusterKey,
-          label: `บุคคล ${grouped.size + 1}`,
+          label: `People ${grouped.size + 1}`,
           photo_ids: [],
           preview_url: imageUrl,
           count: 0,

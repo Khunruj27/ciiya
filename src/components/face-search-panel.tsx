@@ -27,8 +27,8 @@ export default function FaceSearchPanel({ token, onSelect, onClose }: Props) {
     <div className="fixed inset-0 z-50 bg-black/40">
       <div className="absolute bottom-0 w-full rounded-t-2xl bg-white p-4">
         <div className="mb-3 flex justify-between">
-          <b>เลือกบุคคล</b>
-          <button onClick={onClose}>ปิด</button>
+          <b>Select person</b>
+          <button onClick={onClose}>Close</button>
         </div>
 
         <div className="flex gap-2 overflow-x-auto">
@@ -53,7 +53,7 @@ export default function FaceSearchPanel({ token, onSelect, onClose }: Props) {
           }}
           className="mt-4 w-full text-sm text-blue-600"
         >
-          แสดงทั้งหมด
+          Show all
         </button>
       </div>
     </div>

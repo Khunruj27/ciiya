@@ -43,7 +43,7 @@ export default function DeletePhotoButton({ photoId }: Props) {
       disabled={loading}
       className="rounded-full bg-red-500/90 px-3 py-1.5 text-xs text-white shadow disabled:opacity-50"
     >
-      {loading ? 'กำลังลบ…' : 'ลบรูป'}
+      {loading ? 'Deleting…' : 'Delete photo'}
     </button>
   )
 }

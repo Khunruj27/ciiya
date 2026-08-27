@@ -76,17 +76,13 @@ const currentSubscription = activeSubscription
           </Link>
 
           <div className="rounded-full border border-line bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted backdrop-blur-xl">
-            แพ็กเกจ
+            Plan
           </div>
         </div>
 
         <section className="mt-8">
-          <p className="text-[13px] font-semibold uppercase tracking-[0.18em] text-muted">
-            พื้นที่สำหรับทุกงาน
-          </p>
-
           <h1 className="mt-3 text-[44px] font-semibold leading-[0.9] tracking-[-0.08em] text-ink">
-            เลือกพื้นที่ที่พอดีกับคุณ
+            Choose the space that fits you
           </h1>
         </section>
 
@@ -94,10 +90,10 @@ const currentSubscription = activeSubscription
           <div className="mb-5 flex items-center justify-between">
             <div>
               <h2 className="text-[24px] font-semibold tracking-[-0.05em]">
-                แพ็กเกจที่พร้อมใช้งาน
+                Available plans
               </h2>
               <p className="mt-1 text-xs font-semibold text-muted">
-                เปลี่ยนแพ็กเกจได้ตามปริมาณงานของคุณ
+                Change your plan as your workload grows
               </p>
             </div>
 
@@ -119,11 +115,11 @@ const currentSubscription = activeSubscription
               </div>
 
               <h2 className="mt-4 text-base font-semibold text-ink">
-                ยังไม่พบแพ็กเกจ
+                No plans found yet
               </h2>
 
               <p className="mt-2 text-xs leading-5 text-muted">
-                กรุณาเพิ่มข้อมูลแพ็กเกจ แล้วโหลดหน้านี้ใหม่
+                Please add plan data, then reload this page
               </p>
             </div>
           )}

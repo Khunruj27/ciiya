@@ -65,7 +65,7 @@ export default function DeleteAlbumButton({ albumId }: Props) {
         return
       }
 
-      // จบสวย ๆ
+      // A beautiful finish
       setProgress(100)
 
 setTimeout(() => {

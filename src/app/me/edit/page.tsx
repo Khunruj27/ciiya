@@ -7,94 +7,94 @@ import { createClient } from '@/lib/supabase-client'
 import AppIcon from '@/components/app-icon'
 
 const PROVINCES_BY_REGION: Record<string, string[]> = {
-  'ภาคเหนือ': [
-    'เชียงใหม่',
-    'เชียงราย',
-    'ลำปาง',
-    'ลำพูน',
-    'แม่ฮ่องสอน',
-    'น่าน',
-    'พะเยา',
-    'แพร่',
-    'อุตรดิตถ์',
-    'พิษณุโลก',
-    'สุโขทัย',
-    'ตาก',
-    'เพชรบูรณ์',
-    'พิจิตร',
-    'กำแพงเพชร',
-    'นครสวรรค์',
-    'อุทัยธานี',
+  'Northern': [
+    'Chiang Mai',
+    'Chiang Rai',
+    'Lampang',
+    'Lamphun',
+    'Mae Hong Son',
+    'Nan',
+    'Phayao',
+    'Phrae',
+    'Uttaradit',
+    'Phitsanulok',
+    'Sukhothai',
+    'Tak',
+    'Phetchabun',
+    'Phichit',
+    'Kamphaeng Phet',
+    'Nakhon Sawan',
+    'Uthai Thani',
   ],
-  'ภาคกลาง': [
-    'กรุงเทพมหานคร',
-    'นนทบุรี',
-    'ปทุมธานี',
-    'พระนครศรีอยุธยา',
-    'อ่างทอง',
-    'ลพบุรี',
-    'สิงห์บุรี',
-    'ชัยนาท',
-    'สระบุรี',
-    'นครปฐม',
-    'สมุทรปราการ',
-    'สมุทรสาคร',
-    'สมุทรสงคราม',
+  'Central': [
+    'Bangkok',
+    'Nonthaburi',
+    'Pathum Thani',
+    'Ayutthaya',
+    'Ang Thong',
+    'Lopburi',
+    'Sing Buri',
+    'Chai Nat',
+    'Saraburi',
+    'Nakhon Pathom',
+    'Samut Prakan',
+    'Samut Sakhon',
+    'Samut Songkhram',
   ],
-  'ภาคตะวันออก': [
-    'ชลบุรี',
-    'ระยอง',
-    'จันทบุรี',
-    'ตราด',
-    'ฉะเชิงเทรา',
-    'ปราจีนบุรี',
-    'สระแก้ว',
-    'นครนายก',
+  'Eastern': [
+    'Chonburi',
+    'Rayong',
+    'Chanthaburi',
+    'Trat',
+    'Chachoengsao',
+    'Prachinburi',
+    'Sa Kaeo',
+    'Nakhon Nayok',
   ],
-  'ภาคตะวันตก': [
-    'กาญจนบุรี',
-    'ราชบุรี',
-    'เพชรบุรี',
-    'ประจวบคีรีขันธ์',
-    'สุพรรณบุรี',
+  'Western': [
+    'Kanchanaburi',
+    'Ratchaburi',
+    'Phetchaburi',
+    'Prachuap Khiri Khan',
+    'Suphan Buri',
   ],
-  'ภาคตะวันออกเฉียงเหนือ': [
-    'นครราชสีมา',
-    'ขอนแก่น',
-    'อุบลราชธานี',
-    'อุดรธานี',
-    'บุรีรัมย์',
-    'สุรินทร์',
-    'ศรีสะเกษ',
-    'ร้อยเอ็ด',
-    'มหาสารคาม',
-    'กาฬสินธุ์',
-    'สกลนคร',
-    'นครพนม',
-    'มุกดาหาร',
-    'หนองคาย',
-    'บึงกาฬ',
-    'เลย',
-    'หนองบัวลำภู',
-    'ชัยภูมิ',
-    'ยโสธร',
-    'อำนาจเจริญ',
+  'Northeastern': [
+    'Nakhon Ratchasima',
+    'Khon Kaen',
+    'Ubon Ratchathani',
+    'Udon Thani',
+    'Buriram',
+    'Surin',
+    'Sisaket',
+    'Roi Et',
+    'Maha Sarakham',
+    'Kalasin',
+    'Sakon Nakhon',
+    'Nakhon Phanom',
+    'Mukdahan',
+    'Nong Khai',
+    'Bueng Kan',
+    'Loei',
+    'Nong Bua Lamphu',
+    'Chaiyaphum',
+    'Yasothon',
+    'Amnat Charoen',
   ],
-  'ภาคใต้': [
-    'นครศรีธรรมราช',
-    'สุราษฎร์ธานี',
-    'ภูเก็ต',
-    'กระบี่',
-    'พังงา',
-    'ระนอง',
-    'ชุมพร',
-    'สงขลา',
-    'สตูล',
-    'ตรัง',
-    'พัทลุง',
-    'ปัตตานี',
-    'ยะลา',
-    'นราธิวาส',
+  'Southern': [
+    'Nakhon Si Thammarat',
+    'Surat Thani',
+    'Phuket',
+    'Krabi',
+    'Phang Nga',
+    'Ranong',
+    'Chumphon',
+    'Songkhla',
+    'Satun',
+    'Trang',
+    'Phatthalung',
+    'Pattani',
+    'Yala',
+    'Narathiwat',
   ],
 }
 
@@ -477,7 +477,7 @@ async function uploadAvatar() {
   </button>
 
   <h1 className="text-[28px] font-semibold tracking-[-0.05em]">
-    แก้ไขโปรไฟล์
+    Edit profile
   </h1>
 
   <div className="w-11" />
@@ -519,7 +519,7 @@ async function uploadAvatar() {
           </div>
 
           <h2 className="mt-6 max-w-full truncate text-[24px] sm:text-[32px] font-semibold leading-none tracking-[-0.06em]">
-            {name || 'ผู้ใช้งาน Ciiya'}
+            {name || 'Ciiya user'}
           </h2>
 
           <p className="mt-3 max-w-full truncate text-[14px] sm:text-[19px] font-medium text-muted">
@@ -529,13 +529,13 @@ async function uploadAvatar() {
 
         <section className="mt-7">
           <h2 className="mb-3 px-2 text-[22px] sm:text-[28px] font-semibold tracking-[-0.05em]">
-            ข้อมูลบัญชี
+            Account details
           </h2>
 
           <div className="overflow-hidden rounded-panel sm:rounded-hero bg-surface border border-line">
             <div className="px-4 py-2.5">
               <label className="block text-[13px] font-semibold text-muted">
-                ชื่อ
+                Name
               </label>
 
               <input
@@ -545,7 +545,7 @@ async function uploadAvatar() {
                   setName(e.target.value)
                   setMessage('')
                 }}
-                placeholder="ชื่อของคุณ"
+                placeholder="Your name"
                 className="mt-1 h-9 w-full appearance-none bg-transparent text-[15px] font-semibold text-ink outline-none"
                 disabled={loading}
               />
@@ -555,7 +555,7 @@ async function uploadAvatar() {
 
             <div className="px-4 py-2.5">
               <label className="block text-[13px] font-semibold text-muted">
-                อีเมล
+                Email
               </label>
 
               <input
@@ -570,7 +570,7 @@ async function uploadAvatar() {
 
             <div className="px-5 py-2.5">
               <label className="block text-[13px] font-semibold text-muted">
-                ภูมิภาค
+                Region
               </label>
 
               <select
@@ -583,7 +583,7 @@ async function uploadAvatar() {
                 disabled={loading}
                 className="mt-1 h-9 w-full appearance-none bg-transparent text-[15px] font-semibold text-ink outline-none"
               >
-                <option value="">เลือกภูมิภาค</option>
+                <option value="">Select region</option>
                 {REGIONS.map((item) => (
                   <option key={item} value={item}>
                     {item}
@@ -596,7 +596,7 @@ async function uploadAvatar() {
 
             <div className="px-5 py-5">
               <label className="block text-[13px] font-semibold text-muted">
-                จังหวัด
+                Province
               </label>
 
               <select
@@ -609,7 +609,7 @@ async function uploadAvatar() {
                 className="mt-2 h-8 w-full appearance-none bg-transparent text-[14px] font-semibold text-ink outline-none disabled:text-muted"
               >
                 <option value="">
-                  {region ? 'เลือกจังหวัด' : 'เลือกภูมิภาคก่อน'}
+                  {region ? 'Select province' : 'Select a region first'}
                 </option>
                 {provinceOptions.map((item) => (
                   <option key={item} value={item}>
@@ -634,7 +634,7 @@ async function uploadAvatar() {
             disabled={loading}
             className="flex h-12 w-full items-center justify-center rounded-control bg-ink text-[15px] font-medium text-white transition active:scale-[0.98] disabled:opacity-50"
           >
-            {loading ? 'กำลังบันทึก…' : 'บันทึกการเปลี่ยนแปลง'}
+            {loading ? 'Saving…' : 'Save changes'}
           </button>
         </section>
 
@@ -647,11 +647,11 @@ async function uploadAvatar() {
 
               <div>
                 <p className="text-[16px] font-bold tracking-[-0.03em]">
-                  ซิงค์ข้อมูลโปรไฟล์
+                  Sync profile
                 </p>
 
                 <p className="mt-1 text-[13px] font-medium leading-relaxed text-muted">
-                  ชื่อ รูปโปรไฟล์ ภูมิภาค และจังหวัดจะอัปเดตทั่วทั้งแอปหลังบันทึก
+                  Your name, profile photo, region, and province update across the app after saving
                 </p>
               </div>
             </div>

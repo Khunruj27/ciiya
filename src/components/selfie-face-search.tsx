@@ -47,7 +47,7 @@ function loadImageFromFile(file: File): Promise<HTMLImageElement> {
 
     img.onerror = () => {
       URL.revokeObjectURL(url)
-      reject(new Error('โหลดรูปไม่สำเร็จ'))
+      reject(new Error('Couldn’t load the photo'))
     }
 
     img.src = url
@@ -118,7 +118,7 @@ export default function SelfieFaceSearch({
   async function handleFile(file: File) {
     try {
       setLoading(true)
-      setMessage('กำลังสแกนใบหน้า...')
+      setMessage('Scanning face...')
       setResults([])
       setSelectedIds(new Set())
 
@@ -137,12 +137,12 @@ export default function SelfieFaceSearch({
         .withFaceDescriptors()
 
       if (!detections.length) {
-        throw new Error('ไม่พบใบหน้าในรูปเซลฟี่')
+        throw new Error('No face found in the selfie')
       }
 
       const descriptor = Array.from(detections[0].descriptor)
 
-      setMessage('กำลังค้นหารูปที่ตรงกัน...')
+      setMessage('Searching for matching photos...')
 
       const searchRes = await fetch('/api/faces/search', {
         method: 'POST',
@@ -159,13 +159,13 @@ export default function SelfieFaceSearch({
       const searchData = await searchRes.json()
 
       if (!searchRes.ok || !searchData.success) {
-        throw new Error(searchData?.error || 'ค้นหาไม่สำเร็จ')
+        throw new Error(searchData?.error || 'Search failed')
       }
 
       setResults(searchData.results || [])
-      setMessage(`พบรูปที่ตรงกัน ${searchData.count || 0} รูป`)
+      setMessage(`Matching photos found ${searchData.count || 0} photos`)
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'เกิดข้อผิดพลาด')
+      setMessage(error instanceof Error ? error.message : 'An error occurred')
     } finally {
       setLoading(false)
     }
@@ -182,7 +182,7 @@ export default function SelfieFaceSearch({
           input?.click()
         }}
         disabled={loading}
-        aria-label="ค้นหารูปด้วยใบหน้า"
+        aria-label="Search photos by face"
         className={
           variant === 'inline'
             ? 'ml-auto flex shrink-0 items-center gap-2 rounded-full bg-ink px-4 py-2.5 text-[12px] font-bold text-white transition active:scale-95 disabled:opacity-60'
@@ -206,7 +206,7 @@ export default function SelfieFaceSearch({
           <path d="M9 16.2c.7-1 1.8-1.6 3-1.6s2.3.6 3 1.6" />
         </svg>
 
-        {variant === 'inline' ? <span>หารูปฉัน</span> : null}
+        {variant === 'inline' ? <span>Find my photos</span> : null}
       </button>
 
       <input
@@ -229,9 +229,9 @@ export default function SelfieFaceSearch({
       {loading && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
           <div className="rounded-hero border border-line bg-surface px-8 py-6 text-center shadow-lift">
-            <div className="mb-3 text-[16px] font-semibold text-ink">กำลังค้นหารูป...</div>
+            <div className="mb-3 text-[16px] font-semibold text-ink">Searching photos...</div>
             <div className="text-[13px] text-muted">
-              ระบบ AI กำลังเปรียบเทียบใบหน้า
+              the system AI Comparing faces
             </div>
           </div>
         </div>
@@ -242,9 +242,9 @@ export default function SelfieFaceSearch({
           <div className="mx-auto max-w-5xl rounded-hero bg-surface p-6">
             <div className="mb-5 flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold">ผลการค้นหา</h2>
+                <h2 className="text-2xl font-bold">Search results</h2>
                 <p className="text-sm text-muted">
-                  พบ {results.length} รูป
+                  Found {results.length} photos
                 </p>
               </div>
 
@@ -256,7 +256,7 @@ export default function SelfieFaceSearch({
                 }}
                 className="rounded-full bg-ground-sunken px-4 py-2 text-sm"
               >
-                ปิด
+                Close
               </button>
             </div>
 
@@ -322,7 +322,7 @@ export default function SelfieFaceSearch({
           <div className="fixed inset-x-0 bottom-5 z-[95] flex justify-center px-4">
             <div className="flex items-center gap-3 rounded-full bg-ink px-3 py-2 text-white shadow-[0_18px_50px_rgba(15,23,42,0.35)]">
               <p className="whitespace-nowrap px-1 text-sm font-semibold">
-                เลือกแล้ว {selectedIds.size}/{MAX_SELECTION} รูป
+                selected {selectedIds.size}/{MAX_SELECTION} photos
               </p>
 
               <button
@@ -331,7 +331,7 @@ export default function SelfieFaceSearch({
                 disabled={selectedIds.size === 0 || batchDownloading}
                 className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-gold px-4 py-2 text-sm font-bold text-ink transition-opacity disabled:opacity-40"
               >
-                {batchDownloading ? 'กำลังดาวน์โหลด…' : '⬇ ดาวน์โหลด'}
+                {batchDownloading ? 'Downloading…' : '⬇ Download'}
               </button>
             </div>
           </div>

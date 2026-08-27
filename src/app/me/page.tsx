@@ -105,7 +105,7 @@ const storageLimitBytes = Number(
   const displayName =
     user.user_metadata?.full_name ||
     user.user_metadata?.name ||
-    'ผู้ใช้งาน Ciiya'
+    'Ciiya user'
 
   const avatarUrl =
     user.user_metadata?.avatar_url ||
@@ -124,7 +124,7 @@ const storageLimitBytes = Number(
     <main className="min-h-screen bg-ground px-5 pt-[max(32px,env(safe-area-inset-top))] pb-[max(120px,calc(env(safe-area-inset-bottom)+40px))] text-ink sm:px-8 lg:px-12">
       <div className="mx-auto w-full max-w-5xl">
         <h1 className="px-1 text-[32px] font-bold leading-none tracking-[-0.045em]">
-          โปรไฟล์
+          Profile
         </h1>
 
         {/*
@@ -180,10 +180,10 @@ const storageLimitBytes = Number(
         */}
         <section className="mt-3 grid grid-cols-4 divide-x divide-line rounded-panel border border-line bg-surface py-3">
           {[
-            ['งาน', albumCount || 0],
-            ['รูปภาพ', photoCount || 0],
-            ['เข้าชม', totalViews],
-            ['แชร์', totalShares],
+            ['Jobs', albumCount || 0],
+            ['Photos', photoCount || 0],
+            ['Views', totalViews],
+            ['Shares', totalShares],
           ].map(([label, value]) => (
             <div key={String(label)} className="px-1 text-center">
               <p className="text-[20px] font-semibold leading-none tracking-[-0.04em] tabular-nums">
@@ -202,7 +202,7 @@ const storageLimitBytes = Number(
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
-                พื้นที่จัดเก็บ
+                Storage
               </p>
               <p className="mt-2 text-[26px] font-bold leading-none tracking-[-0.045em] tabular-nums">
                 {formatBytes(totalBytes)}
@@ -225,9 +225,9 @@ const storageLimitBytes = Number(
           </div>
 
           <div className="mt-2.5 flex items-center justify-between text-[11px] font-normal text-white/45 tabular-nums">
-            <span>ใช้ไป {Math.round(usagePercent)}%</span>
+            <span>Used {Math.round(usagePercent)}%</span>
             <span>
-              เหลือ {formatBytes(Math.max(0, storageLimitBytes - totalBytes))}
+              Left {formatBytes(Math.max(0, storageLimitBytes - totalBytes))}
             </span>
           </div>
         </section>
@@ -244,10 +244,10 @@ const storageLimitBytes = Number(
 
           <span className="min-w-0 flex-1">
             <span className="block text-[14px] font-semibold text-ink">
-              อัปเกรดแพ็กเกจ
+              Upgrade plan
             </span>
             <span className="block text-[12px] font-normal text-gold-deep">
-              พื้นที่มากขึ้น สำหรับงานที่ถ่ายถี่
+              More space for frequent shoots
             </span>
           </span>
 
@@ -264,11 +264,11 @@ const storageLimitBytes = Number(
         <section className="mt-7">
           <div className="mb-3 flex items-center justify-between px-1">
             <h2 className="text-[20px] font-bold tracking-[-0.035em]">
-              งานล่าสุด
+              Recent Jobs
             </h2>
 
             <Link href="/albums" className="text-[13px] font-semibold text-muted">
-              ดูทั้งหมด
+              View all
             </Link>
           </div>
 
@@ -289,19 +289,19 @@ const storageLimitBytes = Number(
                         />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center text-[10px] font-medium text-muted">
-                          ไม่มีปก
+                          No cover
                         </div>
                       )}
                     </div>
 
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[15px] font-semibold tracking-[-0.02em]">
-                        {album.title || 'งานที่ยังไม่มีชื่อ'}
+                        {album.title || 'Untitled job'}
                       </p>
 
                       <p className="mt-0.5 text-[12px] font-normal text-muted tabular-nums">
-                        เข้าชม {Number(album.view_count || 0)} ครั้ง · แชร์{' '}
-                        {Number(album.share_count || 0)} ครั้ง
+                        {Number(album.view_count || 0)} views · {' '}
+                        {Number(album.share_count || 0)} shares
                       </p>
                     </div>
 
@@ -320,11 +320,11 @@ const storageLimitBytes = Number(
                 <AppIcon name="gallery" size={40} className="mb-3 opacity-30" />
 
                 <p className="text-[16px] font-semibold text-ink">
-                  ยังไม่มีงาน
+                  No jobs yet
                 </p>
 
                 <p className="mt-1 text-[13px] font-normal text-muted">
-                  สร้างงานแรกเพื่อเริ่มจัดเก็บภาพ
+                  Create your first job to start storing photos
                 </p>
               </div>
             )}
@@ -337,13 +337,13 @@ const storageLimitBytes = Number(
             type="submit"
             className="flex h-12 w-full items-center justify-center rounded-full border border-line bg-surface text-[14px] font-semibold text-red-600 transition active:scale-[0.99]"
           >
-            ออกจากระบบ
+            Sign out
           </button>
         </form>
 
         <footer className="text-center">
           <p className="pt-5 text-[11px] font-normal text-muted">
-            Ciiya เวอร์ชัน 23.1
+            Ciiya Version 23.1
           </p>
         </footer>
       </div>
@@ -355,7 +355,7 @@ const storageLimitBytes = Number(
             <AppIcon name="album" size={24} />
           </Link>
 
-          <Link href="/albums" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
+          <Link href="/portfolio" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
             <AppIcon name="gallery" size={21} />
           </Link>
 

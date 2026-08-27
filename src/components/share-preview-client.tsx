@@ -94,10 +94,10 @@ export default function SharePreviewClient({
       <main className="grid min-h-screen place-items-center bg-[#f4f1eb] px-6 text-center text-[#1b1b18]">
         <div>
           <p className="text-2xl font-black tracking-[-0.04em]">
-            ยังไม่มีรูปให้พรีวิว
+            No photos to preview yet
           </p>
           <p className="mt-2 text-sm font-medium text-black/50">
-            หน้านี้ดึงรูปจากอัลบั้มสาธารณะล่าสุด — เผยแพร่อัลบั้มสักหนึ่งอัลบั้มแล้วเปิดใหม่อีกครั้ง
+            This page pulls photos from your most recent public album — Publish an album, then reopen this page
           </p>
         </div>
       </main>
@@ -120,7 +120,7 @@ export default function SharePreviewClient({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => showNotice('คัดลอกลิงก์อัลบั้มแล้ว')}
+              onClick={() => showNotice('Album link copied')}
               className="grid h-10 w-10 place-items-center rounded-full border border-black/10 bg-white/70 transition hover:bg-white"
               aria-label="Share album"
             >
@@ -128,11 +128,11 @@ export default function SharePreviewClient({
             </button>
             <button
               type="button"
-              onClick={() => showNotice('เริ่มดาวน์โหลดรูปที่เลือก')}
+              onClick={() => showNotice('Start downloading selected photos')}
               className="flex h-10 items-center gap-2 rounded-full bg-[#1b1b18] px-4 text-sm font-bold text-white transition hover:bg-black"
             >
               <ArrowDownToLine className="h-4 w-4" />
-              <span className="hidden sm:inline">ดาวน์โหลด</span>
+              <span className="hidden sm:inline">Download</span>
             </button>
           </div>
         </div>
@@ -149,16 +149,16 @@ export default function SharePreviewClient({
 
           <div className="relative flex min-h-[610px] flex-col justify-between p-5 text-white sm:min-h-[660px] sm:p-9 lg:p-12">
             <div className="flex items-start justify-between gap-4">
-              <span className="rounded-full border border-white/30 bg-black/15 px-4 py-2 text-xs font-medium backdrop-blur-md">แกลเลอรีออนไลน์</span>
-              <span className="rounded-full bg-[#C7A86B] px-4 py-2 text-xs font-medium text-[#171717]">อัปเดตล่าสุด 2 นาทีที่แล้ว</span>
+              <span className="rounded-full border border-white/30 bg-black/15 px-4 py-2 text-xs font-medium backdrop-blur-md">Online gallery</span>
+              <span className="rounded-full bg-[#C7A86B] px-4 py-2 text-xs font-medium text-[#171717]">Last updated 2 minutes ago</span>
             </div>
 
             <div className="max-w-4xl">
-              <p className="mb-4 text-sm font-medium tracking-[0.12em] text-white/70">อัลบั้มที่แชร์</p>
+              <p className="mb-4 text-sm font-medium tracking-[0.12em] text-white/70">Shared album</p>
               <h1 className="max-w-3xl text-[clamp(3.4rem,9vw,8.5rem)] font-black leading-[0.78] tracking-[-0.085em]">{albumTitle}</h1>
               <div className="mt-7 border-t border-white/25 pt-5">
                 <p className="max-w-lg text-base font-medium leading-7 text-white/76 sm:text-lg">
-                  {albumDescription || 'ดูและดาวน์โหลดรูปจากงานของคุณ'}
+                  {albumDescription || 'View and download photos from your job'}
                 </p>
               </div>
             </div>
@@ -176,8 +176,8 @@ export default function SharePreviewClient({
                 <Sparkles className="h-6 w-6" />
               </span>
               <div>
-                <p className="text-lg font-black tracking-[-0.035em] sm:text-xl">ค้นหารูปของคุณ</p>
-                <p className="mt-1 text-sm font-semibold text-black/55">อัปโหลดเซลฟี่ แล้วให้ AI ช่วยค้นหา</p>
+                <p className="text-lg font-black tracking-[-0.035em] sm:text-xl">Find your photos</p>
+                <p className="mt-1 text-sm font-semibold text-black/55">Upload a selfie and let AI help find</p>
               </div>
             </div>
             <Search className="mr-2 h-6 w-6 transition group-hover:scale-110" />
@@ -185,8 +185,8 @@ export default function SharePreviewClient({
 
           <div className="flex items-center justify-between gap-5 rounded-[20px] border border-[#E8E4DC] bg-white px-6 py-5 sm:min-w-80">
             <div>
-              <p className="text-xs font-medium text-black/50">รูปที่เลือกไว้</p>
-              <p className="mt-1 text-xl font-black">{liked.size} รูปที่ชอบ</p>
+              <p className="text-xs font-medium text-black/50">Selected photos</p>
+              <p className="mt-1 text-xl font-black">{liked.size} the photos you love</p>
             </div>
             <Heart className="h-7 w-7 fill-[#C7A86B] text-[#C7A86B]" />
           </div>
@@ -195,14 +195,14 @@ export default function SharePreviewClient({
         <section className="pt-12">
           <div className="mb-7 flex items-end justify-between gap-5">
             <div>
-              <p className="text-xs font-medium text-black/45">รูปภาพในอัลบั้ม</p>
-              <h2 className="mt-2 text-4xl font-black tracking-[-0.065em] sm:text-6xl">ทุกช่วงเวลา</h2>
+              <p className="text-xs font-medium text-black/45">Photos in the album</p>
+              <h2 className="mt-2 text-4xl font-black tracking-[-0.065em] sm:text-6xl">every moment</h2>
             </div>
             <button
               type="button"
               onClick={() => setCompactGrid((value) => !value)}
               className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-black/10 bg-white/65 transition hover:bg-white"
-              aria-label="เปลี่ยนรูปแบบแกลเลอรี"
+              aria-label="Change gallery layout"
             >
               {compactGrid ? <Images className="h-5 w-5" /> : <Grid2X2 className="h-5 w-5" />}
             </button>
@@ -220,7 +220,7 @@ export default function SharePreviewClient({
                     type="button"
                     onClick={() => setSelectedPhoto(photo.id)}
                     className="absolute inset-0 z-10"
-                    aria-label={`เปิดรูป ${photo.alt}`}
+                    aria-label={`Open photo ${photo.alt}`}
                   />
                   <img
                     src={photo.src}
@@ -251,72 +251,72 @@ export default function SharePreviewClient({
             </span>
             <p className="mt-5 text-2xl font-black tracking-[-0.045em]">
               {remainingCount > 0
-                ? `ยังมีอีก ${remainingCount} ช่วงเวลา`
-                : 'ครบทุกช่วงเวลาแล้ว'}
+                ? `More ${remainingCount} moments`
+                : 'You’ve seen every moment'}
             </p>
             <p className="mt-2 max-w-md text-sm font-medium leading-6 text-black/50">
-              รูปใหม่จะปรากฏที่นี่อัตโนมัติเมื่อช่างภาพอัปโหลดเสร็จ
+              New photos appear here automatically once the photographer finishes uploading
             </p>
-            <button type="button" onClick={() => showNotice('กำลังโหลดรูปเพิ่มเติม')} className="mt-6 rounded-full bg-[#1b1b18] px-6 py-3 text-sm font-bold text-white">
-              ดูรูปเพิ่มเติม
+            <button type="button" onClick={() => showNotice('Loading more photos')} className="mt-6 rounded-full bg-[#1b1b18] px-6 py-3 text-sm font-bold text-white">
+              View more photos
             </button>
           </div>
         </section>
 
         <footer className="mt-20 flex flex-col gap-4 border-t border-black/10 py-8 text-sm font-semibold text-black/45 sm:flex-row sm:items-center sm:justify-between">
-          <p>แกลเลอรีโดย Ciiya · เพื่อทุกช่วงเวลาของคุณ</p>
+          <p>Gallery by Ciiya · for all your moments</p>
           <p>{albumTitle}</p>
         </footer>
       </div>
 
       {activePhoto ? (
         <div className="fixed inset-0 z-[70] grid place-items-center bg-[#171714]/98 p-3 sm:p-8" role="dialog" aria-modal="true" aria-label="Photo preview">
-          <button type="button" onClick={() => setSelectedPhoto(null)} className="absolute right-4 top-4 z-20 grid h-11 w-11 place-items-center rounded-full bg-white/12 text-white backdrop-blur-md" aria-label="ปิดรูปภาพ">
+          <button type="button" onClick={() => setSelectedPhoto(null)} className="absolute right-4 top-4 z-20 grid h-11 w-11 place-items-center rounded-full bg-white/12 text-white backdrop-blur-md" aria-label="Close photo">
             <X className="h-5 w-5" />
           </button>
-          <button type="button" onClick={() => moveLightbox(-1)} className="absolute left-3 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/12 text-white sm:left-6" aria-label="รูปก่อนหน้า">
+          <button type="button" onClick={() => moveLightbox(-1)} className="absolute left-3 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/12 text-white sm:left-6" aria-label="Previous photo">
             <ChevronLeft className="h-5 w-5" />
           </button>
           <img src={activePhoto.src} alt={activePhoto.alt} className="max-h-[86vh] max-w-full rounded-[20px] object-contain" />
-          <button type="button" onClick={() => moveLightbox(1)} className="absolute right-3 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/12 text-white sm:right-6" aria-label="รูปถัดไป">
+          <button type="button" onClick={() => moveLightbox(1)} className="absolute right-3 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/12 text-white sm:right-6" aria-label="Next photo">
             <ChevronRight className="h-5 w-5" />
           </button>
           <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2 rounded-full bg-white px-3 py-2 shadow-2xl">
-            <button type="button" onClick={() => toggleLike(activePhoto.id)} className="grid h-10 w-10 place-items-center rounded-full bg-[#F8F6F1]" aria-label="เลือกรูปโปรด">
+            <button type="button" onClick={() => toggleLike(activePhoto.id)} className="grid h-10 w-10 place-items-center rounded-full bg-[#F8F6F1]" aria-label="Pick your favorites">
               <Heart className={`h-4 w-4 ${liked.has(activePhoto.id) ? 'fill-[#C7A86B] text-[#C7A86B]' : ''}`} />
             </button>
-            <button type="button" onClick={() => showNotice('เตรียมดาวน์โหลดรูปนี้')} className="flex h-10 items-center gap-2 rounded-full bg-[#1b1b18] px-4 text-sm font-bold text-white">
-              <ArrowDownToLine className="h-4 w-4" /> ดาวน์โหลด
+            <button type="button" onClick={() => showNotice('Preparing this photo for download')} className="flex h-10 items-center gap-2 rounded-full bg-[#1b1b18] px-4 text-sm font-bold text-white">
+              <ArrowDownToLine className="h-4 w-4" /> Download
             </button>
           </div>
         </div>
       ) : null}
 
       {faceSearchOpen ? (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/55 p-0 backdrop-blur-sm sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-label="ค้นหารูปด้วยใบหน้า">
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/55 p-0 backdrop-blur-sm sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-label="Search photos by face">
           <div className="w-full max-w-lg rounded-t-[34px] bg-[#f7f4ee] p-6 shadow-2xl sm:rounded-[34px] sm:p-8">
             <div className="flex items-start justify-between">
               <span className="grid h-12 w-12 place-items-center rounded-full bg-[#C7A86B]">
                 <Sparkles className="h-5 w-5" />
               </span>
-              <button type="button" onClick={() => setFaceSearchOpen(false)} className="grid h-10 w-10 place-items-center rounded-full bg-black/5" aria-label="ปิดการค้นหาใบหน้า">
+              <button type="button" onClick={() => setFaceSearchOpen(false)} className="grid h-10 w-10 place-items-center rounded-full bg-black/5" aria-label="Close face search">
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <h2 className="mt-7 text-4xl font-black tracking-[-0.065em]">ค้นหาคุณในอัลบั้ม</h2>
+            <h2 className="mt-7 text-4xl font-black tracking-[-0.065em]">Find yourself in the album</h2>
             <p className="mt-3 text-sm font-medium leading-6 text-black/55">
-              เลือกรูปเซลฟี่ที่เห็นใบหน้าชัด ระบบจะค้นหารูปที่มีคุณอยู่ โดยตัวอย่างนี้ยังไม่อัปโหลดข้อมูลจริง
+              Choose a selfie with a clear face and it will find photos of you. This preview doesn’t upload real data yet
             </p>
             <label className="mt-7 flex cursor-pointer flex-col items-center rounded-[24px] border-2 border-dashed border-black/15 bg-white/60 px-5 py-9 text-center transition hover:border-black/35">
               <span className="grid h-14 w-14 place-items-center rounded-full bg-[#1b1b18] text-white">
                 <Camera className="h-6 w-6" />
               </span>
-              <span className="mt-4 text-base font-black">เลือกหรือถ่ายเซลฟี่</span>
-              <span className="mt-1 text-xs font-semibold text-black/40">JPG, PNG หรือ WEBP</span>
-              <input type="file" accept="image/*" className="hidden" onChange={() => showNotice('ตัวอย่างนี้ยังไม่ส่งรูปไปยังระบบ')} />
+              <span className="mt-4 text-base font-black">Choose or take a selfie</span>
+              <span className="mt-1 text-xs font-semibold text-black/40">JPG, PNG or WEBP</span>
+              <input type="file" accept="image/*" className="hidden" onChange={() => showNotice('This preview doesn’t send photos to the system yet')} />
             </label>
             <div className="mt-5 flex items-center gap-2 text-xs font-semibold text-black/45">
-              <Check className="h-4 w-4" /> รูปจะใช้เพื่อค้นหาและไม่ถูกเก็บในแกลเลอรี
+              <Check className="h-4 w-4" /> The photo is used only to search and isn’t saved to the gallery
             </div>
           </div>
         </div>

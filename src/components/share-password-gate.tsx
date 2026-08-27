@@ -20,7 +20,7 @@ export default function SharePasswordGate({ token, albumTitle }: Props) {
     setErrorMsg('')
 
     if (!password) {
-      setErrorMsg('กรุณาใส่รหัสผ่าน')
+      setErrorMsg('Please enter the password')
       return
     }
 
@@ -38,13 +38,13 @@ export default function SharePasswordGate({ token, albumTitle }: Props) {
       const data = await res.json().catch(() => null)
 
       if (!res.ok) {
-        throw new Error(data?.error || 'รหัสผ่านไม่ถูกต้อง')
+        throw new Error(data?.error || 'Incorrect password')
       }
 
       router.refresh()
     } catch (error) {
       setErrorMsg(
-        error instanceof Error ? error.message : 'รหัสผ่านไม่ถูกต้อง'
+        error instanceof Error ? error.message : 'Incorrect password'
       )
     } finally {
       setLoading(false)
@@ -59,11 +59,11 @@ export default function SharePasswordGate({ token, albumTitle }: Props) {
         </p>
 
         <h1 className="mt-3 text-[26px] font-semibold tracking-[-0.05em]">
-          {albumTitle || 'อัลบั้มนี้ได้รับการป้องกัน'}
+          {albumTitle || 'This album is protected'}
         </h1>
 
         <p className="mt-2 text-[14px] font-medium leading-6 text-muted">
-          ใส่รหัสผ่านที่ได้รับจากเจ้าของงานเพื่อเปิดดูแกลเลอรี
+          Enter the password from the job owner to view the gallery
         </p>
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-3">
@@ -71,7 +71,7 @@ export default function SharePasswordGate({ token, albumTitle }: Props) {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="รหัสผ่าน"
+            placeholder="Password"
             autoFocus
             className="w-full rounded-control border border-line px-4 py-3 text-[15px] font-medium outline-none focus:border-gold"
           />
@@ -87,7 +87,7 @@ export default function SharePasswordGate({ token, albumTitle }: Props) {
             disabled={loading}
             className="w-full rounded-control bg-ink py-3 text-[15px] font-medium text-white disabled:opacity-50"
           >
-            {loading ? 'กำลังตรวจสอบ…' : 'เปิดดูแกลเลอรี'}
+            {loading ? 'Checking…' : 'Open gallery'}
           </button>
         </form>
       </div>

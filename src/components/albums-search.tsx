@@ -48,7 +48,7 @@ export default function AlbumsSearch({ albums, onSearchChange }: Props) {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="ค้นหาจากชื่อหรือคำอธิบาย"
+          placeholder="Search by name or description"
           className="flex-1 bg-transparent text-[16px] font-medium outline-none"
         />
 
@@ -65,7 +65,7 @@ export default function AlbumsSearch({ albums, onSearchChange }: Props) {
 
       {query.trim() ? (
         <p className="mt-3 px-2 text-[13px] font-semibold text-muted">
-          พบ {filteredIds.length} งาน
+          Found {filteredIds.length} Job
         </p>
       ) : null}
     </div>

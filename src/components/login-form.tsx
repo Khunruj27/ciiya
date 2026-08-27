@@ -39,7 +39,7 @@ export default function LoginForm({
             href="/signup"
             className="flex h-11 items-center justify-center rounded-full border border-line bg-surface/80 px-5 text-[13px] font-semibold text-ink backdrop-blur-xl transition active:scale-95"
           >
-            สมัครสมาชิก
+            Sign up
           </Link>
         </header>
 
@@ -48,16 +48,16 @@ export default function LoginForm({
             <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/70 px-3 py-1.5 backdrop-blur-xl">
               <span className="h-2 w-2 rounded-full bg-gold" />
               <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
-                ยินดีต้อนรับกลับ
+                Welcome back
               </span>
             </div>
 
             <h1 className="mt-6 text-[clamp(2.7rem,7vw,5rem)] font-semibold leading-[0.95] tracking-[-0.05em] text-ink">
-              กลับมาเก็บ<br />ทุกช่วงเวลาต่อ
+              Come back to keep<br />every moment
             </h1>
 
             <p className="mt-4 max-w-[310px] text-[14px] font-normal leading-6 text-muted">
-              จัดการงาน อัปโหลดรูป และแชร์แกลเลอรีให้ลูกค้าของคุณได้จากที่เดียว
+              Manage jobs, upload photos, and share galleries with your clients from one place
             </p>
           </div>
 
@@ -71,19 +71,19 @@ export default function LoginForm({
             ) : null}
 
             <p className="mt-4 px-2 text-center text-[12px] font-normal leading-5 text-muted">
-              เข้าใช้งานด้วยบัญชี Google ไม่ต้องจำรหัสผ่าน
+              Sign in with your Google account — no password to remember
             </p>
 
             <div className="mt-4 rounded-panel bg-ground px-4 py-4 text-center">
               <p className="text-[13px] font-normal text-muted">
-                ยังไม่มีบัญชี?
+                Don’t have an account?
               </p>
 
               <Link
                 href="/signup"
                 className="mt-2 inline-block text-[13px] font-semibold text-ink underline decoration-gold decoration-2 underline-offset-4"
               >
-                สมัครด้วย Google
+                Sign up with Google
               </Link>
             </div>
           </div>

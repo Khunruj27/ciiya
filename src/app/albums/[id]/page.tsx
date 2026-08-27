@@ -33,18 +33,18 @@ export default async function AlbumDetailPage({ params }: PageProps) {
       <main className="min-h-screen bg-ground px-6 py-10 text-ink">
         <div className="mx-auto max-w-[393px] rounded-hero bg-surface p-6 text-center border border-line">
           <h1 className="text-[24px] font-bold">
-            การเชื่อมต่อขัดข้อง
+            Connection problem
           </h1>
 
           <p className="mt-3 text-[14px] font-semibold leading-6 text-muted">
-            ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ในขณะนี้ กรุณาลองโหลดหน้าใหม่
+            Can’t reach the server right now. Please reload the page
           </p>
 
           <Link
             href={`/albums/${id}`}
             className="mt-5 inline-flex h-11 items-center justify-center rounded-full bg-ink px-5 text-[13px] font-bold text-white"
           >
-            โหลดใหม่
+            Reload
           </Link>
         </div>
       </main>
@@ -178,7 +178,7 @@ const cameraProcessingGridItems = (cameraImportsData || [])
   )
   .map((item) => ({
     id: item.id,
-    filename: item.filename || 'ภาพจากกล้อง',
+    filename: item.filename || 'Photo from camera',
     status: String(item.status || 'imported'),
     progress: Number(item.progress || 0),
     created_at: String(item.created_at || new Date().toISOString()),
@@ -214,13 +214,12 @@ const cameraProcessingGridItems = (cameraImportsData || [])
           </div>
  
           <section className="pt-8 sm:pt-12">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-gold-deep">รายละเอียดงาน</p>
           <h1 className="mt-3 text-[clamp(2.3rem,6vw,4.5rem)] font-semibold leading-[0.96] tracking-[-0.055em] text-ink">
            {album.title}
           </h1>
 
           <p className="mt-2 text-[14px] font-semibold leading-relaxed text-muted">
-             {album.description || 'ยังไม่มีคำอธิบาย'}
+             {album.description || 'No description yet'}
           </p>
           </section>
         </section>
@@ -229,7 +228,7 @@ const cameraProcessingGridItems = (cameraImportsData || [])
 <section className="mt-7 grid grid-cols-2 gap-3 sm:max-w-md">
   <div className="rounded-panel border border-line bg-gold-soft px-4 py-3">
     <p className="text-[12px] font-bold text-gold-deep">
-      รูปภาพทั้งหมด
+      All photos
     </p>
 
     <p className="mt-1 text-[26px] font-bold leading-none tracking-[-0.05em] text-ink">
@@ -242,7 +241,7 @@ const cameraProcessingGridItems = (cameraImportsData || [])
     className="rounded-panel border border-line bg-gold-soft px-4 py-3 transition active:scale-[0.98]"
   >
     <p className="text-[12px] font-bold text-gold-deep">
-      บุคคลในงาน
+      People in this job
     </p>
 
     <p className="mt-1 text-[26px] font-bold leading-none tracking-[-0.05em] text-ink">
@@ -262,7 +261,7 @@ const cameraProcessingGridItems = (cameraImportsData || [])
                 took the card with it. */}
             <div className="mb-4 flex items-center justify-between gap-4">
               <h2 className="text-[24px] font-bold tracking-[-0.05em] sm:text-[30px]">
-                รูปภาพ
+                Photos
               </h2>
 
               <div className="shrink-0 rounded-full border border-line bg-surface px-3 py-2">
@@ -283,11 +282,11 @@ const cameraProcessingGridItems = (cameraImportsData || [])
                 </div>
 
                 <p className="mt-5 text-[22px] font-semibold text-ink">
-                  ยังไม่มีรูปภาพ
+                  No photos yet
                 </p>
 
                 <p className="mt-2 text-sm font-medium leading-6 text-muted">
-                  อัปโหลดภาพแรกของงาน แล้วแชร์แกลเลอรีให้ลูกค้าของคุณ
+                  Upload the first photo of this job, then share the gallery with your client
                 </p>
               </div>
             )}

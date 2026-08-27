@@ -53,12 +53,12 @@ function fileToDataUrl(file: File) {
       if (typeof reader.result === 'string') {
         resolve(reader.result)
       } else {
-        reject(new Error('ไม่สามารถอ่านไฟล์รูปได้'))
+        reject(new Error('Couldn’t read the image file'))
       }
     }
 
     reader.onerror = () => {
-      reject(new Error('ไม่สามารถอ่านไฟล์รูปได้'))
+      reject(new Error('Couldn’t read the image file'))
     }
 
     reader.readAsDataURL(file)
@@ -70,7 +70,7 @@ function loadImage(src: string) {
     const img = new Image()
 
     img.onload = () => resolve(img)
-    img.onerror = () => reject(new Error('ไม่สามารถเปิดรูปภาพนี้ได้'))
+    img.onerror = () => reject(new Error('Can’t open this photo'))
 
     img.src = src
   })
@@ -94,7 +94,7 @@ async function normalizeImageFile(file: File) {
   const ctx = canvas.getContext('2d')
 
   if (!ctx) {
-    throw new Error('Browser ไม่รองรับ canvas')
+    throw new Error('Browser Unsupported canvas')
   }
 
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
@@ -129,7 +129,7 @@ async function extractDescriptor(file: File) {
     .withFaceDescriptor()
 
   if (!detection) {
-    throw new Error('ไม่พบใบหน้าในรูป ลองใช้รูปหน้าชัด ๆ อีกครั้ง')
+    throw new Error('No face found in the photo. Try a clearer face photo')
   }
 
   return {
@@ -179,7 +179,7 @@ export default function AlbumFaceSearch({ albumId, token = '' }: Props) {
       const json = await res.json()
 
       if (!res.ok) {
-        throw new Error(json.error || 'ค้นหาไม่สำเร็จ')
+        throw new Error(json.error || 'Search failed')
       }
 
       setMatches(json.results || [])
@@ -198,7 +198,7 @@ export default function AlbumFaceSearch({ albumId, token = '' }: Props) {
             <h3 className="text-lg font-black">Face Search</h3>
 
             <p className="mt-1 text-xs text-muted">
-              อัปโหลดรูปหน้า เพื่อค้นหารูปในอัลบั้ม
+              Upload a face photo to find your pictures in the album
             </p>
           </div>
 
@@ -236,7 +236,7 @@ export default function AlbumFaceSearch({ albumId, token = '' }: Props) {
             </div>
 
             <div className="text-xs text-muted">
-              {loading ? 'กำลังค้นหา...' : `พบ ${matches.length} รูป`}
+              {loading ? 'Searching...' : `Found ${matches.length} photos`}
             </div>
           </div>
         )}

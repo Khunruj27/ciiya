@@ -49,13 +49,13 @@ export default async function ReorderPhotosPage({ params }: PageProps) {
           href={`/albums/${album.id}`}
           className="text-xs uppercase tracking-[0.2em] text-muted"
         >
-          ← กลับไปหน้าอัลบั้ม
+          ← Back to albums
         </Link>
 
         <div className="rounded-3xl bg-white p-4 shadow-sm">
           <h1 className="text-2xl font-bold text-ink">{album.title}</h1>
           <p className="mt-1 text-sm text-muted">
-            จัดลำดับรูปภาพสำหรับอัลบั้มนี้
+            Reorder photos for this album
           </p>
         </div>
 

@@ -78,7 +78,11 @@
   --shadow-lift: var(--ciiya-shadow-lift);
   --shadow-float: var(--ciiya-shadow-float);
 
-  --font-sans: var(--font-anuphan);
+  /* Manrope leads for Latin; FC Mittraphap catches every Thai glyph Manrope
+     does not carry. Keep this order everywhere a font is set below. */
+  --font-sans: var(--font-manrope), var(--font-fc-mittraphap);
+  --font-serif: var(--font-manrope), var(--font-fc-mittraphap);
+  --font-mono: var(--font-manrope), var(--font-fc-mittraphap);
 }
 
 /*
@@ -91,7 +95,40 @@
 body {
   background: var(--ciiya-ground);
   color: var(--ciiya-ink);
-  font-family: var(--font-anuphan), "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-manrope), var(--font-fc-mittraphap), "Helvetica Neue", Arial, sans-serif;
+  font-kerning: normal;
+  font-synthesis: none;
+  letter-spacing: 0;
+  line-height: 1.6;
+  text-rendering: optimizeLegibility;
+}
+
+/*
+ * FC Mittraphap has a wider, more geometric rhythm than the previous family.
+ * The old negative tracking and sub-1.0 display leading pulled Thai vowels and
+ * tone marks too close together. Keep display type compact, but leave enough
+ * room for Thai marks on every responsive breakpoint.
+ */
+:where(h1, h2, h3, h4, h5, h6) {
+  font-kerning: normal;
+  text-wrap: balance;
+}
+
+[class*="tracking-[-0."] {
+  letter-spacing: -0.01em;
+}
+
+:where(h1, h2, h3, h4)[class*="tracking-[-0."] {
+  letter-spacing: -0.015em;
+}
+
+:where(h1, h2, h3, h4)[class*="leading-[0."],
+:where(h1, h2, h3, h4).leading-none {
+  line-height: 1.08;
+}
+
+:where(p, li, label, input, textarea, select) {
+  font-kerning: normal;
 }
 
 * {
@@ -117,4 +154,112 @@ a {
 
 ::selection {
   background: rgba(199, 168, 107, 0.3);
+}
+
+/* ============================================================
+   PORTFOLIO ACCENTS
+
+   A portfolio is the one surface its owner gets to restyle, so the
+   choice is a named accent rather than a colour picker: every option
+   is pre-checked against the cream ground for AA contrast, and none
+   of them can produce a page whose own text is unreadable.
+   ============================================================ */
+
+[data-accent] {
+  --pf-accent: var(--ciiya-gold);
+  --pf-accent-deep: var(--ciiya-gold-deep);
+  --pf-accent-soft: var(--ciiya-gold-soft);
+}
+
+[data-accent='ink'] {
+  --pf-accent: var(--ciiya-ink-soft);
+  --pf-accent-deep: var(--ciiya-ink);
+  --pf-accent-soft: var(--ciiya-ground-sunken);
+}
+
+[data-accent='rose'] {
+  --pf-accent: var(--ciiya-rose);
+  /* 5.02:1 on cream — the #b95757 above is 4.02:1 and carries fills only. */
+  --pf-accent-deep: #9a3f3f;
+  --pf-accent-soft: #f7eae6;
+}
+
+/* Portfolio display styles use the same family as the app: Manrope for Latin,
+   FC Mittraphap for Thai. */
+.pf-display {
+  font-family: var(--font-manrope), var(--font-fc-mittraphap), "Helvetica Neue", Arial, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.08;
+}
+
+.pf-serif {
+  font-family: var(--font-manrope), var(--font-fc-mittraphap), "Helvetica Neue", Arial, sans-serif;
+}
+
+/* An editorial section marker: a hairline, a two-digit index, and a tracked
+   label. Used above each block on the public portfolio so the page reads
+   like the contents of a printed folio rather than a stack of cards. */
+.pf-eyebrow {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--pf-accent-deep);
+}
+
+.pf-rule {
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    var(--pf-accent) 0,
+    var(--ciiya-line) 40%,
+    transparent 100%
+  );
+}
+
+/* Public portfolio galleries keep the horizontal rhythm without showing a
+   browser scrollbar through the photographs. Keyboard and touch scrolling
+   still work, and the full-screen viewer provides explicit navigation. */
+.pf-gallery-scroll {
+  scrollbar-width: none;
+}
+
+.pf-gallery-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* The selected Portfolio template continues beyond the hero. */
+[data-template='noir'] #gallery button img {
+  filter: grayscale(1) contrast(1.08);
+}
+
+[data-template='noir'] #gallery button:hover img,
+[data-template='noir'] #gallery button:focus-visible img {
+  filter: grayscale(0) contrast(1);
+}
+
+[data-template='luxe'] #gallery button {
+  border-radius: 20px;
+  box-shadow: 0 12px 34px rgba(73, 59, 48, 0.1);
+}
+
+[data-template='portrait'] #gallery button {
+  border-radius: 999px 999px 18px 18px;
+}
+
+[data-template='journal'] #gallery button {
+  border: 5px solid #fffdf8;
+  border-radius: 4px;
+  box-shadow: 0 8px 24px rgba(61, 54, 44, 0.1);
+}
+
+@media (max-width: 640px) {
+  [data-template='luxe'] #gallery button {
+    border-radius: 14px;
+  }
+
+  [data-template='journal'] #gallery button {
+    border-width: 3px;
+  }
 }

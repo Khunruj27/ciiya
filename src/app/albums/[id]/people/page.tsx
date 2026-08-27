@@ -89,7 +89,7 @@ export default async function AlbumPeoplePage({ params }: PageProps) {
           <Link
             href={`/albums/${albumId}`}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line bg-white text-ink transition active:scale-[0.96]"
-            aria-label="กลับไปหน้าอัลบั้ม"
+            aria-label="Back to albums"
           >
             <span className="text-[30px] font-light leading-none">‹</span>
           </Link>
@@ -100,7 +100,7 @@ export default async function AlbumPeoplePage({ params }: PageProps) {
             </p>
 
             <h1 className="mt-1 truncate text-[30px] font-semibold leading-none tracking-[-0.06em]">
-              บุคคล
+              People
             </h1>
           </div>
         </section>
@@ -108,15 +108,15 @@ export default async function AlbumPeoplePage({ params }: PageProps) {
         {/* HERO */}
         <section className="mt-6 rounded-hero border border-gold/30 bg-gold-soft p-5 sm:p-7">
           <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-gold-deep">
-            จัดกลุ่มด้วย AI
+            Grouped by AI
           </p>
 
           <h2 className="mt-2 text-[34px] font-semibold leading-[0.95] tracking-[-0.07em]">
-            บุคคลในอัลบั้มนี้
+            People in this album
           </h2>
 
           <p className="mt-3 text-[14px] font-semibold leading-relaxed text-gold-deep">
-            ดูใบหน้าที่ระบบตรวจพบ และเปิดชุดรูปของแต่ละบุคคล
+            See the faces detected and open each person’s photos
           </p>
         </section>
 
@@ -124,7 +124,7 @@ export default async function AlbumPeoplePage({ params }: PageProps) {
         <section className="mt-4 grid grid-cols-2 gap-3">
           <div className="rounded-panel border border-line bg-white px-4 py-3">
             <p className="text-[12px] font-bold text-muted">
-              อัลบั้ม
+              Album
             </p>
 
             <p className="mt-1 truncate text-[18px] font-semibold tracking-[-0.04em]">
@@ -134,7 +134,7 @@ export default async function AlbumPeoplePage({ params }: PageProps) {
 
           <div className="rounded-panel border border-gold/30 bg-gold-soft px-4 py-3">
             <p className="text-[12px] font-bold text-gold-deep">
-              กลุ่มบุคคล
+              People groups
             </p>
 
             <p className="mt-1 text-[28px] font-semibold leading-none tracking-[-0.06em]">
@@ -151,22 +151,22 @@ export default async function AlbumPeoplePage({ params }: PageProps) {
             </div>
 
             <h2 className="mt-5 text-[20px] font-semibold tracking-[-0.04em]">
-              ยังไม่พบบุคคล
+              No people found yet
             </h2>
 
             <p className="mx-auto mt-2 max-w-[280px] text-[14px] font-semibold leading-relaxed text-muted">
-              ผลลัพธ์จะแสดงหลังระบบ AI ประมวลผลเสร็จ
+              Results appear after the system AI finishes processing
             </p>
           </section>
         ) : (
           <section className="mt-5">
             <div className="mb-3 flex items-center justify-between px-1">
               <h2 className="text-[24px] font-semibold tracking-[-0.05em]">
-                แกลเลอรีบุคคล
+                People gallery
               </h2>
 
               <span className="rounded-full bg-white px-3 py-1.5 text-[12px] font-semibold text-ink">
-                {people.length} กลุ่ม
+                {people.length} groups
               </span>
             </div>
 

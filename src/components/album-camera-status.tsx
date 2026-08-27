@@ -182,7 +182,7 @@ useEffect(() => {
 
       setCameraState({
   connected: true,
-  cameraName: json.cameraName || 'เชื่อมต่อกล้องแล้ว',
+  cameraName: json.cameraName || 'Camera connected',
 })
 
 setAutoUploadActive(false)
@@ -406,7 +406,7 @@ useEffect(() => {
         if (autoStartFailureCountRef.current >= AUTO_START_FAILURE_LIMIT) {
           autoConnectDisabledRef.current = true
           setErrorMsg(
-            'เชื่อมกล้องสำเร็จแต่เริ่มถ่ายอัตโนมัติไม่ได้ กรุณากด Connect Camera ใหม่อีกครั้ง'
+            'Camera connected, but auto-capture couldn’t start. Please tap Connect Camera again'
           )
         }
       }
@@ -461,14 +461,14 @@ useEffect(() => {
               ].join(' ')}
             />
             {cameraState?.connected
-              ? cameraState.cameraName || 'เชื่อมต่อกล้องแล้ว'
-              : 'ยังไม่ได้เชื่อมต่อกล้อง'}
+              ? cameraState.cameraName || 'Camera connected'
+              : 'Camera not connected'}
             <span className="text-muted">
               {cameraState?.connected
                 ? autoUploadActive
-                  ? ' · กำลังอัปโหลดอัตโนมัติ'
-                  : ' · ยังไม่เริ่มอัปโหลด'
-                : ' · ต่อผ่าน USB-C'}
+                  ? ' · Auto-uploading'
+                  : ' · Not uploading yet'
+                : ' · via USB-C'}
             </span>
           </p>
 
@@ -482,7 +482,7 @@ useEffect(() => {
                     disabled={busy}
                     className="rounded-full px-3 py-1.5 text-[12px] font-medium text-muted transition hover:bg-ground-sunken hover:text-ink disabled:opacity-50"
                   >
-                    ตั้งค่า
+                    Settings
                   </button>
                 ) : null}
 
@@ -492,7 +492,7 @@ useEffect(() => {
                   disabled={busy}
                   className="rounded-full border border-line px-3 py-1.5 text-[12px] font-medium text-ink transition hover:bg-ground-sunken disabled:opacity-50"
                 >
-                  {busy ? 'กำลังหยุด…' : 'ตัดการเชื่อมต่อ'}
+                  {busy ? 'Stopping…' : 'Disconnect'}
                 </button>
               </>
             ) : (
@@ -502,7 +502,7 @@ useEffect(() => {
                 disabled={busy}
                 className="rounded-full bg-ink px-3.5 py-1.5 text-[12px] font-medium text-white transition hover:bg-ink-soft disabled:opacity-50"
               >
-                {busy ? 'กำลังเชื่อมต่อ…' : 'เชื่อมต่อ'}
+                {busy ? 'Connecting…' : 'Connect'}
               </button>
             )}
           </div>
@@ -519,18 +519,18 @@ useEffect(() => {
     <div className="w-full max-w-[380px] rounded-panel bg-surface p-5">
 
       <h3 className="text-[18px] font-semibold text-ink">
-        ตั้งค่าการประมวลผล
+        Processing settings
       </h3>
 
       <p className="mt-1 text-[12px] text-muted">
-        เลือกขนาดภาพและพรีเซ็ต
+        Choose image size and preset
       </p>
 
       {/* Resize */}
 
       <div className="mt-5">
         <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-          ขนาดภาพ
+          Image size
         </div>
 
         <div className="grid grid-cols-4 gap-2">
@@ -558,7 +558,7 @@ useEffect(() => {
 
       <div className="mt-5">
         <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-          พรีเซ็ต XMP
+          preset XMP
         </div>
 
        {recentPresets.length > 0 ? (
@@ -586,7 +586,7 @@ useEffect(() => {
           onChange={(e) => setPresetPath(e.target.value)}
           className="h-12 w-full rounded-card border border-line bg-ground-sunken px-4 text-[13px] font-bold"
         >
-          <option value="">ไม่ใช้พรีเซ็ต</option>
+          <option value="">No preset</option>
 
           {presets.slice(0, 3).map((preset) => (
             <option
@@ -623,7 +623,7 @@ useEffect(() => {
         : '',
     ].join(' ')}
   >
-    {uploadingPreset ? 'กำลังอัปโหลด…' : '+ อัปโหลด XMP'}
+    {uploadingPreset ? 'Uploading…' : '+ Upload XMP'}
   </label>
 </div>
 
@@ -635,7 +635,7 @@ useEffect(() => {
           onClick={cancelSettings}
           className="h-11 flex-1 rounded-full bg-ground-sunken font-semibold"
         >
-          ยกเลิก
+          Cancel
         </button>
 
         <button
@@ -644,7 +644,7 @@ useEffect(() => {
           disabled={busy}
           className="h-11 flex-1 rounded-full bg-ink font-semibold text-white"
         >
-          เริ่มใช้งาน
+          Get started
         </button>
       </div>
     </div>

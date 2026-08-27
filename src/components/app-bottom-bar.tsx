@@ -6,27 +6,27 @@ export default function AppBottomBar() {
       <div className="mx-auto grid max-w-[430px] grid-cols-5 items-end text-center text-[11px] text-ink">
         <Link href="/albums" className="text-gold-deep">
           <div className="mx-auto mb-1 text-2xl">▰</div>
-          <p>หน้าหลัก</p>
+          <p>Home</p>
         </Link>
 
         <button className="opacity-90">
           <div className="mx-auto mb-1 text-2xl">▱</div>
-          <p>งานของฉัน</p>
+          <p>My Jobs</p>
         </button>
 
         <button className="opacity-90">
           <div className="mx-auto mb-1 text-2xl">✦</div>
-          <p>อัปโหลด</p>
+          <p>Upload</p>
         </button>
 
         <button className="opacity-90">
           <div className="mx-auto mb-1 text-2xl">♢</div>
-          <p>แจ้งเตือน</p>
+          <p>Notifications</p>
         </button>
 
         <button className="opacity-90">
           <div className="mx-auto mb-1 text-2xl">♡</div>
-          <p>โปรไฟล์</p>
+          <p>Profile</p>
         </button>
       </div>
     </nav>

@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   if (!code) {
     return NextResponse.redirect(
       `${origin}/login?error=${encodeURIComponent(
-        'ไม่ได้รับรหัสยืนยันจากผู้ให้บริการ กรุณาลองใหม่อีกครั้ง'
+        'Didn’t receive a confirmation code from the provider. Please try again'
       )}`
     )
   }

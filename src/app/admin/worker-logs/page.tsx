@@ -62,7 +62,7 @@ export default async function WorkerLogsPage() {
           </h1>
 
           <p className="mt-1 text-sm text-muted">
-            สรุปสถานะ Worker Jobs และ Error Logs ล่าสุด 100 รายการ
+            Summary Worker Jobs and Error Logs Latest 100 items
           </p>
         </div>
 

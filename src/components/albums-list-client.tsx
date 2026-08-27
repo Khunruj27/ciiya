@@ -44,7 +44,7 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
       >
         <AppIcon name="search" size={22} className="opacity-50" />
         <span className="text-[16px] font-medium text-muted">
-          ค้นหางาน
+          Search jobs
         </span>
       </button>
 
@@ -53,7 +53,7 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
           <div className="mx-auto w-full max-w-xl rounded-panel border border-line bg-ground p-4 shadow-lift sm:p-6">
             <div className="flex items-center justify-between">
               <p className="text-[22px] font-semibold tracking-[-0.05em]">
-                ค้นหางาน
+                Search jobs
               </p>
 
               <button
@@ -100,7 +100,7 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
                             />
                           ) : (
                             <div className="flex h-full items-center justify-center text-xs font-bold text-muted">
-                              ไม่มีปก
+                              No cover
                             </div>
                           )}
 
@@ -119,7 +119,7 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
                           </span>
 
                           <p className="mt-2 line-clamp-2 text-[13px] font-semibold leading-snug text-muted">
-                            {album.description || 'ยังไม่มีคำอธิบาย'}
+                            {album.description || 'No description yet'}
                           </p>
                         </div>
                       </Link>
@@ -130,7 +130,7 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
                     <AppIcon name="gallery" size={42} className="mx-auto opacity-35" />
 
                     <p className="mt-4 text-[18px] font-semibold text-ink">
-                      ไม่พบงานที่ค้นหา
+                      No matching jobs found
                     </p>
 
                     <p className="mt-1 text-[13px] font-semibold text-muted">

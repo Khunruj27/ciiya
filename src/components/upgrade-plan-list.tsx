@@ -102,11 +102,11 @@ export default function UpgradePlanList({
         </div>
 
         <h2 className="mt-4 text-base font-semibold text-ink">
-          ยังไม่พบแพ็กเกจ
+          No plans found yet
         </h2>
 
         <p className="mt-2 text-xs font-semibold leading-5 text-muted">
-          กรุณาเพิ่มข้อมูลแพ็กเกจก่อน
+          Please add plan data first
         </p>
       </div>
     )
@@ -116,13 +116,13 @@ export default function UpgradePlanList({
     <div className="space-y-2.5">
       {isSuccess ? (
         <div className="rounded-panel border border-green-200 bg-green-50 px-4 py-3 text-xs font-bold leading-5 text-green-700">
-          ชำระเงินสำเร็จ แพ็กเกจของคุณได้รับการอัปเดตแล้ว
+          Payment successful. Your plan has been updated
         </div>
       ) : null}
 
       {isCanceled ? (
         <div className="rounded-panel border border-yellow-200 bg-yellow-50 px-4 py-3 text-xs font-bold leading-5 text-yellow-700">
-          ยกเลิกการชำระเงินแล้ว คุณสามารถเลือกแพ็กเกจใหม่ได้ทุกเมื่อ
+          Payment canceled. You can choose a new plan anytime
         </div>
       ) : null}
 
@@ -162,35 +162,35 @@ export default function UpgradePlanList({
 
                   {isCurrent ? (
                     <span className="rounded-full bg-white/75 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink">
-                      ปัจจุบัน
+                      Current
                     </span>
                   ) : null}
 
                   {isPopular && !isCurrent ? (
                     <span className="rounded-full bg-white/75 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-gold-deep">
-                      แนะนำ
+                      Recommended
                     </span>
                   ) : null}
                 </div>
 
                 <p className="mt-2 text-xs font-bold leading-5 text-gold-deep/75">
-                  พื้นที่จัดเก็บสูงสุด {storageLabel}
+                  Maximum storage {storageLabel}
                 </p>
 
                 {isPopular ? (
                   <p className="mt-1 text-xs font-bold leading-5 text-gold-deep">
-                    เหมาะสำหรับช่างภาพและแกลเลอรีลูกค้า
+                    Great for photographers and client galleries
                   </p>
                 ) : null}
               </div>
 
               <div className="shrink-0 text-right">
                 <p className="text-[28px] font-semibold leading-none tracking-[-0.07em] text-ink">
-                  {plan.price_thb === 0 ? 'ฟรี' : `฿${plan.price_thb}`}
+                  {plan.price_thb === 0 ? 'Free' : `฿${plan.price_thb}`}
                 </p>
 
                 <p className="mt-1 text-[11px] font-bold text-muted">
-                  {plan.price_thb === 0 ? 'เริ่มต้น' : '/ เดือน'}
+                  {plan.price_thb === 0 ? 'Starter' : '/ month'}
                 </p>
               </div>
             </div>
@@ -198,7 +198,7 @@ export default function UpgradePlanList({
             <div className="mt-4 grid grid-cols-2 gap-2">
               <div className="rounded-panel bg-white/65 px-3 py-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-                  พื้นที่
+                  Storage
                 </p>
                 <p className="mt-1 text-sm font-semibold text-ink">
                   {storageLabel}
@@ -207,17 +207,17 @@ export default function UpgradePlanList({
 
               <div className="rounded-panel bg-white/65 px-3 py-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-                  ส่งมอบงาน
+                  Delivery
                 </p>
                 <p className="mt-1 text-sm font-semibold text-ink">
-                  แกลเลอรี
+                  Gallery
                 </p>
               </div>
             </div>
 
             {cannotDowngrade ? (
               <p className="mt-3 rounded-panel bg-red-50 px-3 py-3 text-xs font-bold leading-5 text-red-600">
-                พื้นที่ที่ใช้อยู่เกินขีดจำกัดของแพ็กเกจนี้
+                Your current usage exceeds this plan’s limit
               </p>
             ) : null}
 
@@ -236,16 +236,16 @@ export default function UpgradePlanList({
               }`}
             >
               {isCurrent
-                ? 'แพ็กเกจปัจจุบัน'
+                ? 'Current plan'
                 : cannotDowngrade
-                  ? 'พื้นที่ไม่เพียงพอ'
+                  ? 'Not enough space'
                   : loadingPlanId === plan.id
-                    ? 'กำลังดำเนินการ…'
+                    ? 'Processing…'
                     : plan.price_thb === 0
-                      ? 'ใช้แพ็กเกจฟรี'
+                      ? 'Use the free plan'
                       : isPopular
-                        ? 'อัปเกรดแพ็กเกจ'
-                        : 'เลือกแพ็กเกจ'}
+                        ? 'Upgrade plan'
+                        : 'Choose plan'}
             </button>
           </div>
         )

@@ -508,13 +508,13 @@ preloadImage(
       const data = await res.json().catch(() => null)
 
       if (!res.ok || !data?.success) {
-        alert(data?.error || 'ลองประมวลผลใหม่ไม่สำเร็จ')
+        alert(data?.error || 'Failed to retry processing')
         return
       }
 
       router.refresh()
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'ลองประมวลผลใหม่ไม่สำเร็จ')
+      alert(error instanceof Error ? error.message : 'Failed to retry processing')
     } finally {
       setRetryingId(null)
     }
@@ -667,12 +667,12 @@ const visibleCameraProcessingItems = mergedCameraItems
       >
         <div className="line-clamp-1 text-[7px] font-bold leading-none text-white">
           {isError
-            ? 'ไม่สำเร็จ'
+            ? 'failed'
             : item.status === 'uploading'
-              ? 'กำลังอัปโหลด'
+              ? 'Uploading'
               : item.status === 'queued'
                 ? 'Queued'
-                : 'กำลังประมวลผล'}
+                : 'Processing'}
         </div>
 
         {!isError && (
@@ -720,7 +720,7 @@ const visibleCameraProcessingItems = mergedCameraItems
           look like a different card. */}
       <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40">
         <div className="mb-2 text-xs font-semibold text-white">
-          กำลังประมวลผล…
+          Processing…
         </div>
 
         <SmoothProgress value={progress} status={item.status} />
@@ -780,7 +780,7 @@ onError={() => {
 
                 <div className="absolute inset-0 flex items-center justify-center bg-red-500/70">
                   <div className="rounded-full bg-white px-3 py-1 text-xs font-bold text-red-600">
-                    {isRetrying ? 'กำลังลองใหม่…' : 'ไม่สำเร็จ · ลองใหม่'}
+                    {isRetrying ? 'Retrying…' : 'failed · Try again'}
                   </div>
                 </div>
               </button>
@@ -824,7 +824,7 @@ onError={() => {
               {(isProcessing || isRetrying) && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40">
                   <div className="mb-2 text-xs font-semibold text-white">
-                    {isRetrying ? 'กำลังลองใหม่…' : 'กำลังประมวลผล…'}
+                    {isRetrying ? 'Retrying…' : 'Processing…'}
                   </div>
 
                   {isRetrying ? (

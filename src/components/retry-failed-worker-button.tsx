@@ -11,7 +11,7 @@ export default function RetryFailedWorkerButton() {
   async function retryFailedJobs() {
     try {
       setLoading(true)
-      setMessage('กำลังกู้ failed jobs...')
+      setMessage('Recovering failed jobs...')
 
       const res = await fetch('/api/worker/retry-failed', {
         method: 'POST',
@@ -23,13 +23,13 @@ export default function RetryFailedWorkerButton() {
         throw new Error(data?.error || 'Retry failed')
       }
 
-      setMessage(`กู้สำเร็จ ${data.retried ?? 0} jobs`)
+      setMessage(`Recovered ${data.retried ?? 0} jobs`)
       router.refresh()
     } catch (error) {
       setMessage(
         error instanceof Error
-          ? `เกิดข้อผิดพลาด: ${error.message}`
-          : 'เกิดข้อผิดพลาด'
+          ? `An error occurred: ${error.message}`
+          : 'An error occurred'
       )
     } finally {
       setLoading(false)
@@ -43,7 +43,7 @@ export default function RetryFailedWorkerButton() {
       disabled={loading}
       className="rounded-xl bg-orange-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-orange-700 disabled:opacity-50"
     >
-      {loading ? 'กำลังกู้...' : 'Retry Failed Jobs'}
+      {loading ? 'Recovering...' : 'Retry Failed Jobs'}
       {message && <span className="ml-3 text-xs opacity-90">{message}</span>}
     </button>
   )

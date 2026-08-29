@@ -2,23 +2,53 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase-client'
 import GoogleSignInButton from '@/components/google-sign-in-button'
 
-/*
- * Google is the only way in. The Supabase email provider is disabled, so a
- * password form here could only ever return "Email logins are disabled" —
- * every existing account has a linked Google identity on the same address.
- */
 export default function LoginForm({
   initialError = '',
 }: {
   initialError?: string
 }) {
+  const router = useRouter()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [emailLoading, setEmailLoading] = useState(false)
   // /auth/callback has no UI of its own, so it reports provider and
   // code-exchange failures by sending the visitor back here with ?error=.
   // The page reads it server-side and hands it down, which keeps that message
   // in the first HTML response instead of appearing only after hydration.
   const [errorMsg, setErrorMsg] = useState(initialError)
+
+  async function handleEmailLogin(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const normalizedEmail = email.trim().toLowerCase()
+
+    if (!normalizedEmail || !password) {
+      setErrorMsg('Please enter your email and password')
+      return
+    }
+
+    setEmailLoading(true)
+    setErrorMsg('')
+
+    const supabase = createClient()
+    const { error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    })
+
+    if (error) {
+      setEmailLoading(false)
+      setErrorMsg(error.message)
+      return
+    }
+
+    router.replace('/albums')
+    router.refresh()
+  }
 
   return (
     <main className="min-h-dvh overflow-hidden bg-ground text-ink">
@@ -62,6 +92,67 @@ export default function LoginForm({
           </div>
 
           <div className="w-full rounded-hero border border-line bg-surface/90 p-5 shadow-lift backdrop-blur-xl sm:p-7 lg:ml-auto lg:max-w-md">
+            <form onSubmit={handleEmailLogin} className="space-y-4">
+              <div>
+                <label
+                  htmlFor="login-email"
+                  className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.12em] text-muted"
+                >
+                  Email
+                </label>
+                <input
+                  id="login-email"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@example.com"
+                  required
+                  className="h-13 w-full rounded-control border border-line bg-ground px-4 text-[15px] text-ink outline-none transition placeholder:text-muted/60 focus:border-gold focus:bg-white focus:ring-4 focus:ring-gold/10"
+                />
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <label
+                    htmlFor="login-password"
+                    className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted"
+                  >
+                    Password
+                  </label>
+                  <span className="text-[11px] text-muted">At least 6 characters</span>
+                </div>
+                <input
+                  id="login-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="Enter your password"
+                  required
+                  minLength={6}
+                  className="h-13 w-full rounded-control border border-line bg-ground px-4 text-[15px] text-ink outline-none transition placeholder:text-muted/60 focus:border-gold focus:bg-white focus:ring-4 focus:ring-gold/10"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={emailLoading}
+                className="flex h-13 w-full items-center justify-center rounded-control bg-ink px-5 text-[15px] font-medium text-white transition hover:bg-ink-soft active:scale-[0.98] disabled:cursor-wait disabled:opacity-50"
+              >
+                {emailLoading ? 'Signing in…' : 'Sign in with email'}
+              </button>
+            </form>
+
+            <div className="my-5 flex items-center gap-3" aria-hidden="true">
+              <span className="h-px flex-1 bg-line" />
+              <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">
+                or
+              </span>
+              <span className="h-px flex-1 bg-line" />
+            </div>
+
             <GoogleSignInButton next="/albums" onError={setErrorMsg} />
 
             {errorMsg ? (
@@ -69,10 +160,6 @@ export default function LoginForm({
                 {errorMsg}
               </p>
             ) : null}
-
-            <p className="mt-4 px-2 text-center text-[12px] font-normal leading-5 text-muted">
-              Sign in with your Google account — no password to remember
-            </p>
 
             <div className="mt-4 rounded-panel bg-ground px-4 py-4 text-center">
               <p className="text-[13px] font-normal text-muted">
@@ -83,7 +170,7 @@ export default function LoginForm({
                 href="/signup"
                 className="mt-2 inline-block text-[13px] font-semibold text-ink underline decoration-gold decoration-2 underline-offset-4"
               >
-                Sign up with Google
+                Create an account
               </Link>
             </div>
           </div>

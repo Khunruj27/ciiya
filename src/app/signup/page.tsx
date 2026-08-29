@@ -2,20 +2,76 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase-client'
 import GoogleSignInButton from '@/components/google-sign-in-button'
 
-/*
- * Signup is Google-only. Email/password signup let anyone claim an address
- * they did not control — with confirmation off nothing verified it, and
- * Supabase would later link the real owner's Google identity into that
- * squatted account. Google verifies the address before we ever see it, so
- * this removes the squat without adding a confirmation step.
- *
- * Existing password accounts still sign in at /login; only creating new ones
- * this way is gone.
- */
 export default function SignupPage() {
+  const router = useRouter()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [emailLoading, setEmailLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
+
+  async function handleEmailSignup(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const normalizedEmail = email.trim().toLowerCase()
+
+    if (!normalizedEmail) {
+      setErrorMsg('Please enter your email')
+      return
+    }
+
+    if (password.length < 6) {
+      setErrorMsg('Password must be at least 6 characters')
+      return
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMsg('Passwords do not match')
+      return
+    }
+
+    setEmailLoading(true)
+    setErrorMsg('')
+    setSuccessMsg('')
+
+    const supabase = createClient()
+    const { data, error } = await supabase.auth.signUp({
+      email: normalizedEmail,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(
+          '/albums'
+        )}`,
+      },
+    })
+
+    if (error) {
+      setEmailLoading(false)
+      setErrorMsg(error.message)
+      return
+    }
+
+    if (data.session) {
+      router.replace('/albums')
+      router.refresh()
+      return
+    }
+
+    setEmailLoading(false)
+    setSuccessMsg(
+      'Your account is almost ready. Check your email and confirm your address to continue.'
+    )
+  }
+
+  function handleProviderError(message: string) {
+    setSuccessMsg('')
+    setErrorMsg(message)
+  }
 
   return (
     <main className="min-h-dvh overflow-hidden bg-ground text-ink">
@@ -59,10 +115,90 @@ export default function SignupPage() {
           </div>
 
           <div className="w-full rounded-hero border border-line bg-surface/90 p-5 shadow-lift backdrop-blur-xl sm:p-7 lg:ml-auto lg:max-w-md">
+            <form onSubmit={handleEmailSignup} className="space-y-4">
+              <div>
+                <label
+                  htmlFor="signup-email"
+                  className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.12em] text-muted"
+                >
+                  Email
+                </label>
+                <input
+                  id="signup-email"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@example.com"
+                  required
+                  className="h-13 w-full rounded-control border border-line bg-ground px-4 text-[15px] text-ink outline-none transition placeholder:text-muted/60 focus:border-gold focus:bg-white focus:ring-4 focus:ring-gold/10"
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label
+                    htmlFor="signup-password"
+                    className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.12em] text-muted"
+                  >
+                    Password
+                  </label>
+                  <input
+                    id="signup-password"
+                    type="password"
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder="At least 6 characters"
+                    required
+                    minLength={6}
+                    className="h-13 w-full rounded-control border border-line bg-ground px-4 text-[15px] text-ink outline-none transition placeholder:text-muted/60 focus:border-gold focus:bg-white focus:ring-4 focus:ring-gold/10"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="signup-confirm-password"
+                    className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.12em] text-muted"
+                  >
+                    Confirm password
+                  </label>
+                  <input
+                    id="signup-confirm-password"
+                    type="password"
+                    autoComplete="new-password"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    placeholder="Enter it again"
+                    required
+                    minLength={6}
+                    className="h-13 w-full rounded-control border border-line bg-ground px-4 text-[15px] text-ink outline-none transition placeholder:text-muted/60 focus:border-gold focus:bg-white focus:ring-4 focus:ring-gold/10"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={emailLoading}
+                className="flex h-13 w-full items-center justify-center rounded-control bg-ink px-5 text-[15px] font-medium text-white transition hover:bg-ink-soft active:scale-[0.98] disabled:cursor-wait disabled:opacity-50"
+              >
+                {emailLoading ? 'Creating account…' : 'Sign up with email'}
+              </button>
+            </form>
+
+            <div className="my-5 flex items-center gap-3" aria-hidden="true">
+              <span className="h-px flex-1 bg-line" />
+              <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">
+                or
+              </span>
+              <span className="h-px flex-1 bg-line" />
+            </div>
+
             <GoogleSignInButton
               next="/albums"
               label="Sign up with Google"
-              onError={setErrorMsg}
+              onError={handleProviderError}
             />
 
             {errorMsg ? (
@@ -71,9 +207,11 @@ export default function SignupPage() {
               </p>
             ) : null}
 
-            <p className="mt-4 px-2 text-center text-[12px] font-normal leading-5 text-muted">
-              Start using it right after signing up — no password or email confirmation needed
-            </p>
+            {successMsg ? (
+              <p className="mt-4 rounded-panel border border-emerald-100 bg-emerald-50 px-4 py-3 text-[13px] font-medium leading-5 text-emerald-700">
+                {successMsg}
+              </p>
+            ) : null}
 
             <div className="mt-4 rounded-panel bg-ground px-4 py-4 text-center">
               <p className="text-[13px] font-normal text-muted">

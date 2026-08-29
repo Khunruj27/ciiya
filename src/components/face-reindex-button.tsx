@@ -40,7 +40,11 @@ async function loadFaceModels() {
 
   if (modelsLoaded) return faceapi
 
-  await faceapi.nets.tinyFaceDetector.loadFromUri('/models')
+  // SSD MobileNet v1 finds the small, partly-occluded faces in group shots
+  // that the tiny detector misses — which is exactly where gallery indexing
+  // needs the recall. It is slower per photo, but re-indexing is a deliberate
+  // one-off, so the accuracy is worth the extra time.
+  await faceapi.nets.ssdMobilenetv1.loadFromUri('/models')
   await faceapi.nets.faceLandmark68Net.loadFromUri('/models')
   await faceapi.nets.faceRecognitionNet.loadFromUri('/models')
 
@@ -88,10 +92,7 @@ export default function FaceReindexButton({ albumId, photos }: Props) {
           const detections = await faceapi
             .detectAllFaces(
               img,
-              new faceapi.TinyFaceDetectorOptions({
-                inputSize: 512,
-                scoreThreshold: 0.45,
-              })
+              new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 })
             )
             .withFaceLandmarks()
             .withFaceDescriptors()

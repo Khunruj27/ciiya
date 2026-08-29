@@ -81,7 +81,7 @@ export default async function AlbumsPage() {
         {/* HERO */}
        <section className="pt-10 sm:pt-14">
           <h1 className="mt-3 text-[clamp(2.4rem,6vw,4.5rem)] font-semibold leading-[0.96] tracking-[-0.045em] text-ink">
-  Hi {(
+  Hi, {(
     user.user_metadata?.full_name ||
     user.user_metadata?.name ||
     user.email?.split('@')[0] ||
@@ -90,7 +90,7 @@ export default async function AlbumsPage() {
 </h1>
 
           <p className="mt-3 text-[14px] font-medium tracking-[-0.01em] text-muted">
-            {albums.length} Job · {totalPhotos} photos
+            {albums.length} Albums · {totalPhotos} photos
           </p>
         </section>
 
@@ -113,11 +113,11 @@ export default async function AlbumsPage() {
           <div className="w-full">
             <div className="mb-3 flex items-center justify-between px-1">
               <h2 className="text-[20px] font-bold tracking-[-0.035em] text-ink">
-              My Jobs
+              My Albums
             </h2>
 
               <span className="shrink-0 text-[13px] font-semibold text-muted">
-                All {albums.length} Job
+                All {albums.length} Albums
               </span>
             </div>
 

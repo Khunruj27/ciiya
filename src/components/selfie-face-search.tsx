@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import NextImage from 'next/image'
+import { extractSelfieDescriptor } from '@/lib/face-descriptor'
 
 type SearchResult = {
   faceId: string
@@ -18,41 +19,6 @@ type SearchResult = {
 }
 
 const MAX_SELECTION = 10
-
-let modelsLoaded = false
-
-async function loadFaceApi() {
-  const faceapi = await import('@vladmandic/face-api')
-
-  if (!modelsLoaded) {
-    await faceapi.nets.tinyFaceDetector.loadFromUri('/models')
-    await faceapi.nets.faceLandmark68Net.loadFromUri('/models')
-    await faceapi.nets.faceRecognitionNet.loadFromUri('/models')
-
-    modelsLoaded = true
-  }
-
-  return faceapi
-}
-
-function loadImageFromFile(file: File): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file)
-    const img = new Image()
-
-    img.onload = () => {
-      URL.revokeObjectURL(url)
-      resolve(img)
-    }
-
-    img.onerror = () => {
-      URL.revokeObjectURL(url)
-      reject(new Error('Couldn’t load the photo'))
-    }
-
-    img.src = url
-  })
-}
 
 export default function SelfieFaceSearch({
   albumId,
@@ -122,25 +88,7 @@ export default function SelfieFaceSearch({
       setResults([])
       setSelectedIds(new Set())
 
-      const faceapi = await loadFaceApi()
-      const img = await loadImageFromFile(file)
-
-      const detections = await faceapi
-        .detectAllFaces(
-          img,
-          new faceapi.TinyFaceDetectorOptions({
-            inputSize: 512,
-            scoreThreshold: 0.45,
-          })
-        )
-        .withFaceLandmarks()
-        .withFaceDescriptors()
-
-      if (!detections.length) {
-        throw new Error('No face found in the selfie')
-      }
-
-      const descriptor = Array.from(detections[0].descriptor)
+      const { descriptor } = await extractSelfieDescriptor(file)
 
       setMessage('Searching for matching photos...')
 

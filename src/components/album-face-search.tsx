@@ -2,12 +2,7 @@
 
 import { useRef, useState } from 'react'
 import NextImage from 'next/image'
-
-type FaceApiModule = typeof import('@vladmandic/face-api')
-
-let faceapi: FaceApiModule | null = null
-
-let modelsLoaded = false
+import { extractSelfieDescriptor } from '@/lib/face-descriptor'
 
 type MatchPhoto = {
   id: string
@@ -29,115 +24,6 @@ type Props = {
   token?: string
 }
 
-async function loadFaceModels() {
-  if (modelsLoaded) return
-
-  if (!faceapi) {
-    faceapi = await import('@vladmandic/face-api')
-  }
-
-  await Promise.all([
-    faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
-    faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
-    faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
-  ])
-
-  modelsLoaded = true
-}
-
-function fileToDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
-
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result)
-      } else {
-        reject(new Error('Couldn’t read the image file'))
-      }
-    }
-
-    reader.onerror = () => {
-      reject(new Error('Couldn’t read the image file'))
-    }
-
-    reader.readAsDataURL(file)
-  })
-}
-
-function loadImage(src: string) {
-  return new Promise<HTMLImageElement>((resolve, reject) => {
-    const img = new Image()
-
-    img.onload = () => resolve(img)
-    img.onerror = () => reject(new Error('Can’t open this photo'))
-
-    img.src = src
-  })
-}
-
-async function normalizeImageFile(file: File) {
-  const dataUrl = await fileToDataUrl(file)
-  const img = await loadImage(dataUrl)
-
-  const canvas = document.createElement('canvas')
-  const maxSize = 1200
-
-  const scale = Math.min(
-    1,
-    maxSize / Math.max(img.naturalWidth, img.naturalHeight)
-  )
-
-  canvas.width = Math.max(1, Math.round(img.naturalWidth * scale))
-  canvas.height = Math.max(1, Math.round(img.naturalHeight * scale))
-
-  const ctx = canvas.getContext('2d')
-
-  if (!ctx) {
-    throw new Error('Browser Unsupported canvas')
-  }
-
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-
-  const normalizedDataUrl = canvas.toDataURL('image/jpeg', 0.92)
-  const normalizedImg = await loadImage(normalizedDataUrl)
-
-  return {
-    img: normalizedImg,
-    previewUrl: normalizedDataUrl,
-  }
-}
-
-async function extractDescriptor(file: File) {
-  await loadFaceModels()
-
-  if (!faceapi) {
-    throw new Error('Face API not loaded')
-  }
-
-  const { img, previewUrl } = await normalizeImageFile(file)
-
-  const detection = await faceapi
-    .detectSingleFace(
-      img,
-      new faceapi.TinyFaceDetectorOptions({
-        inputSize: 416,
-        scoreThreshold: 0.35,
-      })
-    )
-    .withFaceLandmarks()
-    .withFaceDescriptor()
-
-  if (!detection) {
-    throw new Error('No face found in the photo. Try a clearer face photo')
-  }
-
-  return {
-    descriptor: Array.from(detection.descriptor),
-    previewUrl,
-  }
-}
-
 export default function AlbumFaceSearch({ albumId, token = '' }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null)
 
@@ -155,7 +41,7 @@ export default function AlbumFaceSearch({ albumId, token = '' }: Props) {
     setPreviewUrl('')
 
     try {
-      const result = await extractDescriptor(file)
+      const result = await extractSelfieDescriptor(file)
 
       setPreviewUrl(result.previewUrl)
 

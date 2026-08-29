@@ -114,7 +114,7 @@ export default async function SharePage({ params }: PageProps) {
         </div>
 
         <div className="absolute inset-x-0 bottom-0">
-          <div className="mx-auto w-full max-w-5xl px-4 pb-4 sm:px-6 sm:pb-5 lg:px-8">
+          <div className="mx-auto w-full max-w-5xl px-4 pb-4 text-center sm:px-6 sm:pb-5 lg:px-8">
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/70 sm:text-[11px]">
               Shared album
             </p>

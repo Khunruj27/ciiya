@@ -263,3 +263,35 @@ a {
     border-width: 3px;
   }
 }
+
+/* Guest Moment bubbles use a restrained moving champagne highlight. The image
+   stays still while only the ring travels, and reduced-motion users receive a
+   calm static ring. */
+@keyframes moment-story-ring-flow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.moment-story-ring::before {
+  content: "";
+  position: absolute;
+  inset: -55%;
+  background: conic-gradient(
+    from 0deg,
+    #8f713b 0deg,
+    #c7a86b 72deg,
+    #f5e5bd 118deg,
+    #c7a86b 164deg,
+    #8f713b 240deg,
+    #dfc48c 310deg,
+    #8f713b 360deg
+  );
+  animation: moment-story-ring-flow 3.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .moment-story-ring::before {
+    animation: none;
+  }
+}

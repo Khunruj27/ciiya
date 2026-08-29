@@ -1332,6 +1332,153 @@ alter table public.plans
 create index if not exists idx_plans_sort_order
 on public.plans(sort_order);
 
+-- =========================================================
+-- GUEST MOMENTS
+-- Photos shared by event guests through a public album link.
+-- =========================================================
+
+create table if not exists public.guest_moments (
+  id uuid primary key default gen_random_uuid(),
+  album_id uuid not null references public.albums(id) on delete cascade,
+  guest_name text not null default 'Guest',
+  message text,
+  image_urls text[] not null default '{}',
+  storage_paths text[] not null default '{}',
+  guest_key_hash text,
+  status text not null default 'published',
+  created_at timestamptz not null default now(),
+  constraint guest_moments_name_length check (char_length(guest_name) between 1 and 60),
+  constraint guest_moments_message_length check (message is null or char_length(message) <= 280),
+  constraint guest_moments_image_count check (cardinality(image_urls) between 1 and 4),
+  constraint guest_moments_status_check check (status in ('published', 'hidden'))
+);
+
+create index if not exists idx_guest_moments_album_created
+on public.guest_moments(album_id, created_at desc)
+where status = 'published';
+
+create index if not exists idx_guest_moments_rate_limit
+on public.guest_moments(album_id, guest_key_hash, created_at desc);
+
+alter table public.guest_moments enable row level security;
+
+drop policy if exists "guest_moments_owner_select" on public.guest_moments;
+drop policy if exists "guest_moments_owner_update" on public.guest_moments;
+drop policy if exists "guest_moments_owner_delete" on public.guest_moments;
+
+create policy "guest_moments_owner_select"
+on public.guest_moments for select
+using (exists (
+  select 1 from public.albums
+  where albums.id = guest_moments.album_id
+    and auth.uid() = coalesce(albums.owner_id, albums.user_id)
+));
+
+create policy "guest_moments_owner_update"
+on public.guest_moments for update
+using (exists (
+  select 1 from public.albums
+  where albums.id = guest_moments.album_id
+    and auth.uid() = coalesce(albums.owner_id, albums.user_id)
+));
+
+create policy "guest_moments_owner_delete"
+on public.guest_moments for delete
+using (exists (
+  select 1 from public.albums
+  where albums.id = guest_moments.album_id
+    and auth.uid() = coalesce(albums.owner_id, albums.user_id)
+));
+
+insert into storage.buckets (
+  id, name, public, file_size_limit, allowed_mime_types
+)
+values (
+  'guest-moments',
+  'guest-moments',
+  true,
+  12582912,
+  array['image/jpeg', 'image/png', 'image/webp']
+)
+on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "guest_moments_storage_public_read" on storage.objects;
+
+create policy "guest_moments_storage_public_read"
+on storage.objects for select
+using (bucket_id = 'guest-moments');
+
+alter table public.guest_moments
+  add column if not exists like_count integer not null default 0;
+
+alter table public.guest_moments
+  drop constraint if exists guest_moments_like_count_check;
+
+alter table public.guest_moments
+  add constraint guest_moments_like_count_check check (like_count >= 0);
+
+create table if not exists public.guest_moment_likes (
+  moment_id uuid not null references public.guest_moments(id) on delete cascade,
+  guest_key_hash text not null,
+  created_at timestamptz not null default now(),
+  primary key (moment_id, guest_key_hash)
+);
+
+create index if not exists idx_guest_moment_likes_created
+on public.guest_moment_likes(moment_id, created_at desc);
+
+alter table public.guest_moment_likes enable row level security;
+
+create or replace function public.toggle_guest_moment_like(
+  p_moment_id uuid,
+  p_guest_key_hash text
+)
+returns table(liked boolean, total integer)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  next_total integer;
+begin
+  if exists (
+    select 1 from public.guest_moment_likes
+    where moment_id = p_moment_id and guest_key_hash = p_guest_key_hash
+  ) then
+    delete from public.guest_moment_likes
+    where moment_id = p_moment_id and guest_key_hash = p_guest_key_hash;
+    update public.guest_moments
+    set like_count = greatest(0, like_count - 1)
+    where id = p_moment_id
+    returning like_count into next_total;
+    return query select false, coalesce(next_total, 0);
+  end if;
+
+  insert into public.guest_moment_likes(moment_id, guest_key_hash)
+  values (p_moment_id, p_guest_key_hash)
+  on conflict do nothing;
+
+  if found then
+    update public.guest_moments
+    set like_count = like_count + 1
+    where id = p_moment_id
+    returning like_count into next_total;
+    return query select true, coalesce(next_total, 0);
+  end if;
+
+  select like_count into next_total from public.guest_moments where id = p_moment_id;
+  return query select true, coalesce(next_total, 0);
+end;
+$$;
+
+revoke all on function public.toggle_guest_moment_like(uuid, text) from public;
+revoke all on function public.toggle_guest_moment_like(uuid, text) from anon;
+revoke all on function public.toggle_guest_moment_like(uuid, text) from authenticated;
+grant execute on function public.toggle_guest_moment_like(uuid, text) to service_role;
+
 -- ALBUMS: upload defaults / camera settings used by create album and upload modal
 alter table public.albums
   add column if not exists upload_mode text default 'manual',

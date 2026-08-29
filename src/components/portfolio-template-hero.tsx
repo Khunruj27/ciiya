@@ -30,7 +30,11 @@ export default function PortfolioTemplateHero({
     images.length > 0 ? images[index % images.length] : undefined
   const pad = compact ? 'p-3' : 'px-6 pb-10 pt-24 sm:px-12 sm:pb-14 lg:px-16'
   const title = compact
-    ? 'text-[clamp(13px,4.5vw,28px)]'
+    ? ['portrait', 'journal', 'noir'].includes(layout)
+      ? 'text-[clamp(12px,2.2vw,20px)]'
+      : 'text-[clamp(13px,4vw,26px)]'
+    : layout === 'portrait'
+      ? 'text-[clamp(1.45rem,7vw,4rem)] [overflow-wrap:anywhere]'
     : ['grid', 'masonry', 'luxe', 'portrait', 'journal'].includes(layout)
       ? 'text-[clamp(1.85rem,6vw,4.5rem)] [overflow-wrap:anywhere]'
       : 'text-[clamp(2.15rem,11vw,7.5rem)] [overflow-wrap:anywhere]'
@@ -104,7 +108,7 @@ export default function PortfolioTemplateHero({
         </div>
       ) : layout === 'portrait' ? (
         <div className={`relative h-full overflow-hidden bg-[#e9e5dd] ${compact ? 'p-2.5' : 'px-4 pb-6 pt-20 sm:px-10 sm:pb-10 sm:pt-28 lg:px-16'}`}>
-          <div className={`${compact && !mobilePreview ? 'grid-cols-[0.72fr_1.2fr_0.5fr]' : 'grid-cols-[0.7fr_1.3fr] grid-rows-[1fr_auto] sm:grid-cols-[0.75fr_1.25fr_0.55fr] sm:grid-rows-1'} grid h-full gap-2 sm:gap-6`}>
+          <div className={`${compact && !mobilePreview ? 'grid-cols-[0.72fr_1.2fr_0.5fr]' : 'grid-cols-[0.9fr_1.1fr] grid-rows-[1fr_auto] sm:grid-cols-[0.75fr_1.25fr_0.55fr] sm:grid-rows-1'} grid h-full gap-2 sm:gap-6`}>
             <div className="flex min-w-0 flex-col justify-end border-l border-ink/15 pl-2 sm:pl-6">
               <span className={`${small} mb-auto text-muted`}>PORTRAIT<br />STUDY</span>
               {copy('dark')}

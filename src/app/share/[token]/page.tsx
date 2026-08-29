@@ -5,6 +5,7 @@ import ShareViewTracker from '@/components/share-view-tracker'
 import ScrollToTopButton from '@/components/scroll-to-top-button'
 import SelfieFaceSearch from '@/components/selfie-face-search'
 import SharePasswordGate from '@/components/share-password-gate'
+import ShareGalleryTabs from '@/components/share-gallery-tabs'
 import { getSharedAlbumByToken, getSharedAlbumPhotos } from '@/lib/share-data'
 import {
   getShareAuthCookieName,
@@ -141,28 +142,32 @@ export default async function SharePage({ params }: PageProps) {
       {/* CONTENT */}
       <section className="pb-12 pt-5">
         <div className="space-y-5">
-          <SelfieFaceSearch albumId={album.id} token={token} />
+          <ShareGalleryTabs token={token}>
+            <div className="space-y-5">
+              <SelfieFaceSearch albumId={album.id} token={token} />
 
-          {visiblePhotos.length > 0 ? (
-            <PublicGalleryInfinite
-              initialPhotos={visiblePhotos}
-              totalCount={photoCount}
-              albumTitle={album.title}
-              albumId={album.id}
-              shareToken={token}
-              initialCursor={initialCursor}
-            />
-          ) : (
-            <div className="rounded-hero border border-line bg-surface px-7 py-14 text-center">
-              <p className="text-[20px] font-semibold tracking-[-0.03em] text-ink">
-                No photos yet
-              </p>
+              {visiblePhotos.length > 0 ? (
+                <PublicGalleryInfinite
+                  initialPhotos={visiblePhotos}
+                  totalCount={photoCount}
+                  albumTitle={album.title}
+                  albumId={album.id}
+                  shareToken={token}
+                  initialCursor={initialCursor}
+                />
+              ) : (
+                <div className="rounded-hero border border-line bg-surface px-7 py-14 text-center">
+                  <p className="text-[20px] font-semibold tracking-[-0.03em] text-ink">
+                    No photos yet
+                  </p>
 
-              <p className="mt-2 text-[14px] font-normal leading-6 text-muted">
-                The album is ready, but no photos are published yet
-              </p>
+                  <p className="mt-2 text-[14px] font-normal leading-6 text-muted">
+                    The album is ready, but no photos are published yet
+                  </p>
+                </div>
+              )}
             </div>
-          )}
+          </ShareGalleryTabs>
 
            {/* FOOTER */}
         <footer className="text-center">

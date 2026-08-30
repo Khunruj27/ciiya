@@ -7,6 +7,7 @@ import {
   hasValidSharePasswordAccess,
   isAlbumPubliclyVisible,
 } from '@/lib/share-access'
+import { recordShareEvent } from '@/lib/share-events'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -52,14 +53,25 @@ function hasValidImageSignature(buffer: Buffer, mime: AllowedMimeType) {
   return buffer.length >= 12 && buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP'
 }
 
-function getGuestKey(req: NextRequest, albumId: string) {
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown'
-  const userAgent = req.headers.get('user-agent') || 'unknown'
+// One-way visitor key. Likes pass the anonymous browser id (stable per
+// browser, immune to carrier CGNAT collisions); posting rate-limits omit it so
+// they stay tied to IP + user agent, which a reset id cannot dodge.
+function getGuestKey(req: NextRequest, albumId: string, guestId?: string) {
   const secret = process.env.SUPABASE_SERVICE_ROLE_KEY || 'ciiya'
+
+  const trimmed = (guestId || '').trim()
+  const basis =
+    trimmed.length >= 8 && trimmed.length <= 100
+      ? `id:${trimmed}`
+      : `ipua:${
+          req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+          req.headers.get('x-real-ip') ||
+          'unknown'
+        }:${req.headers.get('user-agent') || 'unknown'}`
 
   return crypto
     .createHmac('sha256', secret)
-    .update(`${albumId}:${ip}:${userAgent}`)
+    .update(`${albumId}:${basis}`)
     .digest('hex')
 }
 
@@ -67,7 +79,7 @@ async function getAlbum(req: NextRequest, token: string) {
   const supabase = getSupabaseAdmin()
   const { data: album, error } = await supabase
     .from('albums')
-    .select('id, is_public, status, is_password_protected, password_hash')
+    .select('id, owner_id, user_id, is_public, status, is_password_protected, password_hash')
     .eq('share_token', token)
     .maybeSingle()
 
@@ -219,6 +231,18 @@ export async function POST(req: NextRequest) {
 
     if (insertError) throw new Error(insertError.message)
 
+    await recordShareEvent(access.supabase, {
+      albumId: access.album.id,
+      ownerId: access.album.owner_id || access.album.user_id,
+      eventType: 'moment_created',
+      guestKeyHash,
+      metadata: {
+        guest_name: guestName,
+        photo_count: imageUrls.length,
+        moment_id: moment.id,
+      },
+    })
+
     return NextResponse.json({ success: true, moment }, { status: 201 })
   } catch (error) {
     console.error('[share/moments] upload failed:', error)
@@ -238,6 +262,7 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json().catch(() => null)
     const token = String(body?.token || '').trim()
     const momentId = String(body?.momentId || '').trim()
+    const guestId = String(body?.guestId || '').trim()
 
     if (!token || !momentId) {
       return NextResponse.json({ error: 'Share token and moment are required' }, { status: 400 })
@@ -257,7 +282,7 @@ export async function PATCH(req: NextRequest) {
     if (momentError) throw new Error(momentError.message)
     if (!moment) return NextResponse.json({ error: 'Moment not found' }, { status: 404 })
 
-    const guestKeyHash = getGuestKey(req, access.album.id)
+    const guestKeyHash = getGuestKey(req, access.album.id, guestId)
     const { data, error } = await access.supabase.rpc('toggle_guest_moment_like', {
       p_moment_id: momentId,
       p_guest_key_hash: guestKeyHash,
@@ -266,6 +291,17 @@ export async function PATCH(req: NextRequest) {
     if (error) throw new Error(error.message)
 
     const result = Array.isArray(data) ? data[0] : data
+
+    if (result?.liked) {
+      await recordShareEvent(access.supabase, {
+        albumId: access.album.id,
+        ownerId: access.album.owner_id || access.album.user_id,
+        eventType: 'moment_like',
+        guestKeyHash,
+        metadata: { moment_id: momentId },
+      })
+    }
+
     return NextResponse.json({
       success: true,
       liked: Boolean(result?.liked),

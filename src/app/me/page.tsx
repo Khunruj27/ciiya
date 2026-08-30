@@ -6,6 +6,7 @@ import AppIcon from '@/components/app-icon'
 import { formatBytes, clampPercent } from '@/lib/format-bytes'
 import { PLAN_LIMITS } from '@/lib/plans'
 import BillingPortalButton from '@/components/billing-portal-button'
+import NotificationBell from '@/components/notification-bell'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -359,13 +360,11 @@ const storageLimitBytes = Number(
             <AppIcon name="gallery" size={21} />
           </Link>
 
-          <Link href="/pricing" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
+          <Link href="/magic" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
             <AppIcon name="magic-wand" size={24} />
           </Link>
 
-          <Link href="/me/edit" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
-            <AppIcon name="bell" size={20} />
-          </Link>
+          <NotificationBell userId={user.id} />
 
           <Link href="/me" className="flex h-11 w-11 items-center justify-center rounded-full bg-gold-soft text-gold-deep">
             <AppIcon name="user" size={17} />

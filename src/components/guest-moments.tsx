@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { getGuestId } from '@/lib/guest-id'
 
 type GuestMoment = {
   id: string
@@ -272,7 +273,7 @@ export default function GuestMoments({ token, active, onCountChange }: Props) {
       const res = await fetch('/api/share/moments', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, momentId: moment.id }),
+        body: JSON.stringify({ token, momentId: moment.id, guestId: getGuestId() }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data?.error || 'Reaction failed')

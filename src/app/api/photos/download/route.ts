@@ -13,6 +13,7 @@ import {
   type DownloadAlbumRecord,
   type DownloadPhotoRecord,
 } from '@/lib/photo-download'
+import { recordShareEvent } from '@/lib/share-events'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -121,6 +122,13 @@ export async function GET(req: NextRequest) {
 
     try {
       await incrementDownloadCount(supabase, photo.id)
+      await recordShareEvent(supabase, {
+        albumId: album.id,
+        ownerId: photo.owner_id || photo.user_id,
+        photoId: photo.id,
+        eventType: 'photo_download',
+        metadata: { size: filename.match(/-(sd|hd|uhd|original)\./)?.[1] || null },
+      })
 
       return new NextResponse(Uint8Array.from(buffer), {
         status: 200,

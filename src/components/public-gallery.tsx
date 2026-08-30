@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import NextImage from 'next/image'
+import { getGuestId } from '@/lib/guest-id'
 import {
   Grid2Icon,
   Grid3Icon,
@@ -26,6 +27,7 @@ type Photo = {
   blur_data_url?: string | null
   filename?: string | null
   view_count?: number | null
+  like_count?: number | null
 }
 
 type Props = {
@@ -118,6 +120,9 @@ const PhotoTile = memo(function PhotoTile({
   selectMode,
   selected,
   onToggleSelect,
+  liked,
+  likeCount,
+  onToggleLike,
 }: {
   photo: Photo
   index: number
@@ -126,6 +131,9 @@ const PhotoTile = memo(function PhotoTile({
   selectMode: boolean
   selected: boolean
   onToggleSelect: (id: string) => void
+  liked: boolean
+  likeCount: number
+  onToggleLike: (id: string) => void
 }) {
   const rankLabel = tab === 'popular' ? getRankLabel(index) : null
 
@@ -247,6 +255,48 @@ const PhotoTile = memo(function PhotoTile({
         </div>
       ) : null}
 
+      {/* Heart reaction. A nested control inside the tile button, so its own
+          click is stopped from opening the lightbox. Hidden in select mode,
+          where the checkbox owns the top-right corner. */}
+      {!selectMode ? (
+        <span
+          role="button"
+          tabIndex={0}
+          aria-pressed={liked}
+          aria-label={liked ? 'Remove like' : 'Like this photo'}
+          onClick={(event) => {
+            event.stopPropagation()
+            onToggleLike(photo.id)
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              event.stopPropagation()
+              onToggleLike(photo.id)
+            }
+          }}
+          className="absolute right-2 top-2 z-30 flex h-8 items-center gap-1 rounded-full bg-black/35 px-2 text-white backdrop-blur-md transition active:scale-90"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill={liked ? 'currentColor' : 'none'}
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+            className={`h-4 w-4 transition-colors ${liked ? 'text-rose' : 'text-white'}`}
+          >
+            <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z" />
+          </svg>
+          {likeCount > 0 ? (
+            <span className="text-[11px] font-semibold tabular-nums">
+              {likeCount}
+            </span>
+          ) : null}
+        </span>
+      ) : null}
+
     </button>
   )
 })
@@ -259,6 +309,9 @@ type VirtualPhotoCellData = {
   selectMode: boolean
   selectedIds: Set<string>
   onToggleSelect: (id: string) => void
+  likedIds: Set<string>
+  likeCounts: Record<string, number>
+  onToggleLike: (id: string) => void
 }
 
 const VirtualPhotoCell = memo(function VirtualPhotoCell({
@@ -283,6 +336,11 @@ const VirtualPhotoCell = memo(function VirtualPhotoCell({
         selectMode={data.selectMode}
         selected={data.selectedIds.has(photo.id)}
         onToggleSelect={data.onToggleSelect}
+        liked={data.likedIds.has(photo.id)}
+        likeCount={
+          data.likeCounts[photo.id] ?? Number(photo.like_count || 0)
+        }
+        onToggleLike={data.onToggleLike}
       />
     </div>
   )
@@ -467,6 +525,109 @@ useEffect(() => {
     })
   }, [])
 
+  // ── Photo likes ────────────────────────────────────────────────────────
+  // Which photos this visitor has hearted lives in localStorage (keyed to the
+  // share token), the same lightweight model Guest Moments uses; the server
+  // holds the authoritative counts.
+  const likeStorageKey = shareToken ? `ciiya-liked-photos-${shareToken}` : ''
+  const [likedIds, setLikedIds] = useState<Set<string>>(new Set())
+  const [likeCounts, setLikeCounts] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    if (!likeStorageKey) return
+    try {
+      const saved = JSON.parse(
+        window.localStorage.getItem(likeStorageKey) || '[]'
+      )
+      if (Array.isArray(saved)) setLikedIds(new Set(saved.map(String)))
+    } catch {
+      // ignore malformed storage
+    }
+  }, [likeStorageKey])
+
+  // Seed counts from each photo's stored like_count as photos load in.
+  useEffect(() => {
+    setLikeCounts((current) => {
+      let changed = false
+      const next = { ...current }
+      for (const photo of photos) {
+        if (!(photo.id in next)) {
+          next[photo.id] = Number(photo.like_count || 0)
+          changed = true
+        }
+      }
+      return changed ? next : current
+    })
+  }, [photos])
+
+  const toggleLike = useCallback(
+    (photoId: string) => {
+      if (!shareToken) return
+
+      const wasLiked = likedIds.has(photoId)
+      const delta = wasLiked ? -1 : 1
+
+      // Optimistic: flip the heart, nudge the count, and tell the tab badge.
+      setLikedIds((current) => {
+        const next = new Set(current)
+        if (wasLiked) next.delete(photoId)
+        else next.add(photoId)
+        if (likeStorageKey) {
+          window.localStorage.setItem(
+            likeStorageKey,
+            JSON.stringify(Array.from(next))
+          )
+        }
+        return next
+      })
+      setLikeCounts((current) => ({
+        ...current,
+        [photoId]: Math.max(0, Number(current[photoId] || 0) + delta),
+      }))
+      window.dispatchEvent(
+        new CustomEvent('ciiya-photo-like', { detail: { delta } })
+      )
+
+      fetch('/api/share/photo-likes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: shareToken, photoId, guestId: getGuestId() }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (!data?.success) throw new Error(data?.error || 'like failed')
+          // Reconcile with the authoritative count from the server.
+          setLikeCounts((current) => ({
+            ...current,
+            [photoId]: Number(data.likeCount || 0),
+          }))
+        })
+        .catch(() => {
+          // Roll back the optimistic changes.
+          setLikedIds((current) => {
+            const next = new Set(current)
+            if (wasLiked) next.add(photoId)
+            else next.delete(photoId)
+            if (likeStorageKey) {
+              window.localStorage.setItem(
+                likeStorageKey,
+                JSON.stringify(Array.from(next))
+              )
+            }
+            return next
+          })
+          setLikeCounts((current) => ({
+            ...current,
+            [photoId]: Math.max(0, Number(current[photoId] || 0) - delta),
+          }))
+          window.dispatchEvent(
+            new CustomEvent('ciiya-photo-like', { detail: { delta: -delta } })
+          )
+        })
+    },
+    [shareToken, likedIds, likeStorageKey]
+  )
+
   // Triggers one native download per selected photo (each request already
   // returns a plain .jpg with a Content-Disposition: attachment header via
   // /api/photos/download), staggered so the browser fires them as distinct
@@ -569,8 +730,11 @@ useEffect(() => {
       selectMode,
       selectedIds,
       onToggleSelect: toggleSelect,
+      likedIds,
+      likeCounts,
+      onToggleLike: toggleLike,
     }),
-    [displayPhotos, gridCols, tab, openPhoto, selectMode, selectedIds, toggleSelect]
+    [displayPhotos, gridCols, tab, openPhoto, selectMode, selectedIds, toggleSelect, likedIds, likeCounts, toggleLike]
   )
 
   return (

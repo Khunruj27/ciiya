@@ -6,12 +6,19 @@ import ScrollToTopButton from '@/components/scroll-to-top-button'
 import SelfieFaceSearch from '@/components/selfie-face-search'
 import SharePasswordGate from '@/components/share-password-gate'
 import ShareGalleryTabs from '@/components/share-gallery-tabs'
-import { getSharedAlbumByToken, getSharedAlbumPhotos } from '@/lib/share-data'
+import {
+  getSharedAlbumByToken,
+  getSharedAlbumPhotos,
+  getPhotographerContact,
+  getAlbumLikeTotal,
+  getGuestMomentCount,
+} from '@/lib/share-data'
 import {
   getShareAuthCookieName,
   hasValidSharePasswordAccess,
   isAlbumPubliclyVisible,
 } from '@/lib/share-access'
+import { facebookUrl, telUrl, displayHandle } from '@/lib/portfolio-links'
 
 // The page itself stays dynamic (it reads the visitor's password-access
 // cookie fresh on every request), but the underlying album/photos
@@ -63,6 +70,56 @@ export default async function SharePage({ params }: PageProps) {
   }
 
   const { photos, photoCount } = await getSharedAlbumPhotos(album.id)
+
+  const contact = await getPhotographerContact(album.owner_id || album.user_id)
+  const hasContact = Boolean(contact.facebook || contact.phone)
+
+  const galleryLikeTotal = await getAlbumLikeTotal(album.id)
+  const momentCount = await getGuestMomentCount(album.id)
+
+  // The photographer's contact card. Passed into the tabs so it sits at the
+  // foot of both the Gallery and the Moments view.
+  const contactCard = hasContact ? (
+    <section className="rounded-hero border border-line bg-surface p-6 text-center sm:p-8">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold-deep">
+        Contact the photographer
+      </p>
+      <h2 className="mt-2 text-[20px] font-bold tracking-[-0.03em] sm:text-[24px]">
+        ติดต่อและจองช่างภาพ
+      </h2>
+      <p className="mx-auto mt-1.5 max-w-sm text-[13px] font-normal leading-6 text-muted">
+        Get in touch to book your own shoot.
+      </p>
+
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
+        {contact.phone ? (
+          <a
+            href={telUrl(contact.phone)}
+            className="inline-flex h-11 items-center gap-2 rounded-full bg-ink px-5 text-[13px] font-semibold text-white transition active:scale-[0.97]"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="h-4 w-4">
+              <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7A2 2 0 0 1 22 16.9Z" />
+            </svg>
+            {contact.phone}
+          </a>
+        ) : null}
+
+        {contact.facebook ? (
+          <a
+            href={facebookUrl(contact.facebook)}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex h-11 items-center gap-2 rounded-full border border-line-strong bg-surface px-5 text-[13px] font-semibold text-ink transition hover:border-ink/25 active:scale-[0.97]"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className="h-[22px] w-[22px] text-[#1877F2]">
+              <path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.4v7A10 10 0 0 0 22 12Z" />
+            </svg>
+            {displayHandle(contact.facebook)}
+          </a>
+        ) : null}
+      </div>
+    </section>
+  ) : null
 
   const visiblePhotos = photos
 
@@ -142,7 +199,7 @@ export default async function SharePage({ params }: PageProps) {
       {/* CONTENT */}
       <section className="pb-12 pt-5">
         <div className="space-y-5">
-          <ShareGalleryTabs token={token}>
+          <ShareGalleryTabs token={token} contact={contactCard} initialGalleryLikes={galleryLikeTotal} initialMomentCount={momentCount}>
             <div className="space-y-5">
               <SelfieFaceSearch albumId={album.id} token={token} />
 

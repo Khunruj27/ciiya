@@ -28,6 +28,7 @@ type Photo = {
 
   created_at: string
   view_count?: number | null
+  like_count?: number | null
   processing_status?: string | null
   blur_data_url?: string | null
 }

@@ -7,6 +7,7 @@ import ProfileAvatarSettings from '@/components/profile-avatar-settings'
 import AppIcon from '@/components/app-icon'
 import Image from 'next/image'
 import AlbumsListClient from '@/components/albums-list-client'
+import NotificationBell from '@/components/notification-bell'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -43,6 +44,12 @@ export default async function AlbumsPage() {
   .order('created_at', { ascending: false })
 
   const albums = albumsData ?? []
+
+  const { count: unreadNotificationCount } = await supabase
+    .from('share_events')
+    .select('id', { count: 'exact', head: true })
+    .eq('owner_id', user.id)
+    .is('read_at', null)
 
   const photoCountMap = albums.reduce<Record<string, number>>((acc, album) => {
     acc[album.id] = album.photo_count || 0
@@ -204,9 +211,9 @@ export default async function AlbumsPage() {
             <AppIcon name="gallery" size={22} />
           </Link>
 
-          <Link href="/pricing" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95"><AppIcon name="magic-wand" size={22} /></Link>
+          <Link href="/magic" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95"><AppIcon name="magic-wand" size={22} /></Link>
 
-          <Link href="/me" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95"><AppIcon name="bell" size={20} /></Link>
+          <NotificationBell userId={user.id} initialCount={unreadNotificationCount || 0} />
 
           <Link
             href="/me"

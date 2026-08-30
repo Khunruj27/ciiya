@@ -202,6 +202,13 @@ const cameraProcessingGridItems = (cameraImportsData || [])
             </Link>
 
            <div className="flex items-center gap-3">
+              <Link
+                href={`/albums/${album.id}/analytics`}
+                className="flex h-11 items-center justify-center rounded-full border border-line bg-surface px-4 text-[12px] font-semibold text-ink transition active:scale-95"
+              >
+                Analytics
+              </Link>
+
               <EditAlbumForm
                 albumId={album.id}
                 initialTitle={album.title}

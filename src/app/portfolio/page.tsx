@@ -5,6 +5,7 @@ import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { ciiyaSlugCandidate } from '@/lib/portfolio-data'
 import AppIcon from '@/components/app-icon'
 import PortfolioEditor from '@/components/portfolio-editor'
+import NotificationBell from '@/components/notification-bell'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -157,9 +158,7 @@ export default async function PortfolioPage() {
             <AppIcon name="magic-wand" size={24} />
           </Link>
 
-          <Link href="/me/edit" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
-            <AppIcon name="bell" size={20} />
-          </Link>
+          <NotificationBell userId={user.id} />
 
           <Link href="/me" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
             <AppIcon name="user-1" size={17} />

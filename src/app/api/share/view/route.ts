@@ -5,6 +5,10 @@ import {
   hasValidSharePasswordAccess,
   isAlbumPubliclyVisible,
 } from '@/lib/share-access'
+import {
+  getShareEventsAdmin,
+  recordShareEvent,
+} from '@/lib/share-events'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -40,7 +44,7 @@ export async function POST(req: NextRequest) {
     const { data: album, error: albumError } = await supabase
       .from('albums')
       .select(
-        'id, view_count, is_public, status, is_password_protected, password_hash'
+        'id, owner_id, user_id, view_count, is_public, status, is_password_protected, password_hash'
       )
       .eq('share_token', token)
       .maybeSingle()
@@ -111,6 +115,14 @@ export async function POST(req: NextRequest) {
       } else {
         mode = 'fallback'
       }
+    }
+
+    if (mode !== 'skipped') {
+      await recordShareEvent(getShareEventsAdmin(), {
+        albumId: album.id,
+        ownerId: album.owner_id || album.user_id,
+        eventType: 'album_view',
+      })
     }
 
     const response = NextResponse.json({

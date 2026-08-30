@@ -28,6 +28,8 @@ export const getSharedAlbumByToken = unstable_cache(
       .select(
         `
         id,
+        owner_id,
+        user_id,
         title,
         description,
         cover_url,
@@ -48,6 +50,95 @@ export const getSharedAlbumByToken = unstable_cache(
     return data
   },
   ['shared-album-by-token'],
+  { revalidate: SHARE_CACHE_TTL_SECONDS }
+)
+
+// The photographer's own contact, shown on the share page so a guest or
+// client can reach them. It comes from the portfolio contact fields the
+// photographer already fills in, and honours the same show-toggles — a
+// channel switched off there stays hidden here too. Read with the service
+// role so it works whether or not the portfolio itself is published; only
+// the two channels the owner chose to expose are ever returned.
+function getServiceClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  )
+}
+
+export type PhotographerContact = {
+  facebook: string | null
+  phone: string | null
+}
+
+export const getPhotographerContact = unstable_cache(
+  async (ownerId: string | null | undefined): Promise<PhotographerContact> => {
+    if (!ownerId) return { facebook: null, phone: null }
+
+    const supabase = getServiceClient()
+    const { data } = await supabase
+      .from('portfolios')
+      .select(
+        'contact_facebook, contact_phone, show_contact_facebook, show_contact_phone'
+      )
+      .eq('user_id', ownerId)
+      .maybeSingle()
+
+    if (!data) return { facebook: null, phone: null }
+
+    return {
+      facebook:
+        data.show_contact_facebook !== false
+          ? data.contact_facebook?.trim() || null
+          : null,
+      phone:
+        data.show_contact_phone !== false
+          ? data.contact_phone?.trim() || null
+          : null,
+    }
+  },
+  ['photographer-contact'],
+  { revalidate: 60 }
+)
+
+// Total gallery hearts across the album — the number shown on the Gallery tab.
+// Summed from the per-photo like_count so it stays a single quick read.
+export const getAlbumLikeTotal = unstable_cache(
+  async (albumId: string): Promise<number> => {
+    const supabase = getAnonClient()
+    const { data } = await supabase
+      .from('photos')
+      .select('like_count')
+      .eq('album_id', albumId)
+      .gt('like_count', 0)
+
+    return (data ?? []).reduce(
+      (sum, row) => sum + Number(row.like_count || 0),
+      0
+    )
+  },
+  ['album-like-total'],
+  { revalidate: SHARE_CACHE_TTL_SECONDS }
+)
+
+// Published guest-moment count — the number shown on the Moments tab. Computed
+// server-side so the badge is correct on first paint, before the Moments tab
+// (which loads the full feed) is ever opened.
+export const getGuestMomentCount = unstable_cache(
+  async (albumId: string): Promise<number> => {
+    // guest_moments is owner-only under RLS, so the count reads with the
+    // service role — the same reason the moments API does.
+    const supabase = getServiceClient()
+    const { count } = await supabase
+      .from('guest_moments')
+      .select('id', { count: 'exact', head: true })
+      .eq('album_id', albumId)
+      .eq('status', 'published')
+
+    return count || 0
+  },
+  ['guest-moment-count'],
   { revalidate: SHARE_CACHE_TTL_SECONDS }
 )
 
@@ -92,6 +183,7 @@ export const getSharedAlbumPhotos = unstable_cache(
             selected_size,
             created_at,
             view_count,
+            like_count,
             processing_status
             `
           )

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { getUnreadNotificationCount } from '@/lib/notifications'
 import AppIcon from '@/components/app-icon'
 import { formatBytes, clampPercent } from '@/lib/format-bytes'
 import { PLAN_LIMITS } from '@/lib/plans'
@@ -19,6 +20,8 @@ export default async function MePage() {
   } = await supabase.auth.getUser()
 
   if (!user) redirect('/login')
+
+  const unreadNotificationCount = await getUnreadNotificationCount(supabase, user.id)
 
   const { count: albumCount } = await supabase
     .from('albums')
@@ -364,7 +367,7 @@ const storageLimitBytes = Number(
             <AppIcon name="magic-wand" size={24} />
           </Link>
 
-          <NotificationBell userId={user.id} />
+          <NotificationBell userId={user.id} initialCount={unreadNotificationCount} />
 
           <Link href="/me" className="flex h-11 w-11 items-center justify-center rounded-full bg-gold-soft text-gold-deep">
             <AppIcon name="user" size={17} />

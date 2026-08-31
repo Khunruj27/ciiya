@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { getUnreadNotificationCount } from '@/lib/notifications'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,14 +21,10 @@ export async function GET() {
     )
   }
 
-  const { count } = await supabase
-    .from('share_events')
-    .select('id', { count: 'exact', head: true })
-    .eq('owner_id', user.id)
-    .is('read_at', null)
+  const count = await getUnreadNotificationCount(supabase, user.id)
 
   return NextResponse.json(
-    { count: count || 0 },
+    { count },
     { headers: { 'Cache-Control': 'no-store, max-age=0' } }
   )
 }

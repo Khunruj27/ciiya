@@ -16,6 +16,8 @@ export type Portfolio = {
     | 'collage_story'
     | 'collage_panorama'
     | 'collage_tiles'
+    | 'collage_overlap'
+    | 'collage_frames'
   contact_line: string | null
   contact_phone: string | null
   contact_email: string | null
@@ -44,6 +46,16 @@ export type Portfolio = {
     | 'portrait'
     | 'journal'
     | 'noir'
+    | 'monogram'
+    | 'horizon'
+    | 'museum'
+    | 'polaroid'
+    | 'duotone'
+    | 'coverflow'
+    | 'mosaic_luxe'
+    | 'contact_sheet'
+    | 'letterbox'
+    | 'sanctuary'
   is_published: boolean
 }
 

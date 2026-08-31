@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import AppIcon from '@/components/app-icon'
 
@@ -24,13 +24,18 @@ export default function NotificationBell({
   size?: number
 }) {
   const [count, setCount] = useState(initialCount)
+  const refreshSequence = useRef(0)
 
   const refresh = useCallback(async () => {
+    const sequence = ++refreshSequence.current
     try {
       const res = await fetch('/api/notifications/count', { cache: 'no-store' })
       if (!res.ok) return
       const data = await res.json()
-      setCount(Number(data?.count || 0))
+      // Do not let a slower, older request overwrite a newer count.
+      if (sequence === refreshSequence.current) {
+        setCount(Math.max(0, Number(data?.count || 0)))
+      }
     } catch {
       // keep the last known count on a transient failure
     }
@@ -39,11 +44,45 @@ export default function NotificationBell({
   useEffect(() => {
     if (!userId) return
 
-    refresh()
+    const initialRefresh = window.setTimeout(refresh, 0)
 
     // The Supabase client is created here (client-only), never during render.
     const supabase = createClient()
-    let channel: ReturnType<typeof supabase.channel> | null = null
+    let cancelled = false
+
+    /*
+     * The channel and its callbacks are built synchronously: `postgres_changes`
+     * callbacks can only be added before `subscribe()`, and a unique topic name
+     * keeps StrictMode's double-mount (dev) from handing back a stale channel
+     * that was already subscribed. Only the auth + subscribe step is deferred.
+     */
+    const channel = supabase
+      .channel(`notifications:${userId}:${Math.random().toString(36).slice(2)}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'share_events',
+          filter: `owner_id=eq.${userId}`,
+        },
+        () => refresh()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'announcements' },
+        () => refresh()
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'announcement_reads',
+          filter: `user_id=eq.${userId}`,
+        },
+        () => refresh()
+      )
 
     ;(async () => {
       // share_events is owner-only under RLS, so the realtime socket must carry
@@ -51,35 +90,37 @@ export default function NotificationBell({
       const {
         data: { session },
       } = await supabase.auth.getSession()
+      if (cancelled) return
       if (session?.access_token) supabase.realtime.setAuth(session.access_token)
-
-      channel = supabase
-        .channel(`notifications:${userId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'share_events',
-            filter: `owner_id=eq.${userId}`,
-          },
-          () => refresh()
-        )
-        .subscribe()
+      channel.subscribe((status) => {
+        // Close the small gap between the initial HTTP request and a working
+        // realtime socket: an event created during that gap is fetched here.
+        if (status === 'SUBSCRIBED') void refresh()
+      })
     })()
 
     // Poll backs up realtime if the socket drops or is blocked.
-    const poll = window.setInterval(refresh, 20000)
+    const poll = window.setInterval(refresh, 10000)
 
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') refresh()
+    const refreshWhenActive = () => {
+      if (document.visibilityState === 'visible') void refresh()
     }
-    document.addEventListener('visibilitychange', onVisible)
+    const onPageShow = () => void refresh()
+
+    document.addEventListener('visibilitychange', refreshWhenActive)
+    window.addEventListener('focus', refreshWhenActive)
+    window.addEventListener('pageshow', onPageShow)
+    window.addEventListener('online', refreshWhenActive)
 
     return () => {
-      if (channel) supabase.removeChannel(channel)
+      cancelled = true
+      window.clearTimeout(initialRefresh)
+      supabase.removeChannel(channel)
       window.clearInterval(poll)
-      document.removeEventListener('visibilitychange', onVisible)
+      document.removeEventListener('visibilitychange', refreshWhenActive)
+      window.removeEventListener('focus', refreshWhenActive)
+      window.removeEventListener('pageshow', onPageShow)
+      window.removeEventListener('online', refreshWhenActive)
     }
   }, [userId, refresh])
 
@@ -93,7 +134,11 @@ export default function NotificationBell({
     >
       <AppIcon name="bell" size={size} />
       {count > 0 ? (
-        <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-gold px-1 text-[8px] font-semibold leading-none text-ink">
+        <span
+          data-notification-count={count}
+          aria-hidden="true"
+          className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-surface bg-[#B95757] px-1 text-[9px] font-semibold leading-none text-white shadow-sm"
+        >
           {count > 99 ? '99+' : count}
         </span>
       ) : null}

@@ -156,6 +156,29 @@ a {
   background: rgba(199, 168, 107, 0.3);
 }
 
+.admin-input {
+  width: 100%;
+  height: 52px;
+  border: 1px solid var(--ciiya-line);
+  border-radius: var(--ciiya-radius-control);
+  background: var(--ciiya-ground);
+  padding-inline: 14px;
+  color: var(--ciiya-ink);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.admin-input::placeholder {
+  color: color-mix(in srgb, var(--ciiya-muted) 62%, transparent);
+}
+
+.admin-input:focus {
+  border-color: var(--ciiya-gold);
+  background: var(--ciiya-surface);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ciiya-gold) 14%, transparent);
+}
+
 /* ============================================================
    PORTFOLIO ACCENTS
 

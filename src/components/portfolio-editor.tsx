@@ -48,19 +48,31 @@ const ACCENTS: { key: Portfolio['accent']; label: string; swatch: string }[] = [
   { key: 'rose', label: 'Rosewood', swatch: 'var(--ciiya-rose)' },
 ]
 
+const TEMPLATE_GROUPS = [
+  { key: 'all', label: 'ทั้งหมด' },
+  { key: 'wedding', label: 'งานแต่งงาน' },
+  { key: 'studio', label: 'สตูดิโอ' },
+  { key: 'story', label: 'เล่าเรื่อง' },
+  { key: 'modern', label: 'โมเดิร์น' },
+] as const
+
+type TemplateGroup = (typeof TEMPLATE_GROUPS)[number]['key']
+
 const GALLERY_LAYOUTS: {
   key: Portfolio['gallery_layout']
   label: string
   hint: string
 }[] = [
-  { key: 'carousel', label: 'Slide', hint: 'Swipe through large photos one at a time' },
-  { key: 'grid', label: 'Grid', hint: 'See many photos at once, neatly arranged' },
-  { key: 'masonry', label: 'Mosaic', hint: 'Alternating heights that follow the photos’ rhythm' },
-  { key: 'filmstrip', label: 'Filmstrip', hint: 'A continuous cinematic row of wide shots' },
-  { key: 'collage', label: 'Feature Collage', hint: 'One hero image surrounded by supporting shots' },
-  { key: 'collage_story', label: 'Story Collage', hint: 'Alternating large and small photos, chapter by chapter' },
-  { key: 'collage_panorama', label: 'Panorama Collage', hint: 'A wide shot leads, followed by the details' },
-  { key: 'collage_tiles', label: 'Free Collage', hint: 'Mixed-size frames, editorial style' },
+  { key: 'carousel', label: 'Seamless Swipe', hint: 'ภาพขนาดใหญ่ไหลต่อกันเมื่อปัด เหมือนงาน Carousel' },
+  { key: 'grid', label: 'Clean Grid', hint: 'กริดสองคอลัมน์เรียบสะอาด เห็นภาพได้รวดเร็ว' },
+  { key: 'masonry', label: 'Photo Dump', hint: 'จังหวะภาพสูงต่ำแบบอิสระ ดูเป็นธรรมชาติ' },
+  { key: 'filmstrip', label: 'Film Roll', hint: 'ภาพแนวนอนต่อเนื่องในบรรยากาศฟิล์ม' },
+  { key: 'collage', label: 'Hero Canvas', hint: 'ภาพหลักหนึ่งภาพและรายละเอียดประกอบสองภาพ' },
+  { key: 'collage_story', label: 'Story Flow', hint: 'เล่าเรื่องเป็นช่วงด้วยภาพใหญ่สลับภาพเล็ก' },
+  { key: 'collage_panorama', label: 'Panorama Flow', hint: 'เปิดด้วยภาพกว้าง แล้วไหลต่อสู่รายละเอียด' },
+  { key: 'collage_tiles', label: 'Freeform Canvas', hint: 'คอลลาจหลายขนาดแบบ Editorial ที่มีอิสระ' },
+  { key: 'collage_overlap', label: 'Layered Cards', hint: 'ภาพซ้อนเหลื่อมกันเหมือนการ์ดบน Canvas' },
+  { key: 'collage_frames', label: 'Print Journal', hint: 'ภาพพิมพ์สลับซ้ายขวาบนพื้นที่แบบสมุดภาพ' },
 ]
 
 export default function PortfolioEditor({
@@ -78,7 +90,7 @@ export default function PortfolioEditor({
   const [uploading, setUploading] = useState<'hero' | 'gallery' | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadLabel, setUploadLabel] = useState('')
-  const [previewDevice, setPreviewDevice] = useState<'mobile' | 'desktop'>('mobile')
+  const [templateGroup, setTemplateGroup] = useState<TemplateGroup>('all')
 
   const heroInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
@@ -793,8 +805,9 @@ export default function PortfolioEditor({
           {form.gallery_urls.length} / {MAX_GALLERY}
         </p>
 
-        <Field label="Gallery layout">
-          <div className="grid grid-cols-2 gap-2">
+        <Field label="รูปแบบแกลเลอรี">
+          <p className="mb-3 text-[11px] leading-5 text-muted">เลือกจังหวะการเล่าเรื่องบนมือถือ รูปจริงจะเปลี่ยนในตัวอย่างทันที</p>
+          <div className="grid grid-cols-2 gap-2.5">
             {GALLERY_LAYOUTS.map((option) => {
               const active = (form.gallery_layout || 'carousel') === option.key
               return (
@@ -802,7 +815,7 @@ export default function PortfolioEditor({
                   key={option.key}
                   type="button"
                   onClick={() => set('gallery_layout', option.key)}
-                  className={`overflow-hidden rounded-panel border text-left transition active:scale-[0.98] ${active ? 'border-ink bg-ink text-white shadow-lift' : 'border-line bg-surface text-ink'}`}
+                  className={`overflow-hidden rounded-[18px] border text-left transition active:scale-[0.98] ${active ? 'border-gold bg-gold-soft/35 text-ink shadow-card ring-1 ring-gold/40' : 'border-line bg-surface text-ink'}`}
                 >
                   <GalleryLayoutPreview
                     layout={option.key}
@@ -814,7 +827,7 @@ export default function PortfolioEditor({
                       <p className="text-[13px] font-semibold">{option.label}</p>
                       <span className={`grid h-4.5 w-4.5 place-items-center rounded-full border text-[9px] ${active ? 'border-gold bg-gold text-ink' : 'border-line-strong text-transparent'}`}>✓</span>
                     </div>
-                    <p className={`mt-1 text-[10px] leading-relaxed ${active ? 'text-white/55' : 'text-muted'}`}>{option.hint}</p>
+                    <p className="mt-1 line-clamp-2 min-h-8 text-[9px] leading-4 text-muted">{option.hint}</p>
                   </div>
                 </button>
               )
@@ -930,12 +943,43 @@ export default function PortfolioEditor({
       <div className={'space-y-3'}>
       <Card
         id="portfolio-design"
-        title="Choose a template"
-        hint="The preview uses the name, color, cover, and gallery photos you’re editing. Change an option and see it instantly"
+        title="เลือกเทมเพลต Portfolio"
+        hint="ออกแบบสำหรับหน้าจอมือถือโดยเฉพาะ ทุกแบบใช้ชื่อ สี และรูปจริงของคุณ"
       >
-        <Field label="Page style">
-          <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-3">
-            {PORTFOLIO_TEMPLATES.map((layout) => {
+        <div className="rounded-[22px] border border-line bg-ground p-4 sm:p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="max-w-lg">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-deep">Ciiya Template Collection</p>
+              <h3 className="mt-2 text-[20px] font-semibold tracking-[-0.03em] text-ink sm:text-[22px]">เลือกบุคลิกที่ใช่ให้ผลงานของคุณ</h3>
+              <p className="mt-1.5 text-[11px] leading-5 text-muted">ทุกการ์ดแสดงสัดส่วนมือถือ 9:16 และเปลี่ยนตัวอย่างจริงทันทีเมื่อเลือก</p>
+            </div>
+            <div className="flex shrink-0 items-center gap-3 rounded-full border border-gold/45 bg-gold-soft px-4 py-2.5">
+              <span className="grid h-6 w-6 place-items-center rounded-full bg-gold text-[10px] font-semibold text-ink">✓</span>
+              <div>
+                <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-gold-deep">กำลังใช้งาน</p>
+                <p className="text-[12px] font-semibold text-ink">{getPortfolioTemplate(form.layout)?.label}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="กรองเทมเพลต">
+          {TEMPLATE_GROUPS.map((group) => (
+            <button
+              key={group.key}
+              type="button"
+              onClick={() => setTemplateGroup(group.key)}
+              aria-pressed={templateGroup === group.key}
+              className={`h-10 shrink-0 rounded-full border px-4 text-[12px] font-semibold transition active:scale-95 ${templateGroup === group.key ? 'border-ink bg-ink text-white' : 'border-line bg-surface text-muted hover:border-line-strong hover:text-ink'}`}
+            >
+              {group.label}
+            </button>
+          ))}
+        </div>
+
+        <Field label="รูปแบบหน้า">
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+            {PORTFOLIO_TEMPLATES.filter((layout) => templateGroup === 'all' || layout.group === templateGroup).map((layout) => {
               const active = form.layout === layout.key
 
               return (
@@ -944,36 +988,41 @@ export default function PortfolioEditor({
                   type="button"
                   onClick={() => set('layout', layout.key)}
                   aria-pressed={active}
-                  className={`overflow-hidden rounded-panel border text-left transition active:scale-[0.99] ${
+                  className={`group relative flex min-h-[230px] overflow-hidden rounded-[20px] border text-left transition duration-300 active:scale-[0.99] ${
                     active
-                      ? 'border-ink bg-ink text-white shadow-lift'
-                      : 'border-line bg-surface text-ink hover:border-line-strong'
+                      ? 'border-gold bg-gold-soft/35 text-ink shadow-card ring-1 ring-gold/40'
+                      : 'border-line bg-surface text-ink hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card'
                   }`}
                 >
-                  <TemplatePreview template={layout.key} active={active} portfolio={form} />
-                  <div className="p-3.5 sm:p-4">
+                  <div className="flex w-[38%] max-w-[150px] shrink-0 items-center justify-center border-r border-line bg-ground p-2.5 sm:p-3">
+                    <div className="w-full overflow-hidden rounded-[16px] border-[3px] border-ink bg-ground shadow-card">
+                      <TemplatePreview template={layout.key} portfolio={form} />
+                    </div>
+                  </div>
+                  <div className="flex min-w-0 flex-1 flex-col justify-center p-3.5 sm:p-4">
                     <div className="flex items-start justify-between gap-2">
-                      <div>
+                      <div className="min-w-0">
                         <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-                          <span className={`rounded-full px-2 py-0.5 text-[8px] font-semibold ${active ? 'bg-white/10 text-white/65' : 'bg-ground-sunken text-muted'}`}>
+                          <span className="rounded-full bg-ground-sunken px-2 py-0.5 text-[8px] font-semibold text-muted">
                             {layout.category}
                           </span>
                           {layout.badge ? <span className="rounded-full bg-gold px-2 py-0.5 text-[8px] font-semibold text-ink">{layout.badge}</span> : null}
                         </div>
-                        <p className="text-[13px] font-semibold sm:text-[14px]">
+                        <p className="truncate text-[14px] font-semibold tracking-[-0.02em] sm:text-[15px]">
                           {layout.label}
                         </p>
-                        <p className={`mt-1 text-[9px] font-medium uppercase tracking-[0.12em] ${active ? 'text-gold' : 'text-gold-deep'}`}>
+                        <p className="mt-1 text-[9px] font-medium text-gold-deep">
                           {layout.mood}
                         </p>
                       </div>
-                      <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border text-[10px] ${active ? 'border-gold bg-gold text-ink' : 'border-line-strong text-transparent'}`}>
+                      <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border text-[10px] transition ${active ? 'border-gold bg-gold text-ink' : 'border-line-strong text-transparent group-hover:border-ink group-hover:text-ink'}`}>
                         ✓
                       </span>
                     </div>
-                    <p className={`mt-2 text-[11px] font-normal leading-relaxed sm:text-[12px] ${active ? 'text-white/60' : 'text-muted'}`}>
+                    <p className="mt-3 line-clamp-3 text-[10px] font-normal leading-5 text-muted sm:text-[11px]">
                       {layout.hint}
                     </p>
+                    <p className={`mt-4 text-[10px] font-semibold ${active ? 'text-gold-deep' : 'text-muted'}`}>{active ? 'กำลังใช้งาน' : 'แตะเพื่อเลือก'} →</p>
                   </div>
                 </button>
               )
@@ -981,7 +1030,7 @@ export default function PortfolioEditor({
           </div>
         </Field>
 
-        <Field label="Accent color">
+        <Field label="สีประจำเทมเพลต">
           <div className="flex flex-wrap gap-2">
             {ACCENTS.map((accent) => (
               <button
@@ -1018,19 +1067,19 @@ export default function PortfolioEditor({
       ) : null}
 
       {dirty ? (
-        <div className="sticky bottom-[max(88px,calc(env(safe-area-inset-bottom)+72px))] z-40 pt-1">
+        <div className="pointer-events-none sticky bottom-[max(88px,calc(env(safe-area-inset-bottom)+72px))] z-40 flex justify-end pt-1">
           <button
             type="button"
             onClick={handleSave}
             disabled={status === 'saving'}
-            className="flex h-13 w-full items-center justify-center rounded-full bg-ink text-[15px] font-semibold text-white shadow-float transition active:scale-[0.99] disabled:opacity-60"
+            className="pointer-events-auto flex h-13 w-full items-center justify-center rounded-full bg-ink px-8 text-[14px] font-semibold text-white shadow-float transition active:scale-[0.99] disabled:opacity-60 sm:w-auto sm:min-w-[260px]"
           >
-            {status === 'saving' ? 'Saving…' : 'Save changes'}
+            {status === 'saving' ? 'กำลังบันทึก…' : 'บันทึกการแก้ไข'}
           </button>
         </div>
       ) : status === 'done' ? (
         <p className="py-2 text-center text-[13px] font-medium text-gold-deep">
-          Saved
+          บันทึกแล้ว
         </p>
       ) : null}
         </div>
@@ -1039,19 +1088,16 @@ export default function PortfolioEditor({
           <div className="overflow-hidden rounded-hero border border-line bg-surface shadow-lift">
             <div className="flex items-center justify-between border-b border-line px-4 py-3.5 sm:px-5">
               <div>
-                <p className="text-[9px] font-medium uppercase tracking-[0.18em] text-gold-deep">Live Preview</p>
-                <p className="mt-1 text-[13px] font-semibold text-ink">What clients will see</p>
+                <p className="text-[9px] font-medium uppercase tracking-[0.18em] text-gold-deep">ตัวอย่างจริง</p>
+                <p className="mt-1 text-[13px] font-semibold text-ink">สิ่งที่ลูกค้าจะเห็น</p>
               </div>
-              <div className="flex rounded-full bg-ground-sunken p-1">
-                <button type="button" onClick={() => setPreviewDevice('mobile')} aria-pressed={previewDevice === 'mobile'} className={`rounded-full px-3 py-1.5 text-[10px] font-semibold transition ${previewDevice === 'mobile' ? 'bg-ink text-white shadow-card' : 'text-muted'}`}>Mobile</button>
-                <button type="button" onClick={() => setPreviewDevice('desktop')} aria-pressed={previewDevice === 'desktop'} className={`rounded-full px-3 py-1.5 text-[10px] font-semibold transition ${previewDevice === 'desktop' ? 'bg-ink text-white shadow-card' : 'text-muted'}`}>Desktop</button>
-              </div>
+              <span className="rounded-full bg-ink px-3 py-2 text-[9px] font-semibold text-white">มือถือ · 9:16</span>
             </div>
 
             <div className="bg-ground-sunken p-3 sm:p-4">
-              <div data-accent={form.accent} className={`mx-auto overflow-hidden border border-line bg-ground shadow-card transition-all duration-300 ${previewDevice === 'mobile' ? 'max-w-[310px] rounded-[28px] border-[5px] border-ink p-1' : 'max-w-none rounded-panel'}`}>
-                <div className={previewDevice === 'mobile' ? 'overflow-hidden rounded-[20px]' : ''}>
-                  <TemplatePreview template={form.layout} active portfolio={form} featured previewDevice={previewDevice} />
+              <div data-accent={form.accent} className="mx-auto max-w-[310px] overflow-hidden rounded-[28px] border-[5px] border-ink bg-ground p-1 shadow-card">
+                <div className="overflow-hidden rounded-[20px]">
+                  <TemplatePreview template={form.layout} portfolio={form} featured />
                 </div>
               </div>
             </div>
@@ -1059,10 +1105,10 @@ export default function PortfolioEditor({
             <div className="border-t border-line px-4 py-4 sm:px-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-medium text-muted">Current template</p>
+                  <p className="text-[10px] font-medium text-muted">เทมเพลตปัจจุบัน</p>
                   <p className="mt-1 text-[13px] font-semibold text-ink">{getPortfolioTemplate(form.layout)?.label}</p>
                 </div>
-                <button type="button" onClick={() => document.getElementById('portfolio-design')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="inline-flex h-9 items-center rounded-full border border-line px-4 text-[11px] font-semibold text-ink transition active:scale-95">Change design</button>
+                <button type="button" onClick={() => document.getElementById('portfolio-design')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="inline-flex h-9 items-center rounded-full border border-line px-4 text-[11px] font-semibold text-ink transition active:scale-95">เปลี่ยนเทมเพลต</button>
               </div>
               <div className="mt-3 overflow-hidden rounded-control border border-line">
                 <GalleryLayoutPreview layout={form.gallery_layout || 'carousel'} images={form.gallery_urls} active={false} />
@@ -1121,30 +1167,22 @@ function Field({
 
 function TemplatePreview({
   template,
-  active,
   portfolio,
   featured = false,
-  previewDevice = 'desktop',
 }: {
   template: Portfolio['layout']
-  active: boolean
   portfolio: Portfolio
   featured?: boolean
-  previewDevice?: 'mobile' | 'desktop'
 }) {
   const images = [portfolio.hero_photo_url, ...portfolio.gallery_urls].filter(
     Boolean
   ) as string[]
   const name = portfolio.display_name?.trim() || 'Your name'
   const tagline = portfolio.tagline?.trim() || 'The story and work that’s you'
-  const shell = featured
-    ? previewDevice === 'mobile'
-      ? 'aspect-[9/16] max-h-[680px]'
-      : 'aspect-[16/10] sm:aspect-[16/8]'
-    : 'aspect-[16/11]'
+  const shell = featured ? 'aspect-[9/16] max-h-[680px]' : 'aspect-[9/16]'
 
   return (
-    <div data-accent={portfolio.accent} className={`relative ${shell} overflow-hidden border-b ${active && !featured ? 'border-white/10' : 'border-line'}`}>
+    <div data-accent={portfolio.accent} className={`relative ${shell} overflow-hidden border-b border-line`}>
       <PortfolioTemplateHero
         layout={template}
         name={name}
@@ -1152,7 +1190,7 @@ function TemplatePreview({
         location={portfolio.location}
         images={images}
         compact
-        previewDevice={previewDevice}
+        previewDevice="mobile"
         className="h-full"
       />
       {featured ? (
@@ -1192,7 +1230,7 @@ function GalleryLayoutPreview({
   )
 
   return (
-    <div className={`grid aspect-[16/9] gap-1 border-b p-2 ${active ? 'border-white/10 bg-white/[0.08]' : 'border-line bg-ground-sunken'}`} aria-hidden>
+    <div className={`grid aspect-[4/5] gap-1 border-b p-2 ${active ? 'border-gold/30 bg-gold-soft/35' : 'border-line bg-ground-sunken'}`} aria-hidden>
       {layout === 'carousel' ? (
         <div className="flex gap-1 overflow-hidden">{[0, 1, 2].map((i) => tile(i, 'h-full w-[60%] shrink-0 rounded-[4px]'))}</div>
       ) : layout === 'filmstrip' ? (
@@ -1207,6 +1245,10 @@ function GalleryLayoutPreview({
         <div className="grid grid-cols-4 grid-rows-2 gap-1">{tile(0, 'col-span-2 row-span-2 rounded-[3px]')}{tile(1, 'col-span-2 rounded-[3px]')}{tile(2, 'rounded-[3px]')}{tile(3, 'rounded-[3px]')}</div>
       ) : layout === 'collage_panorama' ? (
         <div className="grid grid-cols-3 grid-rows-2 gap-1">{tile(0, 'col-span-3 rounded-[3px]')}{tile(1, 'rounded-[3px]')}{tile(2, 'rounded-[3px]')}{tile(3, 'rounded-[3px]')}</div>
+      ) : layout === 'collage_overlap' ? (
+        <div className="relative h-full overflow-hidden">{tile(0, 'absolute left-0 top-[8%] h-[72%] w-[58%] -rotate-3 rounded-[5px] border-2 border-white shadow-card')}{tile(1, 'absolute right-0 top-[20%] h-[72%] w-[58%] rotate-3 rounded-[5px] border-2 border-white shadow-card')}{tile(2, 'absolute bottom-0 left-[30%] h-[45%] w-[42%] rounded-[5px] border-2 border-white shadow-card')}</div>
+      ) : layout === 'collage_frames' ? (
+        <div className="flex h-full flex-col gap-1.5 overflow-hidden bg-[#eee7dc] p-1">{tile(0, 'h-[45%] w-[76%] self-start rounded-[3px] border-2 border-white shadow-card')}{tile(1, 'h-[45%] w-[76%] self-end rounded-[3px] border-2 border-white shadow-card')}</div>
       ) : (
         <div className="grid grid-cols-4 grid-rows-3 gap-1">{tile(0, 'col-span-2 row-span-2 rounded-[3px]')}{tile(1, 'col-span-2 rounded-[3px]')}{tile(2, 'row-span-2 rounded-[3px]')}{tile(3, 'rounded-[3px]')}{tile(4, 'col-span-2 rounded-[3px]')}</div>
       )}

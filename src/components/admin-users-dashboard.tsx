@@ -436,6 +436,13 @@ export default function AdminUsersDashboard() {
           </div>
 
           <div className="flex gap-2">
+            <Link
+              href="/admin/announcements"
+              className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white shadow-sm"
+            >
+              Announcements
+            </Link>
+
             <button
               type="button"
               onClick={loadUsers}

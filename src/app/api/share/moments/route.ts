@@ -7,7 +7,7 @@ import {
   hasValidSharePasswordAccess,
   isAlbumPubliclyVisible,
 } from '@/lib/share-access'
-import { recordShareEvent } from '@/lib/share-events'
+import { recordShareEvent, removeShareEvent } from '@/lib/share-events'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -299,6 +299,14 @@ export async function PATCH(req: NextRequest) {
         eventType: 'moment_like',
         guestKeyHash,
         metadata: { moment_id: momentId },
+      })
+    } else {
+      // Unliking takes the notification back down.
+      await removeShareEvent(access.supabase, {
+        albumId: access.album.id,
+        eventType: 'moment_like',
+        momentId,
+        guestKeyHash,
       })
     }
 

@@ -6,6 +6,7 @@ import { ciiyaSlugCandidate } from '@/lib/portfolio-data'
 import AppIcon from '@/components/app-icon'
 import PortfolioEditor from '@/components/portfolio-editor'
 import NotificationBell from '@/components/notification-bell'
+import { getUnreadNotificationCount } from '@/lib/notifications'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -18,6 +19,8 @@ export default async function PortfolioPage() {
   } = await supabase.auth.getUser()
 
   if (!user) redirect('/login')
+
+  const unreadNotificationCount = await getUnreadNotificationCount(supabase, user.id)
 
   const displayName =
     user.user_metadata?.full_name || user.user_metadata?.name || ''
@@ -158,7 +161,7 @@ export default async function PortfolioPage() {
             <AppIcon name="magic-wand" size={24} />
           </Link>
 
-          <NotificationBell userId={user.id} />
+          <NotificationBell userId={user.id} initialCount={unreadNotificationCount} />
 
           <Link href="/me" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
             <AppIcon name="user-1" size={17} />

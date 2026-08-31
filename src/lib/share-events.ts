@@ -52,3 +52,37 @@ export async function recordShareEvent(
     console.warn('[share-events] unable to record event:', error.message)
   }
 }
+
+/**
+ * Undo of a like: removes the matching event so unliking also takes the
+ * notification/activity back down. Scoped to the same guest + target so it
+ * only clears that visitor's own reaction. Best-effort, like recording.
+ */
+export async function removeShareEvent(
+  supabase: SupabaseClient,
+  input: {
+    albumId: string
+    eventType: ShareEventType
+    photoId?: string | null
+    momentId?: string | null
+    guestKeyHash?: string | null
+  }
+) {
+  if (!input.albumId || !input.guestKeyHash) return
+
+  let query = supabase
+    .from('share_events')
+    .delete()
+    .eq('album_id', input.albumId)
+    .eq('event_type', input.eventType)
+    .eq('guest_key_hash', input.guestKeyHash)
+
+  if (input.photoId) query = query.eq('photo_id', input.photoId)
+  if (input.momentId) query = query.eq('metadata->>moment_id', input.momentId)
+
+  const { error } = await query
+
+  if (error) {
+    console.warn('[share-events] unable to remove event:', error.message)
+  }
+}

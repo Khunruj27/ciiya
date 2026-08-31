@@ -94,9 +94,15 @@ export default function PortfolioGallery({
       ? 'grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4'
       : layout === 'masonry'
         ? 'columns-2 gap-2 sm:columns-3 sm:gap-4'
+        : layout === 'collage_overlap'
+          ? 'pf-gallery-scroll flex snap-x snap-mandatory items-center overflow-x-auto py-8 pl-5 pr-[28vw] sm:py-12 sm:pl-10'
+          : layout === 'collage_frames'
+            ? 'flex flex-col gap-7 bg-[#eee7dc] px-4 py-8 sm:gap-12 sm:px-10 sm:py-14'
         : isCollage
           ? 'grid grid-cols-4 auto-rows-[24vw] gap-2 sm:auto-rows-[16vw] sm:gap-4 lg:auto-rows-[180px]'
-        : 'pf-gallery-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-3 sm:gap-5'
+        : layout === 'carousel'
+          ? 'pf-gallery-scroll flex snap-x snap-mandatory gap-0 overflow-x-auto pb-3'
+          : 'pf-gallery-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-3 sm:gap-5'
 
   return (
     <>
@@ -113,11 +119,15 @@ export default function PortfolioGallery({
                     ? ['col-span-2 row-span-3', 'col-span-2 row-span-1', 'col-span-1 row-span-2', 'col-span-1 row-span-2', 'col-span-3 row-span-2', 'col-span-1 row-span-2'][index % 6]
                     : layout === 'collage_panorama'
                       ? ['col-span-4 row-span-2', 'col-span-2 row-span-2', 'col-span-2 row-span-1', 'col-span-1 row-span-1', 'col-span-1 row-span-1'][index % 5]
-                      : layout === 'collage_tiles'
+                    : layout === 'collage_tiles'
                         ? ['col-span-2 row-span-2', 'col-span-2 row-span-1', 'col-span-1 row-span-2', 'col-span-1 row-span-1', 'col-span-2 row-span-2', 'col-span-1 row-span-1'][index % 6]
+                      : layout === 'collage_overlap'
+                        ? `aspect-[3/4] w-[72vw] shrink-0 snap-center border-[7px] border-white shadow-[0_18px_50px_rgba(23,21,18,0.18)] sm:w-[42vw] ${index === 0 ? '' : '-ml-[24vw] sm:-ml-[12vw]'} ${index % 2 ? 'rotate-[2deg]' : '-rotate-[2deg]'}`
+                      : layout === 'collage_frames'
+                        ? `aspect-[4/5] w-[86%] border-[10px] border-white shadow-[0_14px_38px_rgba(69,55,38,0.14)] sm:w-[68%] sm:border-[16px] ${index % 2 ? 'self-end rotate-[1.5deg]' : 'self-start -rotate-[1.5deg]'}`
                 : layout === 'filmstrip'
                   ? 'aspect-[16/10] w-[88vw] shrink-0 snap-center sm:w-[64vw] lg:w-[48vw]'
-                  : 'aspect-[3/4] w-[76vw] shrink-0 snap-center sm:w-[42vw] lg:w-[30vw]'
+                  : 'aspect-[4/5] w-[92vw] shrink-0 snap-center rounded-none sm:w-[70vw] lg:w-[52vw]'
 
           return (
             <button
@@ -133,8 +143,10 @@ export default function PortfolioGallery({
                 fill
                 unoptimized
                 sizes={
-                  layout === 'grid' || layout === 'masonry' || isCollage
+                  layout === 'grid' || layout === 'masonry' || (isCollage && layout !== 'collage_overlap' && layout !== 'collage_frames')
                     ? '(max-width: 640px) 50vw, 33vw'
+                    : layout === 'collage_overlap' || layout === 'collage_frames'
+                      ? '(max-width: 640px) 86vw, 68vw'
                     : layout === 'filmstrip'
                       ? '(max-width: 640px) 88vw, (max-width: 1024px) 64vw, 48vw'
                       : '(max-width: 640px) 76vw, (max-width: 1024px) 42vw, 30vw'

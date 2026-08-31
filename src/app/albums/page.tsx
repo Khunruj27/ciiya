@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { getUnreadNotificationCount } from '@/lib/notifications'
 import DeleteAlbumButton from '@/components/delete-album-button'
 import CreateAlbumModal from '@/components/create-album-modal'
 import ProfileAvatarSettings from '@/components/profile-avatar-settings'
@@ -45,11 +46,7 @@ export default async function AlbumsPage() {
 
   const albums = albumsData ?? []
 
-  const { count: unreadNotificationCount } = await supabase
-    .from('share_events')
-    .select('id', { count: 'exact', head: true })
-    .eq('owner_id', user.id)
-    .is('read_at', null)
+  const unreadNotificationCount = await getUnreadNotificationCount(supabase, user.id)
 
   const photoCountMap = albums.reduce<Record<string, number>>((acc, album) => {
     acc[album.id] = album.photo_count || 0
@@ -213,7 +210,10 @@ export default async function AlbumsPage() {
 
           <Link href="/magic" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95"><AppIcon name="magic-wand" size={22} /></Link>
 
-          <NotificationBell userId={user.id} initialCount={unreadNotificationCount || 0} />
+          <NotificationBell
+            userId={user.id}
+            initialCount={unreadNotificationCount}
+          />
 
           <Link
             href="/me"

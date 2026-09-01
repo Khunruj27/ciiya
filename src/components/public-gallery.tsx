@@ -803,11 +803,13 @@ useEffect(() => {
         now low enough to fit one, and the ceiling keeps a tall desktop
         window from turning the grid into an endless column.
       */}
-      <div className="overflow-hidden rounded-hero border border-line bg-surface p-3 shadow-card sm:p-4">
-      <div
-        ref={gridContainerRef}
-        className="h-[72vh] max-h-[900px] min-h-[320px] overflow-hidden rounded-card"
-      >
+      <section className="overflow-hidden rounded-hero border border-line bg-surface shadow-card">
+        <div className="relative px-4 py-5 sm:px-6 sm:py-6">
+          <div aria-hidden className="absolute -right-16 -top-20 h-48 w-48 rounded-full bg-gold/20 blur-3xl" />
+          <div
+            ref={gridContainerRef}
+            className="relative h-[72vh] max-h-[900px] min-h-[320px] overflow-hidden rounded-[4px]"
+          >
         {gridSize.width > 0 && gridSize.height > 0
           ? (() => {
               const safeWidth = Math.max(1, gridSize.width)
@@ -842,8 +844,9 @@ useEffect(() => {
               )
             })()
           : null}
-      </div>
-      </div>
+          </div>
+        </div>
+      </section>
 
       {!selectMode ? (
         <div className="fixed inset-x-0 bottom-5 z-[90] flex justify-center px-4">

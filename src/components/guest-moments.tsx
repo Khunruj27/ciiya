@@ -482,8 +482,8 @@ export default function GuestMoments({ token, active, onCountChange }: Props) {
                         <span className="absolute bottom-0 right-0 z-20 grid h-5 min-w-5 place-items-center rounded-full border-2 border-surface bg-ink px-1 text-[7px] font-semibold text-white sm:h-7 sm:min-w-7 sm:text-[9px]">+{moment.image_urls.length - 1}</span>
                       ) : null}
                     </span>
-                    <span className="mt-2 block w-full truncate text-center text-[9px] font-semibold leading-tight text-ink sm:mt-3 sm:text-[11px]">{moment.guest_name}</span>
-                    <span className="mt-1 block text-center text-[7px] font-normal leading-none text-muted sm:text-[9px]">{formatMomentTime(moment.created_at)}</span>
+                    <span className="mt-2 block w-full truncate text-center text-[12px] font-semibold leading-tight text-ink sm:mt-3 sm:text-[15px]">{moment.guest_name}</span>
+                    <span className="mt-1 block text-center text-[9px] font-normal leading-none text-muted sm:text-[11px]">{formatMomentTime(moment.created_at)}</span>
                   </button>
                 ))}
               </div>

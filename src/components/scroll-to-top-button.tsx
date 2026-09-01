@@ -4,16 +4,18 @@ import { useEffect, useState } from 'react'
 import AppIcon from '@/components/app-icon'
 
 export default function ScrollToTopButton() {
-  const [visible, setVisible] = useState(false)
+  // Seeded lazily (client-only) so the initial value is read without a
+  // synchronous setState inside an effect; the listener updates it after.
+  const [visible, setVisible] = useState(
+    () => typeof window !== 'undefined' && window.scrollY > 300
+  )
 
   useEffect(() => {
     function onScroll() {
       setVisible(window.scrollY > 300)
     }
 
-    window.addEventListener('scroll', onScroll)
-    onScroll()
-
+    window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
@@ -22,31 +24,16 @@ export default function ScrollToTopButton() {
   return (
     <button
       type="button"
-      onClick={() =>
-        window.scrollTo({
-          top: 0,
-          behavior: 'smooth',
-        })
-      }
-      className="
-        fixed
-        bottom-6
-        left-4
-        z-50
-        flex
-        flex-col
-        items-center
-        justify-center
-        h-16
-        w-16
-        rounded-full
-        bg-surface text-ink border border-line shadow-lift
-        transition
-        active:scale-95
-      "
+      onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+      aria-label="Back to top"
       title="Back to top"
+      className="group fixed bottom-6 left-4 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-line bg-surface/85 text-ink shadow-lift backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-gold/40 hover:text-gold-deep hover:shadow-float active:scale-95"
     >
-     <AppIcon name="arrow-top" size={26} className="opacity-100" />
+      <AppIcon
+        name="arrow-top"
+        size={20}
+        className="transition-transform duration-200 group-hover:-translate-y-0.5"
+      />
     </button>
   )
 }

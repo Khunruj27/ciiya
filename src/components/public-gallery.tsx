@@ -756,31 +756,31 @@ useEffect(() => {
               tabs on the left and the density (column) controls on the right. */}
           <div className="relative mb-4 [@media(max-height:480px)]:pr-[76px] sm:mb-5">
             <div className="flex items-center justify-between gap-2 sm:gap-3">
-              <div className="flex shrink-0 items-center gap-4 sm:gap-6">
-                <button type="button" onClick={() => setTab('live')}>
-                  <p
-                    className={`whitespace-nowrap text-[13px] font-semibold sm:text-sm ${
-                      tab === 'live' ? 'text-ink' : 'text-muted'
-                    }`}
-                  >
-                    {t.gallery.latestPhotos}
-                  </p>
-                  {tab === 'live' ? (
-                    <div className="mx-auto mt-2 h-[3px] w-8 rounded-full bg-gold" />
-                  ) : null}
+              <div className="inline-flex shrink-0 items-center rounded-full border border-line bg-ground-sunken p-1">
+                <button
+                  type="button"
+                  onClick={() => setTab('live')}
+                  aria-pressed={tab === 'live'}
+                  className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition sm:px-4 sm:text-[13px] ${
+                    tab === 'live'
+                      ? 'bg-surface text-ink shadow-[0_1px_5px_rgba(15,23,42,0.1)]'
+                      : 'text-muted hover:text-ink'
+                  }`}
+                >
+                  {t.gallery.latestPhotos}
                 </button>
 
-                <button type="button" onClick={() => setTab('popular')}>
-                  <p
-                    className={`whitespace-nowrap text-[13px] font-semibold sm:text-sm ${
-                      tab === 'popular' ? 'text-ink' : 'text-muted'
-                    }`}
-                  >
-                    {t.gallery.popularPhotos}
-                  </p>
-                  {tab === 'popular' ? (
-                    <div className="mx-auto mt-2 h-[3px] w-8 rounded-full bg-gold" />
-                  ) : null}
+                <button
+                  type="button"
+                  onClick={() => setTab('popular')}
+                  aria-pressed={tab === 'popular'}
+                  className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition sm:px-4 sm:text-[13px] ${
+                    tab === 'popular'
+                      ? 'bg-surface text-ink shadow-[0_1px_5px_rgba(15,23,42,0.1)]'
+                      : 'text-muted hover:text-ink'
+                  }`}
+                >
+                  {t.gallery.popularPhotos}
                 </button>
               </div>
 

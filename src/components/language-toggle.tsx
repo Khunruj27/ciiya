@@ -2,13 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useTransition } from 'react'
-import {
-  LOCALES,
-  LOCALE_COOKIE,
-  LOCALE_COOKIE_MAX_AGE,
-  getDictionary,
-  type Locale,
-} from '@/lib/i18n'
+import { LOCALES, getDictionary, persistLocale, type Locale } from '@/lib/i18n'
 
 /**
  * The app-language switch that lives on the Me page. Writing the cookie and
@@ -23,7 +17,7 @@ export default function LanguageToggle({ current }: { current: Locale }) {
 
   function choose(locale: Locale) {
     if (locale === current) return
-    document.cookie = `${LOCALE_COOKIE}=${locale}; path=/; max-age=${LOCALE_COOKIE_MAX_AGE}; samesite=lax`
+    persistLocale(locale)
     startTransition(() => router.refresh())
   }
 

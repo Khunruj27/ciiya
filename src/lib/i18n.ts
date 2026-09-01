@@ -20,6 +20,15 @@ export function normalizeLocale(value: string | null | undefined): Locale {
   return value === 'en' ? 'en' : DEFAULT_LOCALE
 }
 
+/**
+ * Client-only: persist the chosen language. Kept out of components so the
+ * cookie write isn't flagged as a render-time mutation; callers pair it with
+ * router.refresh() to re-render server components in the new language.
+ */
+export function persistLocale(locale: Locale) {
+  document.cookie = `${LOCALE_COOKIE}=${locale}; path=/; max-age=${LOCALE_COOKIE_MAX_AGE}; samesite=lax`
+}
+
 const th = {
   common: {
     viewAll: 'ดูทั้งหมด',
@@ -342,6 +351,57 @@ const th = {
     titleFace: (m: number, a: string) =>
       m > 0 ? `ผู้เข้าชมพบรูปของตนเอง ${m} รูปใน ${a}` : `ผู้เข้าชมค้นหารูปของตนเองใน ${a}`,
     titleDefault: (a: string) => `มีกิจกรรมใหม่ใน ${a}`,
+  },
+  landing: {
+    nav: { features: 'ฟีเจอร์', howItWorks: 'วิธีใช้งาน', portfolio: 'พอร์ตโฟลิโอ', pricing: 'ราคา', signIn: 'เข้าสู่ระบบ', startFree: 'เริ่มฟรี', createAccount: 'สร้างบัญชี' },
+    hero: {
+      badge: 'แกลเลอรี · พื้นที่จัดเก็บ · พอร์ตโฟลิโอ',
+      line1: 'ให้ผลงานของคุณ', line2: 'ไปถึงมือลูกค้า', line3: 'อย่างสวยงาม',
+      subtitle: 'Ciiya คือที่เดียวอันประณีตสำหรับอัปโหลด จัดระเบียบ แชร์ และเก็บรักษาทุกแกลเลอรีสำคัญของช่างภาพ',
+      ctaCreate: 'สร้างแกลเลอรีแรกของคุณ', explore: 'สำรวจ Ciiya',
+      trust: ['เริ่มใช้ฟรี', 'ไม่ต้องใช้บัตร', 'เป็นส่วนตัวโดยการออกแบบ'],
+    },
+    stats: [['ไฟล์ต้นฉบับ', 'เก็บอย่างปลอดภัย'], ['ลิงก์เดียว', 'สำหรับทุกการส่งมอบ'], ['ค้นหาใบหน้า', 'สำหรับแขกทุกคน'], ['12 เทมเพลต', 'สำหรับพอร์ตโฟลิโอ']],
+    features: {
+      eyebrow: 'ประสบการณ์ลูกค้าที่ครบถ้วน', h2a: 'จัดการน้อยลง', h2b: 'สร้างสรรค์มากขึ้น',
+      sub: 'ทุกขั้นตอนหลังกดชัตเตอร์ควรพิถีพิถันเท่ากับภาพถ่าย',
+      items: [
+        { eyebrow: 'จากกล้องสู่คลาวด์', title: 'งานถ่ายครบชุด พร้อมส่งมอบ', body: 'อัปโหลดไฟล์ต้นฉบับครั้งเดียว Ciiya จัดระเบียบงาน เตรียมทุกภาพ และให้แกลเลอรีลูกค้าที่ประณีตโดยไม่ต้องใช้เครื่องมือสร้างแยก', points: ['เก็บไฟล์ต้นฉบับไว้ครบ', 'เห็นความคืบหน้าการอัปโหลดชัดเจน', 'พื้นที่ทำงานเดียวที่เรียบง่าย'], imageAlt: 'ช่างภาพกำลังเตรียมแกลเลอรีลูกค้าที่โต๊ะสตูดิโอ' },
+        { eyebrow: 'ส่งมอบไร้รอยต่อ', title: 'ลิงก์เดียวที่สวยงาม ไม่ต้องอธิบาย', body: 'ลูกค้าเปิดแกลเลอรีบนอุปกรณ์ใดก็ได้ ดูได้โดยไม่ต้องมีบัญชี เลือกภาพที่ชอบ และดาวน์โหลดได้ตามที่คุณอนุญาต', points: ['ลูกค้าไม่ต้องสมัครบัญชี', 'ควบคุมการดาวน์โหลดได้', 'ออกแบบสำหรับทุกหน้าจอ'], imageAlt: 'คู่บ่าวสาวกำลังดูแกลเลอรีงานแต่งที่ส่งมอบ' },
+        { eyebrow: 'ทำมาเพื่อแขกทุกคน', title: 'พบทุกภาพถ่ายของคุณ', body: 'ค้นหาใบหน้าเปลี่ยนแกลเลอรีงานใหญ่ให้เป็นคอลเลกชันส่วนตัว เซลฟีชัดเจนหนึ่งรูปช่วยให้แขกแต่ละคนพบภาพของตัวเองในไม่กี่วินาที', points: ['ผลลัพธ์ส่วนตัวรวดเร็ว', 'ประสบการณ์แขกที่ง่าย', 'เหมาะกับงานใหญ่'], imageAlt: 'แขกงานแต่งกำลังค้นหาภาพของตัวเองบนมือถือ' },
+      ],
+    },
+    status: { preparingGallery: 'กำลังเตรียมแกลเลอรี', originals: '186 จาก 248 ต้นฉบับ', linkCopied: 'คัดลอกลิงก์แล้ว', matches: 'พบ 12 ภาพที่ตรงกัน', readyInSeconds: 'พร้อมในไม่กี่วินาที' },
+    workflow: {
+      eyebrow: 'เส้นทางที่สั้นลงสู่การส่งมอบ', h2: 'สามขั้นตอนสงบ ๆ จากการ์ดสู่ลูกค้า',
+      sub: 'ไม่มีขั้นตอนเผยแพร่ที่ซับซ้อน การกระทำสำคัญอยู่ใกล้และมองเห็นชัด',
+      steps: [
+        { title: 'สร้างงาน', detail: 'ตั้งชื่องานถ่ายและเลือกภาพที่บอกโทน' },
+        { title: 'อัปโหลดครั้งเดียว', detail: 'เห็นความคืบหน้าชัดเจนขณะ Ciiya เตรียมแกลเลอรีทั้งชุด' },
+        { title: 'แชร์อย่างสวยงาม', detail: 'ส่งลิงก์เดียวแล้วให้ลูกค้าเพลิดเพลินกับภาพได้ทันที' },
+      ],
+    },
+    portfolioSec: {
+      eyebrow: 'มีพอร์ตโฟลิโอในตัว', h2: 'หน้าร้านที่รู้สึกเป็นผลงานของคุณ',
+      sub: 'เลือกทิศทางของภาพ จัดวางภาพที่ดีที่สุด และแชร์ลิงก์ Ciiya ที่น่าจดจำเพียงลิงก์เดียว',
+      build: 'สร้างพอร์ตโฟลิโอของคุณ',
+      tiles: [{ name: 'Luxe Wedding', mood: 'โรแมนติก · ประณีต' }, { name: 'Portrait Focus', mood: 'สง่างาม · มีเอกลักษณ์' }, { name: 'Visual Journal', mood: 'จริงใจ · เล่าเรื่อง' }],
+    },
+    pricing: {
+      eyebrow: 'ราคารายเดือนที่เข้าใจง่าย', h2: 'พื้นที่ที่เติบโตไปกับทุกเรื่องราว',
+      sub: 'ประสบการณ์ประณีตเหมือนกันทุกระดับ เลือกพื้นที่ที่เหมาะกับวิธีทำงานของคุณ',
+      included: 'แกลเลอรีที่ปลอดภัย เครื่องมือพอร์ตโฟลิโอ และการควบคุมการดาวน์โหลด รวมอยู่แล้ว',
+      pricesNote: 'ราคาเป็นเงินบาท · เรียกเก็บรายเดือน', popular: 'ยอดนิยม',
+      plans: [
+        { detail: 'สำหรับแกลเลอรีแรกของคุณ', features: ['แกลเลอรีลูกค้า', 'ดาวน์โหลดต้นฉบับ', 'หน้าพอร์ตโฟลิโอ'] },
+        { detail: 'สำหรับงานประจำรายเดือน', features: ['ทุกอย่างในแพ็กเกจฟรี', 'พื้นที่แกลเลอรีมากขึ้น', 'ค้นหาใบหน้า'] },
+        { detail: 'สำหรับมืออาชีพที่ทำงานสม่ำเสมอ', features: ['ทุกอย่างในแพ็กเกจ Starter', 'Guest Moments', 'ส่งมอบปริมาณมากขึ้น'] },
+        { detail: 'สำหรับสตูดิโอและทีม', features: ['ทุกอย่างในแพ็กเกจ Pro', 'พื้นที่ระดับสตูดิโอ', 'คลังภาพที่เติบโต'] },
+      ],
+    },
+    card: { riverside: 'The Riverside', readyToShare: 'พร้อมแชร์', clientGallery: 'แกลเลอรีลูกค้า', dayWorthKeeping: 'วันที่ควรค่าแก่การเก็บไว้', originalPhotos: 'ภาพต้นฉบับ 248 รูป', date: '24 พ.ค. 2026', delivered: 'ส่งมอบแกลเลอรีแล้ว', keptSafely: 'เก็บไฟล์ต้นฉบับอย่างปลอดภัย', detailsPreserved: 'รายละเอียดถูกเก็บรักษา' },
+    cta: { eyebrow: 'แกลเลอรีถัดไปรู้สึกต่างได้', h2: 'ให้ทุกภาพถ่ายมีวิธีไปถึงที่ดีกว่า', sub: 'สร้างแกลเลอรีแรก แชร์อย่างมั่นใจ และให้ผลงานน่าจดจำยาวนานหลังส่งมอบ', startFree: 'เริ่มฟรี' },
+    footer: { tagline: 'ส่งมอบอย่างสวยงาม จัดเก็บอย่างใส่ใจ และพอร์ตโฟลิโอที่ทำงานต่อหลังงานถ่ายจบ', features: 'ฟีเจอร์', pricing: 'ราคา', signIn: 'เข้าสู่ระบบ', createAccount: 'สร้างบัญชี' },
   },
 }
 
@@ -668,6 +728,57 @@ const en = {
     titleFace: (m: number, a: string) =>
       m > 0 ? `A guest found ${m} photo${m === 1 ? '' : 's'} in ${a}` : `A guest searched for their photos in ${a}`,
     titleDefault: (a: string) => `New activity in ${a}`,
+  },
+  landing: {
+    nav: { features: 'Features', howItWorks: 'How it works', portfolio: 'Portfolio', pricing: 'Pricing', signIn: 'Sign in', startFree: 'Start free', createAccount: 'Create account' },
+    hero: {
+      badge: 'Galleries · Storage · Portfolio',
+      line1: 'Let the work', line2: 'arrive', line3: 'beautifully.',
+      subtitle: 'Ciiya gives photographers one refined place to upload, organize, share, and preserve every important gallery.',
+      ctaCreate: 'Create your first gallery', explore: 'Explore Ciiya',
+      trust: ['Start for free', 'No credit card', 'Private by design'],
+    },
+    stats: [['Original files', 'stored safely'], ['One link', 'for every delivery'], ['Face search', 'for every guest'], ['12 templates', 'for your portfolio']],
+    features: {
+      eyebrow: 'The complete client experience', h2a: 'Less time managing.', h2b: 'More time creating.',
+      sub: 'Every step after the shutter should feel as considered as the photographs themselves.',
+      items: [
+        { eyebrow: 'From camera to cloud', title: 'A complete shoot, ready to deliver.', body: 'Upload original files once. Ciiya keeps the job organized, prepares every image, and gives you a polished client gallery without a separate builder.', points: ['Original files preserved', 'Clear upload progress', 'One calm workspace'], imageAlt: 'Photographer preparing a client gallery at a studio desk' },
+        { eyebrow: 'Delivery without friction', title: 'One beautiful link. Nothing to explain.', body: 'Clients open the gallery on any device, browse without an account, choose the photographs they love, and download exactly what you allow.', points: ['No client account required', 'Download controls', 'Designed for every screen'], imageAlt: 'Newlywed clients viewing their delivered wedding gallery' },
+        { eyebrow: 'Made for every guest', title: 'Find every photograph of you.', body: 'Face search turns a large event gallery into a personal collection. One clear selfie helps each guest discover their photographs in seconds.', points: ['Fast personal results', 'Simple guest experience', 'Ideal for large events'], imageAlt: 'Wedding guest finding photographs of herself on a phone' },
+      ],
+    },
+    status: { preparingGallery: 'Preparing gallery', originals: '186 of 248 originals', linkCopied: 'Link copied', matches: '12 matches found', readyInSeconds: 'Ready in a few seconds' },
+    workflow: {
+      eyebrow: 'A shorter path to delivered', h2: 'Three calm steps from card to client.',
+      sub: 'No complicated publishing flow. The essential actions stay visible and close together.',
+      steps: [
+        { title: 'Create a job', detail: 'Name the shoot and choose the image that sets the tone.' },
+        { title: 'Upload once', detail: 'See progress clearly while Ciiya prepares the complete gallery.' },
+        { title: 'Share beautifully', detail: 'Send one link and let clients enjoy the photographs immediately.' },
+      ],
+    },
+    portfolioSec: {
+      eyebrow: 'Portfolio, included', h2: 'A storefront that feels like your work.',
+      sub: 'Choose a visual direction, arrange your strongest photographs, and share one memorable Ciiya link.',
+      build: 'Build your portfolio',
+      tiles: [{ name: 'Luxe Wedding', mood: 'Romantic · Refined' }, { name: 'Portrait Focus', mood: 'Graceful · Characterful' }, { name: 'Visual Journal', mood: 'Genuine · Narrative' }],
+    },
+    pricing: {
+      eyebrow: 'Simple monthly pricing', h2: 'Space that grows with every story.',
+      sub: 'The same polished experience at every level. Choose the storage that matches the way you work.',
+      included: 'Secure galleries, portfolio tools, and controlled downloads are included.',
+      pricesNote: 'Prices in Thai baht · billed monthly', popular: 'Popular',
+      plans: [
+        { detail: 'For your first galleries.', features: ['Client galleries', 'Original downloads', 'Portfolio page'] },
+        { detail: 'For regular monthly work.', features: ['Everything in Free', 'More gallery space', 'Face search'] },
+        { detail: 'For active professionals.', features: ['Everything in Starter', 'Guest Moments', 'Higher-volume delivery'] },
+        { detail: 'For studios and teams.', features: ['Everything in Pro', 'Studio-ready storage', 'Growing archives'] },
+      ],
+    },
+    card: { riverside: 'The Riverside', readyToShare: 'Ready to share', clientGallery: 'Client gallery', dayWorthKeeping: 'A day worth keeping.', originalPhotos: '248 original photographs', date: '24 May 2026', delivered: 'Gallery delivered', keptSafely: 'Original files kept safely', detailsPreserved: 'Details, preserved.' },
+    cta: { eyebrow: 'The next gallery can feel different', h2: 'Give every photograph a better way to arrive.', sub: 'Create your first gallery, share it with confidence, and let the work stay memorable long after delivery.', startFree: 'Start free' },
+    footer: { tagline: 'Beautiful delivery, thoughtful storage, and a portfolio that keeps working after the shoot is done.', features: 'Features', pricing: 'Pricing', signIn: 'Sign in', createAccount: 'Create account' },
   },
 }
 

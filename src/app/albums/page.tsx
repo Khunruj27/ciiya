@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { getUnreadNotificationCount } from '@/lib/notifications'
+import { getServerDictionary } from '@/lib/i18n-server'
 import DeleteAlbumButton from '@/components/delete-album-button'
 import CreateAlbumModal from '@/components/create-album-modal'
 import ProfileAvatarSettings from '@/components/profile-avatar-settings'
@@ -21,6 +22,8 @@ export default async function AlbumsPage() {
   } = await supabase.auth.getUser()
 
   if (!user) redirect('/login')
+
+  const { t } = await getServerDictionary()
 
   const { data: albumsData } = await supabase
   .from('albums')
@@ -85,7 +88,7 @@ export default async function AlbumsPage() {
         {/* HERO */}
        <section className="pt-10 sm:pt-14">
           <h1 className="mt-3 text-[clamp(2.4rem,6vw,4.5rem)] font-semibold leading-[0.96] tracking-[-0.045em] text-ink">
-  Hi, {(
+  {t.albums.greeting}, {(
     user.user_metadata?.full_name ||
     user.user_metadata?.name ||
     user.email?.split('@')[0] ||
@@ -94,7 +97,7 @@ export default async function AlbumsPage() {
 </h1>
 
           <p className="mt-3 text-[14px] font-medium tracking-[-0.01em] text-muted">
-            {albums.length} Albums · {totalPhotos} photos
+            {albums.length} {t.albums.albumsWord} · {totalPhotos} {t.albums.photosWord}
           </p>
         </section>
 
@@ -117,11 +120,11 @@ export default async function AlbumsPage() {
           <div className="w-full">
             <div className="mb-3 flex items-center justify-between px-1">
               <h2 className="text-[20px] font-bold tracking-[-0.035em] text-ink">
-              My Albums
+              {t.albums.myAlbums}
             </h2>
 
               <span className="shrink-0 text-[13px] font-semibold text-muted">
-                All {albums.length} Albums
+                {t.albums.all} {albums.length} {t.albums.albumsWord}
               </span>
             </div>
 
@@ -142,7 +145,7 @@ export default async function AlbumsPage() {
                           <Image
                             src={album.cover_url}
                             loading="lazy"
-                            alt={album.title || 'Job cover'}
+                            alt={album.title || t.albums.jobCover}
                             fill
                             sizes="96px"
                             unoptimized
@@ -150,7 +153,7 @@ export default async function AlbumsPage() {
                           />
                         ) : (
                           <div className="flex h-full items-center justify-center text-xs text-muted">
-                            No cover
+                            {t.albums.noCover}
                           </div>
                         )}
 
@@ -165,11 +168,11 @@ export default async function AlbumsPage() {
                         </p>
 
                         <span className="mt-1.5 inline-block rounded-full border border-gold/40 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-gold-deep">
-                          Jobs
+                          {t.albums.jobsBadge}
                         </span>
 
                         <p className="mt-2 line-clamp-2 text-[12px] font-normal leading-snug text-muted">
-                          {album.description || 'No description yet'}
+                          {album.description || t.albums.noDescription}
                         </p>
                       </div>
                     </Link>
@@ -180,10 +183,10 @@ export default async function AlbumsPage() {
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <AppIcon name="gallery" size={46} className="mb-3 opacity-35" />
                 <p className="text-[17px] font-semibold text-ink">
-                  No jobs yet
+                  {t.albums.noJobs}
                 </p>
                 <p className="mt-1 text-[13px] font-normal text-muted">
-                  Create your first job and start uploading photos
+                  {t.albums.noJobsSub}
                 </p>
               </div>
             )}

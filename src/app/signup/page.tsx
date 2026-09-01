@@ -5,9 +5,11 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
 import GoogleSignInButton from '@/components/google-sign-in-button'
+import { useI18n } from '@/components/i18n-provider'
 
 export default function SignupPage() {
   const router = useRouter()
+  const { t } = useI18n()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -21,17 +23,17 @@ export default function SignupPage() {
     const normalizedEmail = email.trim().toLowerCase()
 
     if (!normalizedEmail) {
-      setErrorMsg('Please enter your email')
+      setErrorMsg(t.signup.enterEmail)
       return
     }
 
     if (password.length < 6) {
-      setErrorMsg('Password must be at least 6 characters')
+      setErrorMsg(t.signup.passwordTooShort)
       return
     }
 
     if (password !== confirmPassword) {
-      setErrorMsg('Passwords do not match')
+      setErrorMsg(t.signup.passwordMismatch)
       return
     }
 
@@ -63,9 +65,7 @@ export default function SignupPage() {
     }
 
     setEmailLoading(false)
-    setSuccessMsg(
-      'Your account is almost ready. Check your email and confirm your address to continue.'
-    )
+    setSuccessMsg(t.signup.checkEmail)
   }
 
   function handleProviderError(message: string) {
@@ -92,7 +92,7 @@ export default function SignupPage() {
             href="/login"
             className="flex h-11 items-center justify-center rounded-full border border-line bg-surface/80 px-5 text-[13px] font-semibold text-ink backdrop-blur-xl transition active:scale-95"
           >
-            Sign in
+            {t.signup.signIn}
           </Link>
         </header>
 
@@ -101,16 +101,16 @@ export default function SignupPage() {
             <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/70 px-3 py-1.5 backdrop-blur-xl">
               <span className="h-2 w-2 rounded-full bg-gold" />
               <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
-                Get started with Ciiya
+                {t.signup.badge}
               </span>
             </div>
 
             <h1 className="mt-6 text-[clamp(2.7rem,7vw,5rem)] font-semibold leading-[0.95] tracking-[-0.05em] text-ink">
-              Start keeping your important photos<br />beautifully
+              {t.signup.headline}
             </h1>
 
             <p className="mt-4 max-w-[320px] text-[14px] font-normal leading-6 text-muted">
-              Create jobs, upload photos, share galleries, and deliver memories like a pro
+              {t.signup.subtitle}
             </p>
           </div>
 
@@ -121,7 +121,7 @@ export default function SignupPage() {
                   htmlFor="signup-email"
                   className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.12em] text-muted"
                 >
-                  Email
+                  {t.signup.email}
                 </label>
                 <input
                   id="signup-email"
@@ -142,7 +142,7 @@ export default function SignupPage() {
                     htmlFor="signup-password"
                     className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.12em] text-muted"
                   >
-                    Password
+                    {t.signup.password}
                   </label>
                   <input
                     id="signup-password"
@@ -150,7 +150,7 @@ export default function SignupPage() {
                     autoComplete="new-password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
-                    placeholder="At least 6 characters"
+                    placeholder={t.signup.passwordHint}
                     required
                     minLength={6}
                     className="h-13 w-full rounded-control border border-line bg-ground px-4 text-[15px] text-ink outline-none transition placeholder:text-muted/60 focus:border-gold focus:bg-white focus:ring-4 focus:ring-gold/10"
@@ -162,7 +162,7 @@ export default function SignupPage() {
                     htmlFor="signup-confirm-password"
                     className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.12em] text-muted"
                   >
-                    Confirm password
+                    {t.signup.confirmPassword}
                   </label>
                   <input
                     id="signup-confirm-password"
@@ -170,7 +170,7 @@ export default function SignupPage() {
                     autoComplete="new-password"
                     value={confirmPassword}
                     onChange={(event) => setConfirmPassword(event.target.value)}
-                    placeholder="Enter it again"
+                    placeholder={t.signup.confirmPlaceholder}
                     required
                     minLength={6}
                     className="h-13 w-full rounded-control border border-line bg-ground px-4 text-[15px] text-ink outline-none transition placeholder:text-muted/60 focus:border-gold focus:bg-white focus:ring-4 focus:ring-gold/10"
@@ -183,21 +183,21 @@ export default function SignupPage() {
                 disabled={emailLoading}
                 className="flex h-13 w-full items-center justify-center rounded-control bg-ink px-5 text-[15px] font-medium text-white transition hover:bg-ink-soft active:scale-[0.98] disabled:cursor-wait disabled:opacity-50"
               >
-                {emailLoading ? 'Creating account…' : 'Sign up with email'}
+                {emailLoading ? t.signup.creating : t.signup.signUpEmail}
               </button>
             </form>
 
             <div className="my-5 flex items-center gap-3" aria-hidden="true">
               <span className="h-px flex-1 bg-line" />
               <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">
-                or
+                {t.signup.or}
               </span>
               <span className="h-px flex-1 bg-line" />
             </div>
 
             <GoogleSignInButton
               next="/albums"
-              label="Sign up with Google"
+              label={t.signup.signUpGoogle}
               onError={handleProviderError}
             />
 
@@ -215,14 +215,14 @@ export default function SignupPage() {
 
             <div className="mt-4 rounded-panel bg-ground px-4 py-4 text-center">
               <p className="text-[13px] font-normal text-muted">
-                Already have an account?
+                {t.signup.haveAccount}
               </p>
 
               <Link
                 href="/login"
                 className="mt-2 inline-block text-[13px] font-semibold text-ink underline decoration-gold decoration-2 underline-offset-4"
               >
-                Sign in
+                {t.signup.signIn}
               </Link>
             </div>
           </div>

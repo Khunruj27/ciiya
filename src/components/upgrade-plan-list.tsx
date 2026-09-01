@@ -3,6 +3,7 @@
 import { useSearchParams } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { formatStorage } from '@/lib/format-storage'
+import { useI18n } from '@/components/i18n-provider'
 
 type Plan = {
   id: string
@@ -29,6 +30,7 @@ export default function UpgradePlanList({
   currentSubscription,
   totalBytes = 0,
 }: Props) {
+  const { t } = useI18n()
   const searchParams = useSearchParams()
   const [loadingPlanId, setLoadingPlanId] = useState<string | null>(null)
 
@@ -74,7 +76,7 @@ export default function UpgradePlanList({
     const data = await res.json().catch(() => null)
 
     if (!res.ok) {
-      throw new Error(data?.error || 'Checkout failed')
+      throw new Error(data?.error || t.pricing.checkoutFailed)
     }
 
     if (endpoint === '/api/stripe/change-plan') {
@@ -83,12 +85,12 @@ export default function UpgradePlanList({
     }
 
     if (!data?.url) {
-      throw new Error('Missing checkout URL')
+      throw new Error(t.pricing.missingCheckoutUrl)
     }
 
     window.location.assign(data.url)
   } catch (err) {
-    alert(err instanceof Error ? err.message : 'Checkout error')
+    alert(err instanceof Error ? err.message : t.pricing.checkoutError)
   } finally {
     setLoadingPlanId(null)
   }
@@ -179,18 +181,18 @@ export default function UpgradePlanList({
 
                 {isPopular ? (
                   <p className="mt-1 text-xs font-bold leading-5 text-gold-deep">
-                    Great for photographers and client galleries
+                    {t.pricing.popular}
                   </p>
                 ) : null}
               </div>
 
               <div className="shrink-0 text-right">
                 <p className="text-[28px] font-semibold leading-none tracking-[-0.07em] text-ink">
-                  {plan.price_thb === 0 ? 'Free' : `฿${plan.price_thb}`}
+                  {plan.price_thb === 0 ? t.pricing.free : `฿${plan.price_thb}`}
                 </p>
 
                 <p className="mt-1 text-[11px] font-bold text-muted">
-                  {plan.price_thb === 0 ? 'Starter' : '/ month'}
+                  {plan.price_thb === 0 ? t.pricing.starter : t.pricing.perMonth}
                 </p>
               </div>
             </div>
@@ -198,7 +200,7 @@ export default function UpgradePlanList({
             <div className="mt-4 grid grid-cols-2 gap-2">
               <div className="rounded-panel bg-white/65 px-3 py-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-                  Storage
+                  {t.pricing.storage}
                 </p>
                 <p className="mt-1 text-sm font-semibold text-ink">
                   {storageLabel}
@@ -207,17 +209,17 @@ export default function UpgradePlanList({
 
               <div className="rounded-panel bg-white/65 px-3 py-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-                  Delivery
+                  {t.pricing.delivery}
                 </p>
                 <p className="mt-1 text-sm font-semibold text-ink">
-                  Gallery
+                  {t.pricing.gallery}
                 </p>
               </div>
             </div>
 
             {cannotDowngrade ? (
               <p className="mt-3 rounded-panel bg-red-50 px-3 py-3 text-xs font-bold leading-5 text-red-600">
-                Your current usage exceeds this plan’s limit
+                {t.pricing.exceedsLimit}
               </p>
             ) : null}
 
@@ -236,16 +238,16 @@ export default function UpgradePlanList({
               }`}
             >
               {isCurrent
-                ? 'Current plan'
+                ? t.pricing.currentPlan
                 : cannotDowngrade
-                  ? 'Not enough space'
+                  ? t.pricing.notEnoughSpace
                   : loadingPlanId === plan.id
-                    ? 'Processing…'
+                    ? t.pricing.processing
                     : plan.price_thb === 0
-                      ? 'Use the free plan'
+                      ? t.pricing.useFree
                       : isPopular
-                        ? 'Upgrade plan'
-                        : 'Choose plan'}
+                        ? t.pricing.upgradePlan
+                        : t.pricing.choosePlan}
             </button>
           </div>
         )

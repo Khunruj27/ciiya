@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { useI18n } from '@/components/i18n-provider'
 
 type Props = {
   onSuccess?: () => void
@@ -13,6 +14,7 @@ type UploadProfile = 'quick' | 'standard' | 'professional' | 'original'
 
 export default function CreateAlbumForm({ onSuccess }: Props) {
   const router = useRouter()
+  const { t } = useI18n()
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -30,7 +32,7 @@ export default function CreateAlbumForm({ onSuccess }: Props) {
     setError('')
 
     if (!title.trim()) {
-      setError('Please enter a job name')
+      setError(t.createAlbum.enterName)
       return
     }
 
@@ -55,7 +57,7 @@ export default function CreateAlbumForm({ onSuccess }: Props) {
       const data = await res.json().catch(() => null)
 
       if (!res.ok) {
-        setError(data?.error || 'Failed to create job')
+        setError(data?.error || t.createAlbum.failed)
         return
       }
 
@@ -71,7 +73,7 @@ export default function CreateAlbumForm({ onSuccess }: Props) {
       router.refresh()
       onSuccess?.()
     } catch {
-      setError('Failed to create job')
+      setError(t.createAlbum.failed)
     } finally {
       setLoading(false)
     }
@@ -82,7 +84,7 @@ export default function CreateAlbumForm({ onSuccess }: Props) {
       <div className="space-y-3">
         <input
           type="text"
-          placeholder="Job name"
+          placeholder={t.createAlbum.namePlaceholder}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           disabled={loading}
@@ -90,7 +92,7 @@ export default function CreateAlbumForm({ onSuccess }: Props) {
         />
 
         <textarea
-          placeholder="Job description (optional)"
+          placeholder={t.createAlbum.descPlaceholder}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           disabled={loading}
@@ -104,7 +106,7 @@ export default function CreateAlbumForm({ onSuccess }: Props) {
         disabled={loading}
         className="flex h-13 min-h-13 w-full items-center justify-center rounded-control bg-ink px-5 text-[15px] font-medium text-white transition hover:bg-ink-soft disabled:opacity-50"
       >
-        {loading ? 'Creating job…' : 'Create job'}
+        {loading ? t.createAlbum.creating : t.createAlbum.create}
       </button>
       {error ? (
   <p className="px-2 text-sm font-semibold text-red-500">

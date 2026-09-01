@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import NextImage from 'next/image'
 import { createClient } from '@/lib/supabase-client'
 import AppIcon from '@/components/app-icon'
+import { useI18n } from '@/components/i18n-provider'
 
 const PROVINCES_BY_REGION: Record<string, string[]> = {
   'Northern': [
@@ -101,6 +102,7 @@ const PROVINCES_BY_REGION: Record<string, string[]> = {
 const REGIONS = Object.keys(PROVINCES_BY_REGION)
 
 export default function EditProfilePage() {
+  const { t } = useI18n()
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
 
@@ -131,7 +133,7 @@ export default function EditProfilePage() {
       const displayName =
         user.user_metadata?.full_name ||
         user.user_metadata?.name ||
-        'User Name'
+        t.meEdit.defaultUser
 
       const currentAvatar =
         user.user_metadata?.avatar_url ||
@@ -390,7 +392,7 @@ async function uploadAvatar() {
       const nextName = name.trim()
 
       if (!nextName) {
-  setMessage('Please enter your name')
+  setMessage(t.meEdit.enterName)
   setLoading(false)
   return
 }
@@ -426,7 +428,7 @@ async function uploadAvatar() {
       await supabase.auth.refreshSession()
       router.replace(`/me?updated=${Date.now()}`)
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Update failed')
+      setMessage(error instanceof Error ? error.message : t.meEdit.updateFailed)
     } finally {
       setLoading(false)
     }
@@ -477,7 +479,7 @@ async function uploadAvatar() {
   </button>
 
   <h1 className="text-[28px] font-semibold tracking-[-0.05em]">
-    Edit profile
+    {t.meEdit.editProfile}
   </h1>
 
   <div className="w-11" />
@@ -489,7 +491,7 @@ async function uploadAvatar() {
               {previewUrl ? (
                 <NextImage
                   src={previewUrl}
-                  alt={name || 'Profile'}
+                  alt={name || t.meEdit.profileAlt}
                   fill
                   sizes="128px"
                   unoptimized={previewUrl.startsWith('blob:')}
@@ -519,7 +521,7 @@ async function uploadAvatar() {
           </div>
 
           <h2 className="mt-6 max-w-full truncate text-[24px] sm:text-[32px] font-semibold leading-none tracking-[-0.06em]">
-            {name || 'Ciiya user'}
+            {name || t.meEdit.defaultUser}
           </h2>
 
           <p className="mt-3 max-w-full truncate text-[14px] sm:text-[19px] font-medium text-muted">
@@ -529,13 +531,13 @@ async function uploadAvatar() {
 
         <section className="mt-7">
           <h2 className="mb-3 px-2 text-[22px] sm:text-[28px] font-semibold tracking-[-0.05em]">
-            Account details
+            {t.meEdit.accountDetails}
           </h2>
 
           <div className="overflow-hidden rounded-panel sm:rounded-hero bg-surface border border-line">
             <div className="px-4 py-2.5">
               <label className="block text-[13px] font-semibold text-muted">
-                Name
+                {t.meEdit.name}
               </label>
 
               <input
@@ -545,7 +547,7 @@ async function uploadAvatar() {
                   setName(e.target.value)
                   setMessage('')
                 }}
-                placeholder="Your name"
+                placeholder={t.meEdit.yourName}
                 className="mt-1 h-9 w-full appearance-none bg-transparent text-[15px] font-semibold text-ink outline-none"
                 disabled={loading}
               />
@@ -555,7 +557,7 @@ async function uploadAvatar() {
 
             <div className="px-4 py-2.5">
               <label className="block text-[13px] font-semibold text-muted">
-                Email
+                {t.meEdit.email}
               </label>
 
               <input
@@ -570,7 +572,7 @@ async function uploadAvatar() {
 
             <div className="px-5 py-2.5">
               <label className="block text-[13px] font-semibold text-muted">
-                Region
+                {t.meEdit.region}
               </label>
 
               <select
@@ -583,10 +585,10 @@ async function uploadAvatar() {
                 disabled={loading}
                 className="mt-1 h-9 w-full appearance-none bg-transparent text-[15px] font-semibold text-ink outline-none"
               >
-                <option value="">Select region</option>
+                <option value="">{t.meEdit.selectRegion}</option>
                 {REGIONS.map((item) => (
                   <option key={item} value={item}>
-                    {item}
+                    {t.meEdit.regions[item] || item}
                   </option>
                 ))}
               </select>
@@ -596,7 +598,7 @@ async function uploadAvatar() {
 
             <div className="px-5 py-5">
               <label className="block text-[13px] font-semibold text-muted">
-                Province
+                {t.meEdit.province}
               </label>
 
               <select
@@ -609,7 +611,7 @@ async function uploadAvatar() {
                 className="mt-2 h-8 w-full appearance-none bg-transparent text-[14px] font-semibold text-ink outline-none disabled:text-muted"
               >
                 <option value="">
-                  {region ? 'Select province' : 'Select a region first'}
+                  {region ? t.meEdit.selectProvince : t.meEdit.selectRegionFirst}
                 </option>
                 {provinceOptions.map((item) => (
                   <option key={item} value={item}>
@@ -634,7 +636,7 @@ async function uploadAvatar() {
             disabled={loading}
             className="flex h-12 w-full items-center justify-center rounded-control bg-ink text-[15px] font-medium text-white transition active:scale-[0.98] disabled:opacity-50"
           >
-            {loading ? 'Saving…' : 'Save changes'}
+            {loading ? t.meEdit.saving : t.meEdit.saveChanges}
           </button>
         </section>
 
@@ -647,11 +649,11 @@ async function uploadAvatar() {
 
               <div>
                 <p className="text-[16px] font-bold tracking-[-0.03em]">
-                  Sync profile
+                  {t.meEdit.syncTitle}
                 </p>
 
                 <p className="mt-1 text-[13px] font-medium leading-relaxed text-muted">
-                  Your name, profile photo, region, and province update across the app after saving
+                  {t.meEdit.syncDesc}
                 </p>
               </div>
             </div>

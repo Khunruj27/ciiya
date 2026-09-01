@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import UpgradePlanList from '@/components/upgrade-plan-list'
+import { getServerDictionary } from '@/lib/i18n-server'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -14,6 +15,8 @@ export default async function PricingPage() {
   } = await supabase.auth.getUser()
 
   if (!user) redirect('/login')
+
+  const { t } = await getServerDictionary()
 
   const { data: plans, error: plansError } = await supabase
     .from('plans')
@@ -76,13 +79,13 @@ const currentSubscription = activeSubscription
           </Link>
 
           <div className="rounded-full border border-line bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted backdrop-blur-xl">
-            Plan
+            {t.pricing.plan}
           </div>
         </div>
 
         <section className="mt-8">
           <h1 className="mt-3 text-[44px] font-semibold leading-[0.9] tracking-[-0.08em] text-ink">
-            Choose the space that fits you
+            {t.pricing.chooseSpace}
           </h1>
         </section>
 
@@ -90,10 +93,10 @@ const currentSubscription = activeSubscription
           <div className="mb-5 flex items-center justify-between">
             <div>
               <h2 className="text-[24px] font-semibold tracking-[-0.05em]">
-                Available plans
+                {t.pricing.availablePlans}
               </h2>
               <p className="mt-1 text-xs font-semibold text-muted">
-                Change your plan as your workload grows
+                {t.pricing.changeAnytime}
               </p>
             </div>
 
@@ -115,11 +118,11 @@ const currentSubscription = activeSubscription
               </div>
 
               <h2 className="mt-4 text-base font-semibold text-ink">
-                No plans found yet
+                {t.pricing.noPlans}
               </h2>
 
               <p className="mt-2 text-xs leading-5 text-muted">
-                Please add plan data, then reload this page
+                {t.pricing.noPlansSub}
               </p>
             </div>
           )}

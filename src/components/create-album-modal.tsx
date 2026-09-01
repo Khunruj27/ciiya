@@ -4,8 +4,10 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import CreateAlbumForm from '@/components/create-album-form'
 import Image from 'next/image'
+import { useI18n } from '@/components/i18n-provider'
 
 export default function CreateAlbumModal() {
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
 
   const mounted = useSyncExternalStore(
@@ -39,11 +41,11 @@ export default function CreateAlbumModal() {
               <div className="mb-3 flex items-center justify-between">
                 <div>
                   <h2 className="mt-2 text-[28px] font-semibold tracking-[-0.04em] text-ink">
-                    Create new job
+                    {t.createAlbum.newJob}
                   </h2>
 
                   <p className="mt-2 text-[15px] text-muted">
-                    Name the job and start uploading photos right away
+                    {t.createAlbum.newJobSub}
                   </p>
                 </div>
 
@@ -51,7 +53,7 @@ export default function CreateAlbumModal() {
                   type="button"
                   onClick={() => setOpen(false)}
                   className="flex h-11 w-11 items-center justify-center rounded-full bg-ground-sunken text-[22px] font-bold text-black transition active:scale-[0.95]"
-                  aria-label="Close create-job dialog"
+                  aria-label={t.createAlbum.close}
                 >
                   ✕
                 </button>
@@ -80,7 +82,7 @@ export default function CreateAlbumModal() {
 />
 
         <span className="text-[15px] text-black font-semibold leading-none tracking-[-0.02em]">
-          Create new job
+          {t.createAlbum.newJob}
         </span>
       </button>
 

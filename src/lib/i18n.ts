@@ -37,6 +37,7 @@ const th = {
     language: 'ภาษา',
     thai: 'ไทย',
     english: 'อังกฤษ',
+    backToTop: 'ขึ้นบน',
   },
   me: {
     title: 'โปรไฟล์',
@@ -519,6 +520,7 @@ const en = {
     language: 'Language',
     thai: 'Thai',
     english: 'English',
+    backToTop: 'Back to top',
   },
   me: {
     title: 'Profile',

@@ -85,7 +85,7 @@ export default async function SharePage({ params }: PageProps) {
     <section className="overflow-hidden rounded-hero border border-line bg-surface shadow-card">
       <div className="relative px-5 py-7 sm:px-8 sm:py-9">
         <div aria-hidden className="absolute -right-16 -top-20 h-48 w-48 rounded-full bg-gold/20 blur-3xl" />
-        <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+        <div className="relative flex flex-col items-center gap-6 text-center">
           <div className="max-w-xl">
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-deep">
               {t.share.contactEyebrow}
@@ -93,12 +93,12 @@ export default async function SharePage({ params }: PageProps) {
             <h2 className="mt-3 text-[30px] font-semibold leading-tight tracking-[-0.035em] sm:text-[38px]">
               {t.share.contactHeading}
             </h2>
-            <p className="mt-3 text-[13px] leading-6 text-muted sm:text-[14px]">
+            <p className="mx-auto mt-3 max-w-md text-[13px] leading-6 text-muted sm:text-[14px]">
               {t.share.contactSub}
             </p>
           </div>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center justify-center gap-2.5">
             {contact.phone ? (
               <a
                 href={telUrl(contact.phone)}

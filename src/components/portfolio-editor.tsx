@@ -21,6 +21,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { createClient } from '@/lib/supabase-client'
+import { useI18n } from '@/components/i18n-provider'
 import { refreshPortfolioCache } from '@/app/portfolio/actions'
 import { resizeImageToJpeg } from '@/lib/resize-image'
 import type { Portfolio } from '@/lib/portfolio-types'
@@ -57,6 +58,14 @@ const TEMPLATE_GROUPS = [
 ] as const
 
 type TemplateGroup = (typeof TEMPLATE_GROUPS)[number]['key']
+type EditorSection = 'profile' | 'photos' | 'design' | 'contact'
+
+const EDITOR_SECTIONS: { key: EditorSection; label: string; short: string }[] = [
+  { key: 'profile', label: 'ข้อมูลหลัก', short: 'ข้อมูล' },
+  { key: 'photos', label: 'รูปภาพ', short: 'รูปภาพ' },
+  { key: 'design', label: 'รูปแบบ', short: 'รูปแบบ' },
+  { key: 'contact', label: 'ติดต่องาน', short: 'ติดต่อ' },
+]
 
 const GALLERY_LAYOUTS: {
   key: Portfolio['gallery_layout']
@@ -80,6 +89,7 @@ export default function PortfolioEditor({
   userId,
   origin,
 }: Props) {
+  const { t } = useI18n()
   const supabase = useMemo(() => createClient(), [])
 
   const [form, setForm] = useState<Portfolio>(initial)
@@ -91,6 +101,7 @@ export default function PortfolioEditor({
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadLabel, setUploadLabel] = useState('')
   const [templateGroup, setTemplateGroup] = useState<TemplateGroup>('all')
+  const [editorSection, setEditorSection] = useState<EditorSection>('profile')
 
   const heroInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
@@ -123,13 +134,9 @@ export default function PortfolioEditor({
     name: Boolean(saved.display_name?.trim()),
     image: Boolean(saved.hero_photo_url || saved.gallery_urls.length > 0),
     contact: Boolean(
-      (saved.contact_line?.trim() && saved.show_contact_line !== false) ||
       (saved.contact_phone?.trim() && saved.show_contact_phone !== false) ||
       (saved.contact_facebook?.trim() && saved.show_contact_facebook !== false) ||
-      (saved.contact_instagram?.trim() && saved.show_contact_instagram !== false) ||
-      (saved.contact_tiktok?.trim() && saved.show_contact_tiktok !== false) ||
-      (saved.contact_email?.trim() && saved.show_contact_email !== false) ||
-      (saved.contact_website?.trim() && saved.show_contact_website !== false)
+      (saved.contact_instagram?.trim() && saved.show_contact_instagram !== false)
     ),
   }
   const readyToPublish = Object.values(publishChecks).every(Boolean)
@@ -176,22 +183,22 @@ export default function PortfolioEditor({
     if (!file) return
 
     if (!file.type.startsWith('image/') || file.size > MAX_SOURCE_FILE_BYTES) {
-      setError('Supports image files up to 30 MB')
+      setError(t.pe.notImages)
       return
     }
 
     setUploading('hero')
     setUploadProgress(0)
-    setUploadLabel('Preparing cover image')
+    setUploadLabel(t.pe.preparingCover)
     setError('')
     try {
       const url = await uploadImage(file, (value) => {
         setUploadProgress(value)
-        setUploadLabel(value < 40 ? 'Resizing image' : value < 100 ? 'Uploading cover image' : 'Cover image uploaded')
+        setUploadLabel(value < 40 ? t.pe.resizingImage : value < 100 ? t.pe.uploadingCover : t.pe.coverUploaded)
       })
       set('hero_photo_url', url)
     } catch {
-      setError('Upload failed. Try again')
+      setError(t.pe.uploadFailed)
     } finally {
       setUploading(null)
       setTimeout(() => {
@@ -214,19 +221,19 @@ export default function PortfolioEditor({
           !file.type.startsWith('image/') || file.size > MAX_SOURCE_FILE_BYTES
       )
     ) {
-      setError('Some files aren’t images or exceed 30 MB')
+      setError(t.pe.notImages)
       return
     }
 
     const room = MAX_GALLERY - form.gallery_urls.length
     if (room <= 0) {
-      setError(`You can add up to ${MAX_GALLERY} photos`)
+      setError(t.pe.addUpToMax(MAX_GALLERY))
       return
     }
 
     setUploading('gallery')
     setUploadProgress(0)
-    setUploadLabel('Preparing photos')
+    setUploadLabel(t.pe.preparingPhotos)
     setError('')
     const uploaded: string[] = []
     try {
@@ -240,8 +247,8 @@ export default function PortfolioEditor({
             setUploadProgress(total)
             setUploadLabel(
               total < 100
-                ? `Uploading photo ${index + 1} of ${selectedFiles.length}`
-                : `Upload complete ${selectedFiles.length} photos`
+                ? t.pe.uploadPhotoProgress(index + 1, selectedFiles.length)
+                : t.pe.uploadComplete(selectedFiles.length)
             )
           })
         )
@@ -261,8 +268,8 @@ export default function PortfolioEditor({
       }
       setError(
         uploaded.length > 0
-          ? `Upload complete ${uploaded.length} photos. The rest failed`
-          : 'Upload failed. Try again'
+          ? t.pe.uploadCompletePartial(uploaded.length)
+          : t.pe.uploadFailed
       )
     } finally {
       setUploading(null)
@@ -397,10 +404,10 @@ export default function PortfolioEditor({
       setStatus('idle')
       setError(
         code === '23505'
-          ? 'This link is already taken. Try a different name'
+          ? t.pe.linkTaken
           : code === '23514'
-            ? 'The selected style isn’t ready in the database yet. Please run the latest migration and try again'
-          : 'Save failed. Try again'
+            ? t.pe.styleNotReady
+          : t.pe.saveFailed
       )
     }
   }
@@ -409,12 +416,12 @@ export default function PortfolioEditor({
     const next = !saved.is_published
 
     if (next && dirty) {
-      setError('Save your changes before publishing')
+      setError(t.pe.saveBeforePublishing)
       return
     }
 
     if (next && !readyToPublish) {
-      setError('Add a name, photos, and contact channels before publishing')
+      setError(t.pe.addBeforePublishing)
       return
     }
 
@@ -428,7 +435,7 @@ export default function PortfolioEditor({
       setStatus('idle')
     } catch {
       setStatus('idle')
-      setError('Couldn’t change the status. Try again')
+      setError(t.pe.statusChangeFailed)
     }
   }
 
@@ -438,7 +445,7 @@ export default function PortfolioEditor({
       setCopied(true)
       setTimeout(() => setCopied(false), 1800)
     } catch {
-      setError('Couldn’t copy')
+      setError(t.pe.cantCopy)
     }
   }
 
@@ -455,18 +462,18 @@ export default function PortfolioEditor({
       await handleCopy()
     } catch (caught) {
       if ((caught as { name?: string })?.name !== 'AbortError') {
-        setError('Couldn’t share the link')
+        setError(t.pe.cantShare)
       }
     }
   }
 
   return (
-    <div className="mt-6 space-y-3">
+    <div className="mt-4 space-y-3">
       {/* ── STATUS ────────────────────────────────────────────────────
           Published or not, and the link itself. This is what the owner
           comes to this screen for, so it sits above the form. */}
       <section
-        className={`rounded-hero p-5 ${
+        className={`rounded-panel p-4 sm:p-5 ${
           saved.is_published
             ? 'bg-ink text-white'
             : 'border border-line bg-surface'
@@ -483,12 +490,12 @@ export default function PortfolioEditor({
               saved.is_published ? 'text-white/50' : 'text-muted'
             }`}
           >
-            {saved.is_published ? 'Published' : 'Not published'}
+            {saved.is_published ? t.pe.published : t.pe.notPublished}
           </p>
         </div>
 
         <p
-          className={`mt-3 break-all text-[15px] font-semibold tracking-[-0.01em] ${
+          className={`mt-2 break-all text-[13px] font-semibold tracking-[-0.01em] ${
             saved.is_published ? 'text-white' : 'text-ink'
           }`}
         >
@@ -496,23 +503,23 @@ export default function PortfolioEditor({
         </p>
 
         <p
-          className={`mt-1.5 text-[12px] font-normal leading-relaxed ${
+          className={`mt-1 text-[11px] font-normal leading-relaxed ${
             saved.is_published ? 'text-white/50' : 'text-muted'
           }`}
         >
           {saved.is_published
-            ? 'This link is ready to send to clients'
-            : 'Save, then view your Portfolio right away, and publish when ready'}
+            ? t.pe.linkReady
+            : t.pe.saveThenView}
         </p>
 
         {!saved.is_published ? (
-          <div className="mt-4 grid grid-cols-3 gap-2" aria-label="Readiness before publishing">
+          <div className="mt-3 flex flex-wrap gap-1.5" aria-label={t.pe.readiness}>
             {[
-              ['Name', publishChecks.name],
-              ['Photos', publishChecks.image],
-              ['Contact channels', publishChecks.contact],
+              [t.pe.checkName, publishChecks.name],
+              [t.pe.checkPhotos, publishChecks.image],
+              [t.pe.checkContact, publishChecks.contact],
             ].map(([label, complete]) => (
-              <div key={String(label)} className={`rounded-control border px-2 py-2 text-center text-[10px] font-medium ${complete ? 'border-gold/35 bg-gold-soft text-gold-deep' : 'border-line bg-ground-sunken text-muted'}`}>
+              <div key={String(label)} className={`rounded-full border px-2.5 py-1.5 text-center text-[9px] font-medium ${complete ? 'border-gold/35 bg-gold-soft text-gold-deep' : 'border-line bg-ground-sunken text-muted'}`}>
                 <span className="mr-1" aria-hidden>{complete ? '✓' : '○'}</span>
                 {String(label)}
               </div>
@@ -520,10 +527,10 @@ export default function PortfolioEditor({
           </div>
         ) : null}
 
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-wrap gap-2">
           {dirty ? (
             <span className={`inline-flex h-11 items-center rounded-full px-5 text-[13px] font-semibold opacity-50 ${saved.is_published ? 'bg-gold text-ink' : 'bg-ink text-white'}`}>
-              Save before previewing
+              {t.pe.saveBeforePreview}
             </span>
           ) : (
             <a
@@ -532,7 +539,7 @@ export default function PortfolioEditor({
               rel="noreferrer"
               className={`inline-flex h-11 items-center rounded-full px-5 text-[13px] font-semibold transition active:scale-[0.97] ${saved.is_published ? 'bg-gold text-ink' : 'bg-ink text-white'}`}
             >
-              View Portfolio
+              {t.pe.viewPortfolio}
             </a>
           )}
 
@@ -546,16 +553,16 @@ export default function PortfolioEditor({
                 : 'border border-line text-muted'
             }`}
           >
-            {saved.is_published ? 'Unpublish' : 'Publish portfolio'}
+            {saved.is_published ? t.pe.unpublish : t.pe.publishPortfolio}
           </button>
 
           {saved.is_published ? (
             <>
               <button type="button" onClick={handleShare} className="inline-flex h-11 items-center rounded-full border border-white/20 px-5 text-[13px] font-semibold text-white transition active:scale-[0.97]">
-                Share Portfolio
+                {t.pe.sharePortfolio}
               </button>
               <button type="button" onClick={handleCopy} className="inline-flex h-11 items-center rounded-full border border-white/20 px-5 text-[13px] font-semibold text-white transition active:scale-[0.97]">
-                {copied ? 'Copied' : 'Copy link'}
+                {copied ? t.pe.copied : t.pe.copyLink}
               </button>
             </>
           ) : null}
@@ -563,13 +570,51 @@ export default function PortfolioEditor({
 
       </section>
 
+      <nav
+        className="sticky top-3 z-30 grid grid-cols-4 gap-1 rounded-[18px] border border-line bg-surface/95 p-1.5 shadow-card backdrop-blur-xl"
+        aria-label="ส่วนแก้ไขพอร์ตโฟลิโอ"
+      >
+        {EDITOR_SECTIONS.map((section) => (
+          <button
+            key={section.key}
+            type="button"
+            onClick={() => setEditorSection(section.key)}
+            aria-pressed={editorSection === section.key}
+            className={`h-10 rounded-[13px] px-2 text-[11px] font-semibold transition active:scale-95 sm:text-[12px] ${
+              editorSection === section.key
+                ? 'bg-ink text-white'
+                : 'text-muted hover:bg-ground hover:text-ink'
+            }`}
+          >
+            <span className="sm:hidden">{section.short}</span>
+            <span className="hidden sm:inline">{section.label}</span>
+          </button>
+        ))}
+      </nav>
+
+      <details className="overflow-hidden rounded-panel border border-line bg-surface lg:hidden">
+        <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 text-[12px] font-semibold text-ink [&::-webkit-details-marker]:hidden">
+          <span>ดูตัวอย่างบนมือถือ</span>
+          <span className="rounded-full bg-gold-soft px-2.5 py-1 text-[9px] text-gold-deep">
+            {getPortfolioTemplate(form.layout)?.label}
+          </span>
+        </summary>
+        <div className="border-t border-line bg-ground-sunken p-4">
+          <div data-accent={form.accent} className="mx-auto max-w-[220px] overflow-hidden rounded-[24px] border-[4px] border-ink bg-ground p-1 shadow-card">
+            <div className="overflow-hidden rounded-[17px]">
+              <TemplatePreview template={form.layout} portfolio={form} featured />
+            </div>
+          </div>
+        </div>
+      </details>
+
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_420px] xl:grid-cols-[minmax(0,1fr)_500px]">
         <div className="min-w-0 space-y-3">
 
       {/* ── IDENTITY ─────────────────────────────────────────────── */}
-      <div className={'space-y-3'}>
-      <Card id="portfolio-identity" title="Identity" hint="The name and opening line clients see first">
-        <Field label="Portfolio link">
+      <div className={editorSection === 'profile' ? 'space-y-3' : 'hidden'}>
+      <Card id="portfolio-identity" title={t.pe.identityTitle} hint={t.pe.identityHint}>
+        <Field label={t.pe.linkLabel}>
           <div className="flex items-center rounded-control border border-line bg-ground-sunken px-3">
             <span className="shrink-0 text-[13px] font-normal text-muted">
               /portfolio/
@@ -595,34 +640,34 @@ export default function PortfolioEditor({
           </div>
           {form.slug && !slugValid ? (
             <p className="mt-1.5 text-[12px] font-normal text-rose">
-              Use a-z, 0-9 and - Length 3–40 characters
+              {t.pe.slugRule}
             </p>
           ) : null}
         </Field>
 
-        <Field label="Display name">
+        <Field label={t.pe.displayNameLabel}>
           <Input
             value={form.display_name || ''}
             onChange={(value) => set('display_name', value)}
-            placeholder="e.g. Ciiya Studio"
+            placeholder={t.pe.displayNamePlaceholder}
             maxLength={60}
           />
         </Field>
 
-        <Field label="Intro line">
+        <Field label={t.pe.introLabel}>
           <Input
             value={form.tagline || ''}
             onChange={(value) => set('tagline', value)}
-            placeholder="Wedding photographer telling stories with natural light"
+            placeholder={t.pe.introPlaceholder}
             maxLength={120}
           />
         </Field>
 
-        <Field label="Service area">
+        <Field label={t.pe.serviceLabel}>
           <Input
             value={form.location || ''}
             onChange={(value) => set('location', value)}
-            placeholder="Chiang Mai · Nationwide"
+            placeholder={t.pe.servicePlaceholder}
             maxLength={60}
           />
         </Field>
@@ -632,11 +677,11 @@ export default function PortfolioEditor({
           Upload a cover of your own, or pick one from an album. Either
           way the page opens on a real photograph, not a placeholder. */}
       </div>
-      <div className={'space-y-3'}>
+      <div className={editorSection === 'photos' ? 'space-y-3' : 'hidden'}>
       <Card
         id="portfolio-images"
-        title="Cover image"
-        hint="The main image clients see first. Upload only the photos you want to use on your portfolio"
+        title={t.pe.coverTitle}
+        hint={t.pe.coverHint}
       >
         <input
           ref={heroInputRef}
@@ -651,7 +696,7 @@ export default function PortfolioEditor({
             {form.hero_photo_url ? (
               <Image
                 src={form.hero_photo_url}
-                alt="Cover image"
+                alt={t.pe.coverTitle}
                 fill
                 unoptimized
                 sizes="96px"
@@ -659,7 +704,7 @@ export default function PortfolioEditor({
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center px-2 text-center text-[10px] font-medium leading-tight text-muted">
-                Automatic
+                {t.pe.automatic}
               </div>
             )}
           </div>
@@ -671,7 +716,7 @@ export default function PortfolioEditor({
               disabled={uploading === 'hero'}
               className="inline-flex h-11 items-center justify-center rounded-full bg-ink px-4 text-[13px] font-semibold text-white transition active:scale-[0.98] disabled:opacity-60"
             >
-              {uploading === 'hero' ? 'Uploading…' : 'Upload your own'}
+              {uploading === 'hero' ? t.pe.uploading : t.pe.uploadOwn}
             </button>
 
             {form.hero_photo_url ? (
@@ -680,20 +725,20 @@ export default function PortfolioEditor({
                 onClick={() => set('hero_photo_url', null)}
                 className="inline-flex h-11 items-center justify-center rounded-full border border-line px-4 text-[13px] font-semibold text-muted transition active:scale-[0.98]"
               >
-                Use automatic
+                {t.pe.useAutomatic}
               </button>
             ) : null}
           </div>
         </div>
 
-        {uploading === 'hero' || (uploadLabel.includes('Cover') && uploadProgress > 0) ? (
+        {uploading === 'hero' ? (
           <UploadProgress value={uploadProgress} label={uploadLabel} />
         ) : null}
 
         {form.gallery_urls.length > 0 ? (
           <div>
             <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
-              Or choose a cover from the gallery
+              {t.pe.orChooseCover}
             </p>
             <div className="pf-gallery-scroll flex gap-2 overflow-x-auto pb-1">
               {form.gallery_urls.map((url, index) => {
@@ -717,14 +762,16 @@ export default function PortfolioEditor({
         ) : null}
 
       </Card>
+      </div>
 
       {/* ── GALLERY ──────────────────────────────────────────────────
           The owner's own images, uploaded straight here. When there are
           any, they become the photographs the public page shows — no
           album required. */}
+      <div className={editorSection === 'photos' ? 'space-y-3' : 'hidden'}>
       <Card
-        title="Photo gallery"
-        hint="Upload, reorder, and choose the layout clients will actually see"
+        title={t.pe.galleryTitle}
+        hint={t.pe.galleryHint}
       >
         <input
           ref={galleryInputRef}
@@ -766,7 +813,7 @@ export default function PortfolioEditor({
 
         {form.gallery_urls.length > 1 ? (
           <p className="rounded-control bg-gold-soft px-3 py-2.5 text-[11px] leading-relaxed text-gold-deep">
-            Press and hold the handle, then drag to reorder photos on the public page
+            {t.pe.dragHint}
           </p>
         ) : null}
 
@@ -777,7 +824,7 @@ export default function PortfolioEditor({
           className="flex h-12 w-full items-center justify-center gap-2 rounded-control border border-dashed border-line-strong bg-ground-sunken text-[13px] font-semibold text-ink transition active:scale-[0.99] disabled:opacity-50"
         >
           {uploading === 'gallery' ? (
-            'Uploading…'
+            t.pe.uploading
           ) : (
             <>
               <svg
@@ -792,12 +839,12 @@ export default function PortfolioEditor({
               >
                 <path d="M12 5v14M5 12h14" />
               </svg>
-              Add photos
+              {t.pe.addPhotos}
             </>
           )}
         </button>
 
-        {uploading === 'gallery' || (uploadLabel.includes('photos') && uploadProgress > 0) ? (
+        {uploading === 'gallery' ? (
           <UploadProgress value={uploadProgress} label={uploadLabel} />
         ) : null}
 
@@ -805,9 +852,9 @@ export default function PortfolioEditor({
           {form.gallery_urls.length} / {MAX_GALLERY}
         </p>
 
-        <Field label="รูปแบบแกลเลอรี">
-          <p className="mb-3 text-[11px] leading-5 text-muted">เลือกจังหวะการเล่าเรื่องบนมือถือ รูปจริงจะเปลี่ยนในตัวอย่างทันที</p>
-          <div className="grid grid-cols-2 gap-2.5">
+        <Field label={t.pe.galleryLayoutLabel}>
+          <p className="mb-3 text-[11px] leading-5 text-muted">{t.pe.galleryLayoutHint}</p>
+          <div className="-mx-1 flex gap-2.5 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {GALLERY_LAYOUTS.map((option) => {
               const active = (form.gallery_layout || 'carousel') === option.key
               return (
@@ -815,7 +862,7 @@ export default function PortfolioEditor({
                   key={option.key}
                   type="button"
                   onClick={() => set('gallery_layout', option.key)}
-                  className={`overflow-hidden rounded-[18px] border text-left transition active:scale-[0.98] ${active ? 'border-gold bg-gold-soft/35 text-ink shadow-card ring-1 ring-gold/40' : 'border-line bg-surface text-ink'}`}
+                  className={`w-[156px] shrink-0 overflow-hidden rounded-[18px] border text-left transition active:scale-[0.98] sm:w-[176px] ${active ? 'border-gold bg-gold-soft/35 text-ink shadow-card ring-1 ring-gold/40' : 'border-line bg-surface text-ink'}`}
                 >
                   <GalleryLayoutPreview
                     layout={option.key}
@@ -824,10 +871,10 @@ export default function PortfolioEditor({
                   />
                   <div className="p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-[13px] font-semibold">{option.label}</p>
+                      <p className="text-[13px] font-semibold">{t.pe.galleryLayouts[option.key]?.label || option.label}</p>
                       <span className={`grid h-4.5 w-4.5 place-items-center rounded-full border text-[9px] ${active ? 'border-gold bg-gold text-ink' : 'border-line-strong text-transparent'}`}>✓</span>
                     </div>
-                    <p className="mt-1 line-clamp-2 min-h-8 text-[9px] leading-4 text-muted">{option.hint}</p>
+                    <p className="mt-1 line-clamp-2 min-h-8 text-[9px] leading-4 text-muted">{t.pe.galleryLayouts[option.key]?.hint || option.hint}</p>
                   </div>
                 </button>
               )
@@ -838,13 +885,13 @@ export default function PortfolioEditor({
 
       {/* ── ABOUT ────────────────────────────────────────────────── */}
       </div>
-      <div className={'space-y-3'}>
-      <Card id="portfolio-about" title="About you" hint="The paragraph that makes a client reach out">
+      <div className={editorSection === 'profile' ? 'space-y-3' : 'hidden'}>
+      <Card id="portfolio-about" title={t.pe.aboutTitle} hint={t.pe.aboutHint}>
         <textarea
           value={form.bio || ''}
           onChange={(event) => set('bio', event.target.value.slice(0, 1200))}
-          rows={6}
-          placeholder="Tell them what you shoot, how you work, and what makes your work different"
+          rows={4}
+          placeholder={t.pe.aboutPlaceholder}
           className="w-full resize-y rounded-control border border-line bg-ground-sunken px-3.5 py-3 text-[15px] font-normal leading-[1.7] text-ink outline-none placeholder:text-muted/70 focus:border-line-strong"
         />
         <p className="mt-1.5 text-right text-[11px] font-normal text-muted tabular-nums">
@@ -854,26 +901,16 @@ export default function PortfolioEditor({
 
       {/* ── CONTACT ──────────────────────────────────────────────── */}
       </div>
-      <div className={'space-y-3'}>
+      <div className={editorSection === 'contact' ? 'space-y-3' : 'hidden'}>
       <Card
         id="portfolio-contact"
-        title="Contact channels"
-        hint="Add links or details, then show only the channels you want clients to see"
+        title={t.pe.contactTitle}
+        hint={t.pe.contactHint}
       >
         <div className="space-y-2.5">
           <ContactChannel
-            label="LINE"
-            hint="LINE ID or a tap-to-add-friend link"
-            value={form.contact_line || ''}
-            enabled={form.show_contact_line !== false}
-            onChange={(value) => set('contact_line', value)}
-            onToggle={() => set('show_contact_line', form.show_contact_line === false)}
-            placeholder="@ciiya or https://line.me/ti/p/..."
-            inputMode="url"
-          />
-          <ContactChannel
-            label="Phone"
-            hint="Tap to call instantly"
+            label="เบอร์โทรศัพท์"
+            hint={t.pe.hintPhone}
             value={form.contact_phone || ''}
             enabled={form.show_contact_phone !== false}
             onChange={(value) => set('contact_phone', value)}
@@ -883,7 +920,7 @@ export default function PortfolioEditor({
           />
           <ContactChannel
             label="Facebook"
-            hint="Page name or link Facebook"
+            hint={t.pe.hintFacebook}
             value={form.contact_facebook || ''}
             enabled={form.show_contact_facebook !== false}
             onChange={(value) => set('contact_facebook', value)}
@@ -893,7 +930,7 @@ export default function PortfolioEditor({
           />
           <ContactChannel
             label="Instagram"
-            hint="Username or profile link"
+            hint={t.pe.hintInstagram}
             value={form.contact_instagram || ''}
             enabled={form.show_contact_instagram !== false}
             onChange={(value) => set('contact_instagram', value)}
@@ -901,69 +938,39 @@ export default function PortfolioEditor({
             placeholder="@ciiya.studio or https://instagram.com/..."
             inputMode="url"
           />
-          <ContactChannel
-            label="TikTok"
-            hint="Username or profile link TikTok"
-            value={form.contact_tiktok || ''}
-            enabled={form.show_contact_tiktok !== false}
-            onChange={(value) => set('contact_tiktok', value)}
-            onToggle={() => set('show_contact_tiktok', form.show_contact_tiktok === false)}
-            placeholder="@ciiya or https://tiktok.com/@..."
-            inputMode="url"
-          />
-          <ContactChannel
-            label="Email"
-            hint="For sending job details formally"
-            value={form.contact_email || ''}
-            enabled={form.show_contact_email !== false}
-            onChange={(value) => set('contact_email', value)}
-            onToggle={() => set('show_contact_email', form.show_contact_email === false)}
-            placeholder="hello@ciiya.app"
-            inputMode="email"
-          />
-          <ContactChannel
-            label="Website"
-            hint="A website or other portfolio link"
-            value={form.contact_website || ''}
-            enabled={form.show_contact_website !== false}
-            onChange={(value) => set('contact_website', value)}
-            onToggle={() => set('show_contact_website', form.show_contact_website === false)}
-            placeholder="https://ciiya.app"
-            inputMode="url"
-          />
         </div>
 
         <p className="rounded-control bg-gold-soft px-3.5 py-3 text-[12px] leading-relaxed text-gold-deep">
-          Channels left empty or switched off won’t appear on the page you send to clients
+          {t.pe.contactNote}
         </p>
       </Card>
 
       {/* ── STYLE ────────────────────────────────────────────────── */}
       </div>
-      <div className={'space-y-3'}>
+      <div className={editorSection === 'design' ? 'space-y-3' : 'hidden'}>
       <Card
         id="portfolio-design"
-        title="เลือกเทมเพลต Portfolio"
-        hint="ออกแบบสำหรับหน้าจอมือถือโดยเฉพาะ ทุกแบบใช้ชื่อ สี และรูปจริงของคุณ"
+        title={t.pe.designTitle}
+        hint={t.pe.designHint}
       >
         <div className="rounded-[22px] border border-line bg-ground p-4 sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="max-w-lg">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-deep">Ciiya Template Collection</p>
-              <h3 className="mt-2 text-[20px] font-semibold tracking-[-0.03em] text-ink sm:text-[22px]">เลือกบุคลิกที่ใช่ให้ผลงานของคุณ</h3>
-              <p className="mt-1.5 text-[11px] leading-5 text-muted">ทุกการ์ดแสดงสัดส่วนมือถือ 9:16 และเปลี่ยนตัวอย่างจริงทันทีเมื่อเลือก</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-deep">{t.pe.collection}</p>
+              <h3 className="mt-2 text-[20px] font-semibold tracking-[-0.03em] text-ink sm:text-[22px]">{t.pe.choosePersona}</h3>
+              <p className="mt-1.5 text-[11px] leading-5 text-muted">{t.pe.cardsNote}</p>
             </div>
             <div className="flex shrink-0 items-center gap-3 rounded-full border border-gold/45 bg-gold-soft px-4 py-2.5">
               <span className="grid h-6 w-6 place-items-center rounded-full bg-gold text-[10px] font-semibold text-ink">✓</span>
               <div>
-                <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-gold-deep">กำลังใช้งาน</p>
+                <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-gold-deep">{t.pe.active}</p>
                 <p className="text-[12px] font-semibold text-ink">{getPortfolioTemplate(form.layout)?.label}</p>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="กรองเทมเพลต">
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label={t.pe.filterTemplates}>
           {TEMPLATE_GROUPS.map((group) => (
             <button
               key={group.key}
@@ -972,13 +979,13 @@ export default function PortfolioEditor({
               aria-pressed={templateGroup === group.key}
               className={`h-10 shrink-0 rounded-full border px-4 text-[12px] font-semibold transition active:scale-95 ${templateGroup === group.key ? 'border-ink bg-ink text-white' : 'border-line bg-surface text-muted hover:border-line-strong hover:text-ink'}`}
             >
-              {group.label}
+              {t.pe.templateGroups[group.key] || group.label}
             </button>
           ))}
         </div>
 
-        <Field label="รูปแบบหน้า">
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+        <Field label={t.pe.pageStyleLabel}>
+          <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {PORTFOLIO_TEMPLATES.filter((layout) => templateGroup === 'all' || layout.group === templateGroup).map((layout) => {
               const active = form.layout === layout.key
 
@@ -988,7 +995,7 @@ export default function PortfolioEditor({
                   type="button"
                   onClick={() => set('layout', layout.key)}
                   aria-pressed={active}
-                  className={`group relative flex min-h-[230px] overflow-hidden rounded-[20px] border text-left transition duration-300 active:scale-[0.99] ${
+                  className={`group relative flex min-h-[200px] w-[280px] shrink-0 overflow-hidden rounded-[20px] border text-left transition duration-300 active:scale-[0.99] sm:w-[320px] ${
                     active
                       ? 'border-gold bg-gold-soft/35 text-ink shadow-card ring-1 ring-gold/40'
                       : 'border-line bg-surface text-ink hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card'
@@ -1022,7 +1029,7 @@ export default function PortfolioEditor({
                     <p className="mt-3 line-clamp-3 text-[10px] font-normal leading-5 text-muted sm:text-[11px]">
                       {layout.hint}
                     </p>
-                    <p className={`mt-4 text-[10px] font-semibold ${active ? 'text-gold-deep' : 'text-muted'}`}>{active ? 'กำลังใช้งาน' : 'แตะเพื่อเลือก'} →</p>
+                    <p className={`mt-4 text-[10px] font-semibold ${active ? 'text-gold-deep' : 'text-muted'}`}>{active ? t.pe.active : t.pe.tapToSelect} →</p>
                   </div>
                 </button>
               )
@@ -1030,7 +1037,7 @@ export default function PortfolioEditor({
           </div>
         </Field>
 
-        <Field label="สีประจำเทมเพลต">
+        <Field label={t.pe.accentLabel}>
           <div className="flex flex-wrap gap-2">
             {ACCENTS.map((accent) => (
               <button
@@ -1048,7 +1055,7 @@ export default function PortfolioEditor({
                   className="h-3.5 w-3.5 rounded-full"
                   style={{ background: accent.swatch }}
                 />
-                {accent.label}
+                {t.pe.accents[accent.key] || accent.label}
               </button>
             ))}
           </div>
@@ -1074,24 +1081,24 @@ export default function PortfolioEditor({
             disabled={status === 'saving'}
             className="pointer-events-auto flex h-13 w-full items-center justify-center rounded-full bg-ink px-8 text-[14px] font-semibold text-white shadow-float transition active:scale-[0.99] disabled:opacity-60 sm:w-auto sm:min-w-[260px]"
           >
-            {status === 'saving' ? 'กำลังบันทึก…' : 'บันทึกการแก้ไข'}
+            {status === 'saving' ? t.pe.saving : t.pe.saveEdits}
           </button>
         </div>
       ) : status === 'done' ? (
         <p className="py-2 text-center text-[13px] font-medium text-gold-deep">
-          บันทึกแล้ว
+          {t.pe.saved}
         </p>
       ) : null}
         </div>
 
-        <aside className="order-first min-w-0 lg:order-last lg:sticky lg:top-5">
+        <aside className="hidden min-w-0 lg:sticky lg:top-5 lg:block">
           <div className="overflow-hidden rounded-hero border border-line bg-surface shadow-lift">
             <div className="flex items-center justify-between border-b border-line px-4 py-3.5 sm:px-5">
               <div>
-                <p className="text-[9px] font-medium uppercase tracking-[0.18em] text-gold-deep">ตัวอย่างจริง</p>
-                <p className="mt-1 text-[13px] font-semibold text-ink">สิ่งที่ลูกค้าจะเห็น</p>
+                <p className="text-[9px] font-medium uppercase tracking-[0.18em] text-gold-deep">{t.pe.livePreview}</p>
+                <p className="mt-1 text-[13px] font-semibold text-ink">{t.pe.whatClientsSee}</p>
               </div>
-              <span className="rounded-full bg-ink px-3 py-2 text-[9px] font-semibold text-white">มือถือ · 9:16</span>
+              <span className="rounded-full bg-ink px-3 py-2 text-[9px] font-semibold text-white">{t.pe.mobileRatio}</span>
             </div>
 
             <div className="bg-ground-sunken p-3 sm:p-4">
@@ -1105,10 +1112,19 @@ export default function PortfolioEditor({
             <div className="border-t border-line px-4 py-4 sm:px-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-medium text-muted">เทมเพลตปัจจุบัน</p>
+                  <p className="text-[10px] font-medium text-muted">{t.pe.currentTemplate}</p>
                   <p className="mt-1 text-[13px] font-semibold text-ink">{getPortfolioTemplate(form.layout)?.label}</p>
                 </div>
-                <button type="button" onClick={() => document.getElementById('portfolio-design')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="inline-flex h-9 items-center rounded-full border border-line px-4 text-[11px] font-semibold text-ink transition active:scale-95">เปลี่ยนเทมเพลต</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditorSection('design')
+                    window.requestAnimationFrame(() => document.getElementById('portfolio-design')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+                  }}
+                  className="inline-flex h-9 items-center rounded-full border border-line px-4 text-[11px] font-semibold text-ink transition active:scale-95"
+                >
+                  {t.pe.changeTemplate}
+                </button>
               </div>
               <div className="mt-3 overflow-hidden rounded-control border border-line">
                 <GalleryLayoutPreview layout={form.gallery_layout || 'carousel'} images={form.gallery_urls} active={false} />
@@ -1133,8 +1149,8 @@ function Card({
   children: React.ReactNode
 }) {
   return (
-    <section id={id} className="scroll-mt-20 overflow-hidden rounded-hero border border-line bg-surface shadow-card">
-      <div className="border-b border-line bg-[linear-gradient(110deg,var(--ciiya-surface),var(--ciiya-ground))] px-5 py-5 sm:px-6">
+    <section id={id} className="scroll-mt-20 overflow-hidden rounded-panel border border-line bg-surface shadow-card">
+      <div className="border-b border-line bg-[linear-gradient(110deg,var(--ciiya-surface),var(--ciiya-ground))] px-4 py-4 sm:px-5">
         <div className="flex items-start gap-3">
           <span aria-hidden className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-gold" />
           <div>
@@ -1143,7 +1159,7 @@ function Card({
           </div>
         </div>
       </div>
-      <div className="space-y-4 px-5 py-5 sm:px-6 sm:py-6">{children}</div>
+      <div className="space-y-4 px-4 py-4 sm:px-5">{children}</div>
     </section>
   )
 }
@@ -1174,11 +1190,12 @@ function TemplatePreview({
   portfolio: Portfolio
   featured?: boolean
 }) {
+  const { t } = useI18n()
   const images = [portfolio.hero_photo_url, ...portfolio.gallery_urls].filter(
     Boolean
   ) as string[]
-  const name = portfolio.display_name?.trim() || 'Your name'
-  const tagline = portfolio.tagline?.trim() || 'The story and work that’s you'
+  const name = portfolio.display_name?.trim() || t.pe.yourName
+  const tagline = portfolio.tagline?.trim() || t.pe.yourStory
   const shell = featured ? 'aspect-[9/16] max-h-[680px]' : 'aspect-[9/16]'
 
   return (
@@ -1195,7 +1212,7 @@ function TemplatePreview({
       />
       {featured ? (
         <div className="absolute bottom-2 right-2 rounded-full bg-black/45 px-2 py-1 text-[7px] font-medium text-white backdrop-blur">
-          {GALLERY_LAYOUTS.find((item) => item.key === portfolio.gallery_layout)?.label || 'Slide'}
+          {t.pe.galleryLayouts[portfolio.gallery_layout || 'carousel']?.label || t.pe.slideFallback}
         </div>
       ) : null}
     </div>
@@ -1323,6 +1340,7 @@ function SortableGalleryImage({
 }
 
 function UploadProgress({ value, label }: { value: number; label: string }) {
+  const { t } = useI18n()
   const safeValue = Math.min(100, Math.max(0, value))
 
   return (
@@ -1332,7 +1350,7 @@ function UploadProgress({ value, label }: { value: number; label: string }) {
       aria-live="polite"
     >
       <div className="flex items-center justify-between gap-3 text-[11px] font-medium">
-        <span className="truncate text-ink">{label || 'Uploading'}</span>
+        <span className="truncate text-ink">{label || t.pe.uploading}</span>
         <span className="shrink-0 tabular-nums text-gold-deep">{safeValue}%</span>
       </div>
       <div
@@ -1370,6 +1388,7 @@ function ContactChannel({
   placeholder: string
   inputMode?: 'tel' | 'email' | 'url'
 }) {
+  const { t } = useI18n()
   const visible = enabled && value.trim().length > 0
 
   return (
@@ -1387,7 +1406,7 @@ function ContactChannel({
           type="button"
           role="switch"
           aria-checked={enabled}
-          aria-label={`${enabled ? 'Hide' : 'Show'} ${label}`}
+          aria-label={`${enabled ? t.pe.hide : t.pe.show} ${label}`}
           onClick={onToggle}
           className={`relative h-7 w-12 shrink-0 rounded-full p-1 transition ${
             enabled ? 'bg-ink' : 'bg-line-strong'
@@ -1417,10 +1436,10 @@ function ContactChannel({
         }`}
       >
         {visible
-          ? 'Shown on client page'
+          ? t.pe.shownOnPage
           : enabled
-            ? 'Add details to show this channel'
-            : 'Hidden from client page'}
+            ? t.pe.addDetails
+            : t.pe.hiddenFromPage}
       </p>
     </section>
   )

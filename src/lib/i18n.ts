@@ -444,6 +444,7 @@ const th = {
     tabGallery: 'แกลเลอรี',
     tabMoments: 'โมเมนต์',
     tabContact: 'ติดต่อ',
+    heroSubtitle: 'ดูและดาวน์โหลดรูปจากงานนี้ได้ง่าย ๆ',
   },
   moments: {
     shareAMoment: 'แชร์โมเมนต์',
@@ -493,6 +494,20 @@ const th = {
     selectedPhoto: (n: number) => `รูปที่เลือก ${n}`,
     minAgo: (n: number) => `${n} นาทีที่แล้ว`,
     hrAgo: (n: number) => `${n} ชั่วโมงที่แล้ว`,
+  },
+  gallery: {
+    latestPhotos: 'รูปล่าสุด',
+    popularPhotos: 'รูปยอดนิยม',
+    selectPhotos: 'เลือกรูป',
+    deselect: 'ยกเลิกเลือก',
+    downloading: 'กำลังดาวน์โหลด…',
+    download: '⬇ ดาวน์โหลด',
+    notReady: 'รูปยังไม่พร้อมแสดง',
+    downloadPhotos: 'ดาวน์โหลดรูป',
+    likePhoto: 'ถูกใจรูปนี้',
+    removeLike: 'เลิกถูกใจ',
+    photoAlt: 'รูปภาพ',
+    selectedCount: (n: number, max: number) => `เลือกแล้ว ${n}/${max} รูป`,
   },
 }
 
@@ -912,6 +927,7 @@ const en = {
     tabGallery: 'Gallery',
     tabMoments: 'Moments',
     tabContact: 'Contact',
+    heroSubtitle: 'View and download photos from this job with ease',
   },
   moments: {
     shareAMoment: 'Share a moment',
@@ -961,6 +977,20 @@ const en = {
     selectedPhoto: (n: number) => `Selected photo ${n}`,
     minAgo: (n: number) => `${n} min ago`,
     hrAgo: (n: number) => `${n} hr ago`,
+  },
+  gallery: {
+    latestPhotos: 'Latest photos',
+    popularPhotos: 'Popular photos',
+    selectPhotos: 'Select photos',
+    deselect: 'Deselect',
+    downloading: 'Downloading…',
+    download: '⬇ Download',
+    notReady: 'Photos aren’t ready to show yet',
+    downloadPhotos: 'Download photos',
+    likePhoto: 'Like this photo',
+    removeLike: 'Remove like',
+    photoAlt: 'photo',
+    selectedCount: (n: number, max: number) => `selected ${n}/${max} photos`,
   },
 }
 

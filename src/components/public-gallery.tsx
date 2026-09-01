@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import NextImage from 'next/image'
 import { getGuestId } from '@/lib/guest-id'
+import { useI18n } from '@/components/i18n-provider'
 import {
   Grid2Icon,
   Grid3Icon,
@@ -135,6 +136,7 @@ const PhotoTile = memo(function PhotoTile({
   likeCount: number
   onToggleLike: (id: string) => void
 }) {
+  const { t } = useI18n()
   const rankLabel = tab === 'popular' ? getRankLabel(index) : null
 
   const imageSources = useMemo(() => {
@@ -263,7 +265,7 @@ const PhotoTile = memo(function PhotoTile({
           role="button"
           tabIndex={0}
           aria-pressed={liked}
-          aria-label={liked ? 'Remove like' : 'Like this photo'}
+          aria-label={liked ? t.gallery.removeLike : t.gallery.likePhoto}
           onClick={(event) => {
             event.stopPropagation()
             onToggleLike(photo.id)
@@ -350,6 +352,7 @@ export default function PublicGallery({
   photos: initialPhotos,
   shareToken,
 }: Props) {
+  const { t } = useI18n()
   const photos = initialPhotos
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const [tab, setTab] = useState<'live' | 'popular'>('live')
@@ -530,35 +533,25 @@ useEffect(() => {
   // share token), the same lightweight model Guest Moments uses; the server
   // holds the authoritative counts.
   const likeStorageKey = shareToken ? `ciiya-liked-photos-${shareToken}` : ''
-  const [likedIds, setLikedIds] = useState<Set<string>>(new Set())
-  const [likeCounts, setLikeCounts] = useState<Record<string, number>>({})
-
-  useEffect(() => {
-    if (!likeStorageKey) return
+  // Seeded lazily (client-only). The hearts/counts these drive render on the
+  // client-side grid, so there's no server HTML to mismatch — and reading here
+  // rather than in an effect keeps the setState out of a cascading effect.
+  const [likedIds, setLikedIds] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined' || !likeStorageKey) return new Set()
     try {
       const saved = JSON.parse(
         window.localStorage.getItem(likeStorageKey) || '[]'
       )
-      if (Array.isArray(saved)) setLikedIds(new Set(saved.map(String)))
+      return new Set<string>(Array.isArray(saved) ? saved.map(String) : [])
     } catch {
-      // ignore malformed storage
+      return new Set()
     }
-  }, [likeStorageKey])
-
-  // Seed counts from each photo's stored like_count as photos load in.
-  useEffect(() => {
-    setLikeCounts((current) => {
-      let changed = false
-      const next = { ...current }
-      for (const photo of photos) {
-        if (!(photo.id in next)) {
-          next[photo.id] = Number(photo.like_count || 0)
-          changed = true
-        }
-      }
-      return changed ? next : current
-    })
-  }, [photos])
+  })
+  const [likeCounts, setLikeCounts] = useState<Record<string, number>>(() => {
+    const init: Record<string, number> = {}
+    for (const photo of initialPhotos) init[photo.id] = Number(photo.like_count || 0)
+    return init
+  })
 
   const toggleLike = useCallback(
     (photoId: string) => {
@@ -758,7 +751,7 @@ useEffect(() => {
                   tab === 'live' ? 'text-ink' : 'text-muted'
                 }`}
               >
-                Latest photos
+                {t.gallery.latestPhotos}
               </p>
               {tab === 'live' ? (
                 <div className="mx-auto mt-2 h-[3px] w-8 rounded-full bg-gold" />
@@ -771,7 +764,7 @@ useEffect(() => {
                   tab === 'popular' ? 'text-ink' : 'text-muted'
                 }`}
               >
-                Popular photos
+                {t.gallery.popularPhotos}
               </p>
               {tab === 'popular' ? (
                 <div className="mx-auto mt-2 h-[3px] w-8 rounded-full bg-gold" />
@@ -871,7 +864,7 @@ useEffect(() => {
               <rect x="3" y="13" width="8" height="8" rx="2" />
               <path d="m14.5 17 2 2 4-4" />
             </svg>
-            Select photos
+            {t.gallery.selectPhotos}
           </button>
         </div>
       ) : null}
@@ -883,13 +876,13 @@ useEffect(() => {
               type="button"
               onClick={toggleSelectMode}
               className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-lg"
-              aria-label="Deselect"
+              aria-label={t.gallery.deselect}
             >
               ✕
             </button>
 
             <p className="whitespace-nowrap px-1 text-sm font-semibold">
-              selected {selectedIds.size}/{MAX_SELECTION} photos
+              {t.gallery.selectedCount(selectedIds.size, MAX_SELECTION)}
             </p>
 
             <button
@@ -898,7 +891,7 @@ useEffect(() => {
               disabled={selectedIds.size === 0 || batchDownloading}
               className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-gold px-4 py-2 text-[13px] font-semibold text-ink transition-opacity disabled:opacity-40"
             >
-              {batchDownloading ? 'Downloading…' : '⬇ Download'}
+              {batchDownloading ? t.gallery.downloading : t.gallery.download}
             </button>
           </div>
         </div>
@@ -915,7 +908,7 @@ useEffect(() => {
               <img
                 key={activePhoto.id}
                 src={activeImageUrl}
-                alt={activePhoto.filename || 'photo'}
+                alt={activePhoto.filename || t.gallery.photoAlt}
                 loading="eager"
                 decoding="async"
                 onLoad={() => setViewerLoaded(true)}
@@ -934,7 +927,7 @@ useEffect(() => {
               />
             ) : (
               <div className="rounded-3xl bg-white/10 px-5 py-4 text-sm text-white/70">
-                Photos aren’t ready to show yet
+                {t.gallery.notReady}
               </div>
             )}
           </div>
@@ -981,7 +974,7 @@ useEffect(() => {
                 )}&token=${encodeURIComponent(shareToken)}`}
                 className="pointer-events-auto flex items-center gap-2 rounded-full bg-white px-6 py-3 text-[13px] font-semibold text-ink shadow-lg transition-transform active:scale-95"
               >
-                Download photos
+                {t.gallery.downloadPhotos}
               </a>
 
               {activePhoto.filename ? (

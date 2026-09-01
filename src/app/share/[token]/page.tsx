@@ -195,7 +195,7 @@ export default async function SharePage({ params }: PageProps) {
               {album.title}
             </h1>
             <p className="mt-1.5 line-clamp-2 text-[12px] font-normal leading-snug text-white/80 [@media(max-height:480px)]:hidden sm:mt-2 sm:text-[14px]">
-              {album.description || 'View and download photos from this job with ease'}
+              {album.description || t.share.heroSubtitle}
             </p>
           </div>
         </div>

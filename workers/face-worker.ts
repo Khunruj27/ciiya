@@ -64,8 +64,10 @@ const FACE_JOB_MAX_PER_ALBUM =
     100
   )
 
+  // Stable per-replica id (see photo-worker): reuse one heartbeat row across
+  // restarts instead of leaking a new PID row on every crash-restart.
   const WORKER_ID =
-  `face-worker-${process.pid}`
+  `face-worker-${process.env.RAILWAY_REPLICA_ID || process.pid}`
 
 type PhotoJob = {
   id: string
@@ -422,6 +424,34 @@ async function markWorkerOffline() {
   }
 }
 
+// Clear heartbeat rows untouched for over a day (dead PID rows from older
+// builds / crash-restarts that skipped the graceful offline mark).
+async function pruneStaleHeartbeats() {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+  try {
+    const result = await withRetry(() =>
+      supabase
+        .from('worker_heartbeats')
+        .delete()
+        .lt('last_seen_at', cutoff)
+        .neq('worker_id', WORKER_ID)
+    )
+
+    if (result.error) {
+      console.error(
+        '[FaceWorker] prune heartbeats failed:',
+        result.error.message
+      )
+    }
+  } catch (error) {
+    console.error(
+      '[FaceWorker] prune heartbeats error:',
+      error instanceof Error ? error.message : error
+    )
+  }
+}
+
 async function loadFaceModels() {
   if (faceModelsLoaded) {
     return
@@ -741,8 +771,29 @@ async function markFaceJobFailedOrRetry(
 async function recoverStaleFaceJobs() {
   const staleSince = new Date(Date.now() - 15 * 60 * 1000).toISOString()
 
-await withRetry(() =>
-  supabase
+  // Only recover jobs whose claiming worker is no longer beating, so a face
+  // scan that legitimately runs long is never yanked from the live worker
+  // still processing it (which would duplicate the work).
+  const liveSince = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+  const liveResult = await withRetry(() =>
+    supabase
+      .from('worker_heartbeats')
+      .select('worker_id')
+      .gte('last_seen_at', liveSince)
+  )
+
+  if (liveResult.error) {
+    console.error(
+      '[FaceWorker] recover stale (live lookup) failed:',
+      liveResult.error.message
+    )
+  }
+
+  const liveWorkerIds = (liveResult.data || [])
+    .map((row) => row.worker_id)
+    .filter((id): id is string => Boolean(id))
+
+  let query = supabase
     .from('face_jobs')
     .update({
       status: 'pending',
@@ -758,7 +809,18 @@ await withRetry(() =>
     })
     .eq('status', 'processing')
     .lt('started_at', staleSince)
-)
+
+  if (liveWorkerIds.length > 0) {
+    query = query.or(
+      `worker_id.is.null,worker_id.not.in.(${liveWorkerIds.join(',')})`
+    )
+  }
+
+  const result = await withRetry(() => query)
+
+  if (result.error) {
+    console.error('[FaceWorker] recover stale failed:', result.error.message)
+  }
 }
 
 async function scanFaces(buffer: Buffer) {
@@ -1449,6 +1511,8 @@ async function sendWorkerMetrics() {
 }
 
 async function start() {
+  await pruneStaleHeartbeats()
+
   while (true) {
     try {
       const now = Date.now()

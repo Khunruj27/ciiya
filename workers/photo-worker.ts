@@ -127,7 +127,12 @@ const MAX_PER_ALBUM = getSafeIntegerEnv(
   100
 )
 
-const WORKER_ID = `photo-worker-${process.pid}`
+// Prefer a stable per-replica id so restarts reuse the same heartbeat row
+// (upsert on worker_id) instead of leaking a new PID row on every crash-restart.
+// Railway sets RAILWAY_REPLICA_ID per running replica; fall back to pid locally.
+const WORKER_ID = `photo-worker-${
+  process.env.RAILWAY_REPLICA_ID || process.pid
+}`
 
 let lastHeartbeatAt = 0
 let lastRecoverAt = 0
@@ -608,13 +613,64 @@ async function markWorkerOffline() {
   }
 }
 
+// PID-based rows from older builds (and any crash-restart that skipped the
+// graceful offline mark) linger as "online" forever. Nothing else prunes them,
+// so each worker clears rows untouched for over a day on startup.
+async function pruneStaleHeartbeats() {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+  try {
+    const result = await withRetry(() =>
+      supabase
+        .from('worker_heartbeats')
+        .delete()
+        .lt('last_seen_at', cutoff)
+        .neq('worker_id', WORKER_ID)
+    )
+
+    if (result.error) {
+      console.error(
+        '[PhotoWorker] prune heartbeats failed:',
+        result.error.message
+      )
+    }
+  } catch (error) {
+    console.error(
+      '[PhotoWorker] prune heartbeats error:',
+      error instanceof Error ? error.message : error
+    )
+  }
+}
+
 async function recoverStaleJobs() {
   const staleSince = new Date(Date.now() - 10 * 60 * 1000).toISOString()
 
-  const result = await withRetry(() =>
+  // A job "processing" past the stale window is only orphaned if the worker
+  // that claimed it is no longer beating. Excluding live workers means a job
+  // that legitimately runs longer than the window is never yanked away from
+  // the worker still processing it (which would cause duplicate processing).
+  const liveSince = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+  const liveResult = await withRetry(() =>
     supabase
-      .from('photo_jobs')
-      .update({
+      .from('worker_heartbeats')
+      .select('worker_id')
+      .gte('last_seen_at', liveSince)
+  )
+
+  if (liveResult.error) {
+    console.error(
+      '[PhotoWorker] recover stale (live lookup) failed:',
+      liveResult.error.message
+    )
+  }
+
+  const liveWorkerIds = (liveResult.data || [])
+    .map((row) => row.worker_id)
+    .filter((id): id is string => Boolean(id))
+
+  let query = supabase
+    .from('photo_jobs')
+    .update({
   status: 'pending',
   progress: 0,
   error: 'Recovered stale processing job',
@@ -628,7 +684,14 @@ async function recoverStaleJobs() {
 })
       .eq('status', 'processing')
       .lt('started_at', staleSince)
-  )
+
+  if (liveWorkerIds.length > 0) {
+    query = query.or(
+      `worker_id.is.null,worker_id.not.in.(${liveWorkerIds.join(',')})`
+    )
+  }
+
+  const result = await withRetry(() => query)
 
   if (result.error) {
     console.error('[PhotoWorker] recover stale failed:', result.error.message)
@@ -1391,6 +1454,8 @@ async function pollJobs() {
 }
 
 async function start() {
+  await pruneStaleHeartbeats()
+
   while (true) {
     try {
       const now = Date.now()

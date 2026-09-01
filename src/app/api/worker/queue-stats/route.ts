@@ -282,6 +282,7 @@ async function getWorkers(supabase: ReturnType<typeof getSupabaseAdmin>) {
       metadata
     `)
     .order('last_seen_at', { ascending: false })
+    .limit(50)
 
   if (error) {
     console.error('[queue-stats] workers:', error.message)

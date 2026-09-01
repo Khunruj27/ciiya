@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react'
 import GuestMoments from '@/components/guest-moments'
+import { useI18n } from '@/components/i18n-provider'
 
 type Props = {
   token: string
@@ -26,15 +27,20 @@ export default function ShareGalleryTabs({
   initialGalleryLikes = 0,
   initialMomentCount = 0,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>('gallery')
+  // A #moment- deep link opens straight into the Moments tab. Read lazily
+  // (client-only) rather than in an effect, keeping the setState out of a
+  // cascading effect body.
+  const [activeTab, setActiveTab] = useState<Tab>(() =>
+    typeof window !== 'undefined' &&
+    window.location.hash.startsWith('#moment-')
+      ? 'moments'
+      : 'gallery'
+  )
   // Seeded from the server; GuestMoments refines it once its feed loads (e.g.
   // after a new post), via onCountChange.
   const [momentCount, setMomentCount] = useState(initialMomentCount)
+  const { t } = useI18n()
   const [galleryLikes, setGalleryLikes] = useState(initialGalleryLikes)
-
-  useEffect(() => {
-    if (window.location.hash.startsWith('#moment-')) setActiveTab('moments')
-  }, [])
 
   useEffect(() => {
     function onLike(event: Event) {
@@ -63,7 +69,7 @@ export default function ShareGalleryTabs({
           aria-pressed={activeTab === 'gallery'}
           className={tabClass('gallery', 'flex shrink-0 items-center justify-center gap-2')}
         >
-          Gallery
+          {t.share.tabGallery}
           {galleryLikes > 0 ? (
             <span
               className={`rounded-full px-1.5 py-0.5 text-[9px] ${
@@ -83,7 +89,7 @@ export default function ShareGalleryTabs({
           aria-pressed={activeTab === 'moments'}
           className={tabClass('moments', 'flex shrink-0 items-center justify-center gap-2')}
         >
-          Moments
+          {t.share.tabMoments}
           {momentCount > 0 ? (
             <span
               className={`rounded-full px-1.5 py-0.5 text-[9px] ${
@@ -104,7 +110,7 @@ export default function ShareGalleryTabs({
             aria-pressed={activeTab === 'contact'}
             className={tabClass('contact', 'shrink-0 whitespace-nowrap')}
           >
-            Contact
+            {t.share.tabContact}
           </button>
         ) : null}
       </nav>

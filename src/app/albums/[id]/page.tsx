@@ -9,6 +9,7 @@ import AppIcon from '@/components/app-icon'
 import AlbumCameraStatus from '@/components/album-camera-status'
 import UploadPhotoModal from '@/components/upload-photo-modal'
 import AlbumPhotoGridPreview from '@/components/album-photo-grid-preview'
+import { getServerDictionary } from '@/lib/i18n-server'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -20,6 +21,7 @@ type PageProps = {
 export default async function AlbumDetailPage({ params }: PageProps) {
   const { id } = await params
   const supabase = await createServerSupabaseClient()
+  const { t } = await getServerDictionary()
 
     let user = null
 
@@ -33,18 +35,18 @@ export default async function AlbumDetailPage({ params }: PageProps) {
       <main className="min-h-screen bg-ground px-6 py-10 text-ink">
         <div className="mx-auto max-w-[393px] rounded-hero bg-surface p-6 text-center border border-line">
           <h1 className="text-[24px] font-bold">
-            Connection problem
+            {t.albumDetail.connProblem}
           </h1>
 
           <p className="mt-3 text-[14px] font-semibold leading-6 text-muted">
-            Can’t reach the server right now. Please reload the page
+            {t.albumDetail.connSub}
           </p>
 
           <Link
             href={`/albums/${id}`}
             className="mt-5 inline-flex h-11 items-center justify-center rounded-full bg-ink px-5 text-[13px] font-bold text-white"
           >
-            Reload
+            {t.albumDetail.reload}
           </Link>
         </div>
       </main>
@@ -178,7 +180,7 @@ const cameraProcessingGridItems = (cameraImportsData || [])
   )
   .map((item) => ({
     id: item.id,
-    filename: item.filename || 'Photo from camera',
+    filename: item.filename || t.albumDetail.photoFromCamera,
     status: String(item.status || 'imported'),
     progress: Number(item.progress || 0),
     created_at: String(item.created_at || new Date().toISOString()),
@@ -206,7 +208,7 @@ const cameraProcessingGridItems = (cameraImportsData || [])
                 href={`/albums/${album.id}/analytics`}
                 className="flex h-11 items-center justify-center rounded-full border border-line bg-surface px-4 text-[12px] font-semibold text-ink transition active:scale-95"
               >
-                Analytics
+                {t.albumDetail.analytics}
               </Link>
 
               <EditAlbumForm
@@ -226,7 +228,7 @@ const cameraProcessingGridItems = (cameraImportsData || [])
           </h1>
 
           <p className="mt-2 text-[14px] font-semibold leading-relaxed text-muted">
-             {album.description || 'No description yet'}
+             {album.description || t.albums.noDescription}
           </p>
           </section>
         </section>
@@ -235,7 +237,7 @@ const cameraProcessingGridItems = (cameraImportsData || [])
 <section className="mt-7 grid grid-cols-2 gap-3 sm:max-w-md">
   <div className="rounded-panel border border-line bg-gold-soft px-4 py-3">
     <p className="text-[12px] font-bold text-gold-deep">
-      All photos
+      {t.albumDetail.allPhotos}
     </p>
 
     <p className="mt-1 text-[26px] font-bold leading-none tracking-[-0.05em] text-ink">
@@ -248,7 +250,7 @@ const cameraProcessingGridItems = (cameraImportsData || [])
     className="rounded-panel border border-line bg-gold-soft px-4 py-3 transition active:scale-[0.98]"
   >
     <p className="text-[12px] font-bold text-gold-deep">
-      People in this job
+      {t.albumDetail.peopleInJob}
     </p>
 
     <p className="mt-1 text-[26px] font-bold leading-none tracking-[-0.05em] text-ink">
@@ -268,7 +270,7 @@ const cameraProcessingGridItems = (cameraImportsData || [])
                 took the card with it. */}
             <div className="mb-4 flex items-center justify-between gap-4">
               <h2 className="text-[24px] font-bold tracking-[-0.05em] sm:text-[30px]">
-                Photos
+                {t.albumDetail.photos}
               </h2>
 
               <div className="shrink-0 rounded-full border border-line bg-surface px-3 py-2">
@@ -289,11 +291,11 @@ const cameraProcessingGridItems = (cameraImportsData || [])
                 </div>
 
                 <p className="mt-5 text-[22px] font-semibold text-ink">
-                  No photos yet
+                  {t.albumDetail.noPhotos}
                 </p>
 
                 <p className="mt-2 text-sm font-medium leading-6 text-muted">
-                  Upload the first photo of this job, then share the gallery with your client
+                  {t.albumDetail.noPhotosSub}
                 </p>
               </div>
             )}

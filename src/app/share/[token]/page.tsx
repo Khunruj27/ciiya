@@ -19,6 +19,7 @@ import {
   isAlbumPubliclyVisible,
 } from '@/lib/share-access'
 import { facebookUrl, telUrl, displayHandle } from '@/lib/portfolio-links'
+import { getServerDictionary } from '@/lib/i18n-server'
 
 // The page itself stays dynamic (it reads the visitor's password-access
 // cookie fresh on every request), but the underlying album/photos
@@ -33,6 +34,7 @@ type PageProps = {
 
 export default async function SharePage({ params }: PageProps) {
   const { token } = await params
+  const { t } = await getServerDictionary()
 
   let album: Awaited<ReturnType<typeof getSharedAlbumByToken>> | null = null
 
@@ -47,15 +49,15 @@ export default async function SharePage({ params }: PageProps) {
       <main className="min-h-screen bg-ground px-4 py-10 text-ink">
         <div className="mx-auto max-w-[430px] rounded-hero border border-line bg-surface p-7 shadow-card">
           <p className="text-[13px] font-medium text-muted">
-            Ciiya Gallery
+            {t.share.ciiyaGallery}
           </p>
 
           <h1 className="mt-3 text-[30px] font-bold tracking-[-0.045em]">
-            Album not found
+            {t.share.notFound}
           </h1>
 
           <p className="mt-3 text-[14px] font-normal leading-6 text-muted">
-            This shared album doesn’t exist or has expired
+            {t.share.notFoundSub}
           </p>
         </div>
       </main>
@@ -82,13 +84,13 @@ export default async function SharePage({ params }: PageProps) {
   const contactCard = hasContact ? (
     <section className="rounded-hero border border-line bg-surface p-6 text-center sm:p-8">
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold-deep">
-        Contact the photographer
+        {t.share.contactEyebrow}
       </p>
       <h2 className="mt-2 text-[20px] font-bold tracking-[-0.03em] sm:text-[24px]">
-        ติดต่อและจองช่างภาพ
+        {t.share.contactHeading}
       </h2>
       <p className="mx-auto mt-1.5 max-w-sm text-[13px] font-normal leading-6 text-muted">
-        Get in touch to book your own shoot.
+        {t.share.contactSub}
       </p>
 
       <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
@@ -143,7 +145,7 @@ export default async function SharePage({ params }: PageProps) {
         {album.cover_url ? (
           <Image
             src={album.cover_url}
-            alt={album.title || 'Album cover'}
+            alt={album.title || t.share.albumCover}
             fill
             sizes="100vw"
             priority
@@ -161,11 +163,11 @@ export default async function SharePage({ params }: PageProps) {
         <div className="absolute inset-x-0 top-0">
           <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-2 px-4 pt-4 sm:px-6 sm:pt-5 lg:px-8">
             <div className="rounded-full bg-white/18 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-xl sm:px-4 sm:py-2 sm:text-[12px]">
-              Gallery
+              {t.share.galleryPill}
             </div>
             <div className="flex items-center gap-1.5 rounded-full bg-white/18 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-xl sm:px-4 sm:py-2 sm:text-[12px]">
               <span className="h-1.5 w-1.5 rounded-full bg-rose" />
-              Online album
+              {t.share.onlineAlbum}
             </div>
           </div>
         </div>
@@ -173,7 +175,7 @@ export default async function SharePage({ params }: PageProps) {
         <div className="absolute inset-x-0 bottom-0">
           <div className="mx-auto w-full max-w-5xl px-4 pb-4 text-center sm:px-6 sm:pb-5 lg:px-8">
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/70 sm:text-[11px]">
-              Shared album
+              {t.share.sharedAlbum}
             </p>
             {/*
               The title block is anchored to the bottom of the cover, so an
@@ -215,11 +217,11 @@ export default async function SharePage({ params }: PageProps) {
               ) : (
                 <div className="rounded-hero border border-line bg-surface px-7 py-14 text-center">
                   <p className="text-[20px] font-semibold tracking-[-0.03em] text-ink">
-                    No photos yet
+                    {t.share.noPhotos}
                   </p>
 
                   <p className="mt-2 text-[14px] font-normal leading-6 text-muted">
-                    The album is ready, but no photos are published yet
+                    {t.share.noPhotosSub}
                   </p>
                 </div>
               )}
@@ -229,10 +231,10 @@ export default async function SharePage({ params }: PageProps) {
            {/* FOOTER */}
         <footer className="text-center">
           <p className="pt-5 text-[12px] font-medium text-muted">
-             Made with Ciiya
+             {t.share.madeWith}
           </p>
           <p className="text-[10px] font-normal text-muted/80">
-              A space to share every important moment
+              {t.share.footerTag}
             </p>
         </footer>
         </div>

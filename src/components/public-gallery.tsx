@@ -742,61 +742,6 @@ useEffect(() => {
         corner, right under the fixed face-search button. Reserving a lane
         on short viewports keeps the density controls tappable there.
       */}
-      <div className="rounded-[24px] bg-white p-3 shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-black/5 [@media(max-height:480px)]:pr-[76px] sm:rounded-[28px] sm:p-4 sm:[@media(max-height:480px)]:pr-[76px]">
-        <div className="flex items-center justify-between gap-2 sm:gap-3">
-          <div className="flex shrink-0 items-center gap-4 sm:gap-6">
-            <button type="button" onClick={() => setTab('live')}>
-              <p
-                className={`whitespace-nowrap text-[13px] font-semibold sm:text-sm ${
-                  tab === 'live' ? 'text-ink' : 'text-muted'
-                }`}
-              >
-                {t.gallery.latestPhotos}
-              </p>
-              {tab === 'live' ? (
-                <div className="mx-auto mt-2 h-[3px] w-8 rounded-full bg-gold" />
-              ) : null}
-            </button>
-
-            <button type="button" onClick={() => setTab('popular')}>
-              <p
-                className={`whitespace-nowrap text-[13px] font-semibold sm:text-sm ${
-                  tab === 'popular' ? 'text-ink' : 'text-muted'
-                }`}
-              >
-                {t.gallery.popularPhotos}
-              </p>
-              {tab === 'popular' ? (
-                <div className="mx-auto mt-2 h-[3px] w-8 rounded-full bg-gold" />
-              ) : null}
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="grid shrink-0 grid-cols-3 gap-1 overflow-hidden rounded-[22px] border border-black/5 p-1 sm:gap-1.5 sm:rounded-[26px] sm:p-1.5">
-              {[2, 3, 4].map((cols) => (
-                 <button
-                  key={cols}
-                  type="button"
-                  onClick={() => setGridCols(cols)}
-                  aria-label={`Density ${cols}`}
-                  aria-pressed={gridCols === cols}
-                  className={`flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200 active:scale-90 sm:h-9 sm:w-9 ${
-                    gridCols === cols
-                      ? 'bg-gold-soft text-gold-deep'
-                      : 'text-muted'
-                  }`}
-                >
-                  {cols === 2 && <Grid2Icon />}
-                  {cols === 3 && <Grid3Icon />}
-                  {cols === 4 && <Grid4Icon />}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/*
         The old floor of 520px was taller than a landscape phone's whole
         viewport (390px), so the grid alone overflowed the screen. Floor is
@@ -806,6 +751,64 @@ useEffect(() => {
       <section className="overflow-hidden rounded-hero border border-line bg-surface shadow-card">
         <div className="relative px-4 py-5 sm:px-6 sm:py-6">
           <div aria-hidden className="absolute -right-16 -top-20 h-48 w-48 rounded-full bg-gold/20 blur-3xl" />
+
+          {/* Toolbar sits inside the card, above the grid: the Latest/Popular
+              tabs on the left and the density (column) controls on the right. */}
+          <div className="relative mb-4 [@media(max-height:480px)]:pr-[76px] sm:mb-5">
+            <div className="flex items-center justify-between gap-2 sm:gap-3">
+              <div className="flex shrink-0 items-center gap-4 sm:gap-6">
+                <button type="button" onClick={() => setTab('live')}>
+                  <p
+                    className={`whitespace-nowrap text-[13px] font-semibold sm:text-sm ${
+                      tab === 'live' ? 'text-ink' : 'text-muted'
+                    }`}
+                  >
+                    {t.gallery.latestPhotos}
+                  </p>
+                  {tab === 'live' ? (
+                    <div className="mx-auto mt-2 h-[3px] w-8 rounded-full bg-gold" />
+                  ) : null}
+                </button>
+
+                <button type="button" onClick={() => setTab('popular')}>
+                  <p
+                    className={`whitespace-nowrap text-[13px] font-semibold sm:text-sm ${
+                      tab === 'popular' ? 'text-ink' : 'text-muted'
+                    }`}
+                  >
+                    {t.gallery.popularPhotos}
+                  </p>
+                  {tab === 'popular' ? (
+                    <div className="mx-auto mt-2 h-[3px] w-8 rounded-full bg-gold" />
+                  ) : null}
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="grid shrink-0 grid-cols-3 gap-1 overflow-hidden rounded-[22px] border border-black/5 p-1 sm:gap-1.5 sm:rounded-[26px] sm:p-1.5">
+                  {[2, 3, 4].map((cols) => (
+                     <button
+                      key={cols}
+                      type="button"
+                      onClick={() => setGridCols(cols)}
+                      aria-label={`Density ${cols}`}
+                      aria-pressed={gridCols === cols}
+                      className={`flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200 active:scale-90 sm:h-9 sm:w-9 ${
+                        gridCols === cols
+                          ? 'bg-gold-soft text-gold-deep'
+                          : 'text-muted'
+                      }`}
+                    >
+                      {cols === 2 && <Grid2Icon />}
+                      {cols === 3 && <Grid3Icon />}
+                      {cols === 4 && <Grid4Icon />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div
             ref={gridContainerRef}
             className="relative h-[72vh] max-h-[900px] min-h-[320px] overflow-hidden rounded-[4px]"

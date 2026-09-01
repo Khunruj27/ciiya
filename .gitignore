@@ -46,3 +46,9 @@ tmpfile*
 
 # supabase CLI local state
 supabase/.temp/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

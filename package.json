@@ -11,6 +11,9 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "test": "playwright test",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "worker:photos": "tsx workers/photo-worker.ts",
     "worker:faces": "tsx workers/face-worker.ts",
     "worker:camera": "tsx workers/camera-live-import-worker.ts",
@@ -61,8 +64,9 @@
     "ws": "^8.21.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^24.13.3",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/react-window": "^1.8.8",

@@ -58,7 +58,21 @@ export default function GuestMoments({ token, active, onCountChange }: Props) {
   const [storyPaused, setStoryPaused] = useState(false)
   const [storyHeld, setStoryHeld] = useState(false)
   const [sharedId, setSharedId] = useState<string | null>(null)
-  const [likedMomentIds, setLikedMomentIds] = useState<Set<string>>(new Set())
+  // Seed from the per-token localStorage set lazily. The hearts this drives
+  // only render on moments fetched client-side after mount, so there is no
+  // server HTML to mismatch — and reading here (rather than in an effect)
+  // keeps the state out of a cascading effect setState.
+  const [likedMomentIds, setLikedMomentIds] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    try {
+      const saved = JSON.parse(
+        window.localStorage.getItem(`ciiya-liked-moments-${token}`) || '[]'
+      )
+      return new Set<string>(Array.isArray(saved) ? saved : [])
+    } catch {
+      return new Set()
+    }
+  })
   const [shareStatus, setShareStatus] = useState('')
   const loadedRef = useRef(false)
   const storyPressStartedRef = useRef(0)
@@ -72,15 +86,6 @@ export default function GuestMoments({ token, active, onCountChange }: Props) {
   useEffect(() => {
     return () => previews.forEach((url) => URL.revokeObjectURL(url))
   }, [previews])
-
-  useEffect(() => {
-    try {
-      const saved = JSON.parse(window.localStorage.getItem(`ciiya-liked-moments-${token}`) || '[]')
-      setLikedMomentIds(new Set(Array.isArray(saved) ? saved : []))
-    } catch {
-      setLikedMomentIds(new Set())
-    }
-  }, [token])
 
   useEffect(() => {
     if (!active || loadedRef.current) return

@@ -1,6 +1,8 @@
 import type { Metadata } from "next"
 import localFont from "next/font/local"
 import { Manrope } from "next/font/google"
+import { getLocale } from "@/lib/i18n-server"
+import { I18nProvider } from "@/components/i18n-provider"
 import "./globals.css"
 import AutoWorker from '@/components/auto-worker'
 import '@/lib/env'
@@ -40,18 +42,20 @@ export const metadata: Metadata = {
   description: "Store, upload, and share photo galleries beautifully and securely",
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const locale = await getLocale()
+
   return (
     <html
-      lang="en"
+      lang={locale}
       className={`${manrope.variable} ${fcMittraphap.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        {children}
+        <I18nProvider locale={locale}>{children}</I18nProvider>
 
         {/* Background worker */}
         <AutoWorker />

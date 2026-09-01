@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
 import GoogleSignInButton from '@/components/google-sign-in-button'
+import { useI18n } from '@/components/i18n-provider'
 
 export default function LoginForm({
   initialError = '',
@@ -12,6 +13,7 @@ export default function LoginForm({
   initialError?: string
 }) {
   const router = useRouter()
+  const { t } = useI18n()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [emailLoading, setEmailLoading] = useState(false)
@@ -27,7 +29,7 @@ export default function LoginForm({
     const normalizedEmail = email.trim().toLowerCase()
 
     if (!normalizedEmail || !password) {
-      setErrorMsg('Please enter your email and password')
+      setErrorMsg(t.login.enterCredentials)
       return
     }
 
@@ -78,16 +80,16 @@ export default function LoginForm({
             <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/70 px-3 py-1.5 backdrop-blur-xl">
               <span className="h-2 w-2 rounded-full bg-gold" />
               <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
-                Welcome back
+                {t.login.welcome}
               </span>
             </div>
 
             <h1 className="mt-6 text-[clamp(2.7rem,7vw,5rem)] font-semibold leading-[0.95] tracking-[-0.05em] text-ink">
-              Come back to keep<br />every moment
+              {t.login.headline}
             </h1>
 
             <p className="mt-4 max-w-[310px] text-[14px] font-normal leading-6 text-muted">
-              Manage jobs, upload photos, and share galleries with your clients from one place
+              {t.login.subtitle}
             </p>
           </div>
 
@@ -98,7 +100,7 @@ export default function LoginForm({
                   htmlFor="login-email"
                   className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.12em] text-muted"
                 >
-                  Email
+                  {t.login.email}
                 </label>
                 <input
                   id="login-email"
@@ -119,9 +121,9 @@ export default function LoginForm({
                     htmlFor="login-password"
                     className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted"
                   >
-                    Password
+                    {t.login.password}
                   </label>
-                  <span className="text-[11px] text-muted">At least 6 characters</span>
+                  <span className="text-[11px] text-muted">{t.login.passwordHint}</span>
                 </div>
                 <input
                   id="login-password"
@@ -141,14 +143,14 @@ export default function LoginForm({
                 disabled={emailLoading}
                 className="flex h-13 w-full items-center justify-center rounded-control bg-ink px-5 text-[15px] font-medium text-white transition hover:bg-ink-soft active:scale-[0.98] disabled:cursor-wait disabled:opacity-50"
               >
-                {emailLoading ? 'Signing in…' : 'Sign in with email'}
+                {emailLoading ? t.login.signingIn : t.login.signInWithEmail}
               </button>
             </form>
 
             <div className="my-5 flex items-center gap-3" aria-hidden="true">
               <span className="h-px flex-1 bg-line" />
               <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">
-                or
+                {t.login.or}
               </span>
               <span className="h-px flex-1 bg-line" />
             </div>
@@ -163,14 +165,14 @@ export default function LoginForm({
 
             <div className="mt-4 rounded-panel bg-ground px-4 py-4 text-center">
               <p className="text-[13px] font-normal text-muted">
-                Don’t have an account?
+                {t.login.noAccount}
               </p>
 
               <Link
                 href="/signup"
                 className="mt-2 inline-block text-[13px] font-semibold text-ink underline decoration-gold decoration-2 underline-offset-4"
               >
-                Create an account
+                {t.login.createAccount}
               </Link>
             </div>
           </div>

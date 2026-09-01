@@ -756,15 +756,15 @@ useEffect(() => {
               tabs on the left and the density (column) controls on the right. */}
           <div className="relative mb-4 [@media(max-height:480px)]:pr-[76px] sm:mb-5">
             <div className="flex items-center justify-between gap-2 sm:gap-3">
-              <div className="inline-flex shrink-0 items-center rounded-full border border-line bg-ground-sunken p-1">
+              <div className="inline-flex shrink-0 items-center gap-1.5 sm:gap-2">
                 <button
                   type="button"
                   onClick={() => setTab('live')}
                   aria-pressed={tab === 'live'}
-                  className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition sm:px-4 sm:text-[13px] ${
+                  className={`whitespace-nowrap rounded-full border px-3.5 py-1.5 text-[12px] font-semibold backdrop-blur-xl transition duration-200 sm:px-4 sm:text-[13px] ${
                     tab === 'live'
-                      ? 'bg-gold-soft text-gold-deep shadow-sm'
-                      : 'text-muted hover:text-ink'
+                      ? 'border-gold/40 bg-gold-soft/80 text-gold-deep shadow-sm'
+                      : 'border-line bg-surface/70 text-muted hover:-translate-y-0.5 hover:border-gold/40 hover:text-gold-deep hover:shadow-float'
                   }`}
                 >
                   {t.gallery.latestPhotos}
@@ -774,10 +774,10 @@ useEffect(() => {
                   type="button"
                   onClick={() => setTab('popular')}
                   aria-pressed={tab === 'popular'}
-                  className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition sm:px-4 sm:text-[13px] ${
+                  className={`whitespace-nowrap rounded-full border px-3.5 py-1.5 text-[12px] font-semibold backdrop-blur-xl transition duration-200 sm:px-4 sm:text-[13px] ${
                     tab === 'popular'
-                      ? 'bg-gold-soft text-gold-deep shadow-sm'
-                      : 'text-muted hover:text-ink'
+                      ? 'border-gold/40 bg-gold-soft/80 text-gold-deep shadow-sm'
+                      : 'border-line bg-surface/70 text-muted hover:-translate-y-0.5 hover:border-gold/40 hover:text-gold-deep hover:shadow-float'
                   }`}
                 >
                   {t.gallery.popularPhotos}

@@ -803,9 +803,10 @@ useEffect(() => {
         now low enough to fit one, and the ceiling keeps a tall desktop
         window from turning the grid into an endless column.
       */}
+      <div className="overflow-hidden rounded-hero border border-line bg-surface p-3 shadow-card sm:p-4">
       <div
         ref={gridContainerRef}
-        className="h-[72vh] max-h-[900px] min-h-[320px] overflow-hidden rounded-[4px]"
+        className="h-[72vh] max-h-[900px] min-h-[320px] overflow-hidden rounded-card"
       >
         {gridSize.width > 0 && gridSize.height > 0
           ? (() => {
@@ -841,6 +842,7 @@ useEffect(() => {
               )
             })()
           : null}
+      </div>
       </div>
 
       {!selectMode ? (

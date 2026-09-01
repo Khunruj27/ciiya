@@ -82,43 +82,50 @@ export default async function SharePage({ params }: PageProps) {
   // The photographer's contact card. Passed into the tabs so it sits at the
   // foot of both the Gallery and the Moments view.
   const contactCard = hasContact ? (
-    <section className="rounded-hero border border-line bg-surface p-6 text-center sm:p-8">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold-deep">
-        {t.share.contactEyebrow}
-      </p>
-      <h2 className="mt-2 text-[20px] font-bold tracking-[-0.03em] sm:text-[24px]">
-        {t.share.contactHeading}
-      </h2>
-      <p className="mx-auto mt-1.5 max-w-sm text-[13px] font-normal leading-6 text-muted">
-        {t.share.contactSub}
-      </p>
+    <section className="overflow-hidden rounded-hero border border-line bg-surface shadow-card">
+      <div className="relative px-5 py-7 sm:px-8 sm:py-9">
+        <div aria-hidden className="absolute -right-16 -top-20 h-48 w-48 rounded-full bg-gold/20 blur-3xl" />
+        <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+          <div className="max-w-xl">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-deep">
+              {t.share.contactEyebrow}
+            </p>
+            <h2 className="mt-3 text-[30px] font-semibold leading-tight tracking-[-0.035em] sm:text-[38px]">
+              {t.share.contactHeading}
+            </h2>
+            <p className="mt-3 text-[13px] leading-6 text-muted sm:text-[14px]">
+              {t.share.contactSub}
+            </p>
+          </div>
 
-      <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
-        {contact.phone ? (
-          <a
-            href={telUrl(contact.phone)}
-            className="inline-flex h-11 items-center gap-2 rounded-full bg-ink px-5 text-[13px] font-semibold text-white transition active:scale-[0.97]"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="h-4 w-4">
-              <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7A2 2 0 0 1 22 16.9Z" />
-            </svg>
-            {contact.phone}
-          </a>
-        ) : null}
+          <div className="flex shrink-0 flex-wrap items-center gap-2.5">
+            {contact.phone ? (
+              <a
+                href={telUrl(contact.phone)}
+                className="inline-flex h-12 items-center gap-2 rounded-full bg-ink px-6 text-[13px] font-semibold text-white shadow-float transition active:scale-95"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="h-4 w-4">
+                  <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7A2 2 0 0 1 22 16.9Z" />
+                </svg>
+                {contact.phone}
+              </a>
+            ) : null}
 
-        {contact.facebook ? (
-          <a
-            href={facebookUrl(contact.facebook)}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="inline-flex h-11 items-center gap-2 rounded-full border border-line-strong bg-surface px-5 text-[13px] font-semibold text-ink transition hover:border-ink/25 active:scale-[0.97]"
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className="h-[22px] w-[22px] text-[#1877F2]">
-              <path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.4v7A10 10 0 0 0 22 12Z" />
-            </svg>
-            {displayHandle(contact.facebook)}
-          </a>
-        ) : null}
+            {contact.facebook ? (
+              <a
+                href={facebookUrl(contact.facebook)}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex h-12 items-center gap-2 rounded-full border border-line-strong bg-surface px-6 text-[13px] font-semibold text-ink transition hover:border-ink/25 active:scale-95"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className="h-[22px] w-[22px] text-[#1877F2]">
+                  <path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.4v7A10 10 0 0 0 22 12Z" />
+                </svg>
+                {displayHandle(contact.facebook)}
+              </a>
+            ) : null}
+          </div>
+        </div>
       </div>
     </section>
   ) : null

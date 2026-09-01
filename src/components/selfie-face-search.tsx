@@ -134,7 +134,7 @@ export default function SelfieFaceSearch({
         className={
           variant === 'inline'
             ? 'ml-auto flex shrink-0 items-center gap-2 rounded-full bg-ink px-4 py-2.5 text-[12px] font-bold text-white transition active:scale-95 disabled:opacity-60'
-            : 'fixed bottom-5 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-ink text-white shadow-float transition hover:scale-105 disabled:opacity-60'
+            : 'fixed bottom-[calc(1.25rem+15vh)] right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-ink text-white shadow-float transition hover:scale-105 disabled:opacity-60'
         }
       >
         <svg
@@ -169,7 +169,7 @@ export default function SelfieFaceSearch({
       />
 
       {message && !loading && results.length === 0 && (
-        <div className="fixed bottom-44 right-4 z-50 max-w-[min(320px,calc(100vw-2rem))] rounded-panel border border-line bg-surface px-4 py-3 text-[13px] text-ink shadow-lift">
+        <div className="fixed bottom-[calc(11rem+15vh)] right-4 z-50 max-w-[min(320px,calc(100vw-2rem))] rounded-panel border border-line bg-surface px-4 py-3 text-[13px] text-ink shadow-lift">
           {message}
         </div>
       )}

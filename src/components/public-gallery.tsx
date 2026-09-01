@@ -762,7 +762,7 @@ useEffect(() => {
                   onClick={() => setTab('live')}
                   aria-pressed={tab === 'live'}
                   className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition sm:px-4 sm:py-2 sm:text-[13px] ${
-                    tab === 'live' ? 'bg-ink text-white' : 'text-muted hover:text-ink'
+                    tab === 'live' ? 'bg-gold-deep text-white' : 'text-muted hover:text-ink'
                   }`}
                 >
                   {t.gallery.latestPhotos}
@@ -773,7 +773,7 @@ useEffect(() => {
                   onClick={() => setTab('popular')}
                   aria-pressed={tab === 'popular'}
                   className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition sm:px-4 sm:py-2 sm:text-[13px] ${
-                    tab === 'popular' ? 'bg-ink text-white' : 'text-muted hover:text-ink'
+                    tab === 'popular' ? 'bg-gold-deep text-white' : 'text-muted hover:text-ink'
                   }`}
                 >
                   {t.gallery.popularPhotos}

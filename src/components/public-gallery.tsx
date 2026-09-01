@@ -763,7 +763,7 @@ useEffect(() => {
                   aria-pressed={tab === 'live'}
                   className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition sm:px-4 sm:text-[13px] ${
                     tab === 'live'
-                      ? 'bg-surface text-ink shadow-[0_1px_5px_rgba(15,23,42,0.1)]'
+                      ? 'bg-gold-soft text-gold-deep shadow-sm'
                       : 'text-muted hover:text-ink'
                   }`}
                 >
@@ -776,7 +776,7 @@ useEffect(() => {
                   aria-pressed={tab === 'popular'}
                   className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition sm:px-4 sm:text-[13px] ${
                     tab === 'popular'
-                      ? 'bg-surface text-ink shadow-[0_1px_5px_rgba(15,23,42,0.1)]'
+                      ? 'bg-gold-soft text-gold-deep shadow-sm'
                       : 'text-muted hover:text-ink'
                   }`}
                 >

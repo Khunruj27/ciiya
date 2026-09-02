@@ -136,7 +136,7 @@ export default function SelfieFaceSearch({
         className={
           variant === 'inline'
             ? 'ml-auto flex shrink-0 items-center gap-2 rounded-full bg-ink px-4 py-2.5 text-[12px] font-bold text-white transition active:scale-95 disabled:opacity-60'
-            : 'group fixed bottom-[calc(1.25rem+15vh)] right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full border border-line bg-surface/90 text-ink shadow-lift backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-gold/40 hover:text-gold-deep hover:shadow-float active:scale-95 disabled:opacity-60'
+            : 'group fixed bottom-[calc(1.25rem+15vh)] right-4 z-50 flex h-16 w-16 items-center justify-center rounded-full border border-line bg-surface/90 text-ink shadow-lift backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-gold/40 hover:text-gold-deep hover:shadow-float active:scale-95 disabled:opacity-60'
         }
       >
         <svg
@@ -146,7 +146,7 @@ export default function SelfieFaceSearch({
           strokeWidth="1.8"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className={variant === 'inline' ? 'h-4 w-4' : 'h-6 w-6'}
+          className={variant === 'inline' ? 'h-4 w-4' : 'h-7 w-7'}
         >
           <path d="M4 8V6a2 2 0 0 1 2-2h2" />
           <path d="M16 4h2a2 2 0 0 1 2 2v2" />

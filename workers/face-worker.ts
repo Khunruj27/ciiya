@@ -1,3 +1,6 @@
+// Deployed on Railway as the `ciiya` service: Dockerfile.faces (Debian/glibc so
+// node-canvas + tfjs-node use their prebuilt native addons) with the start
+// command `npm run worker:faces`. See railway.faces.json.
 import { config } from 'dotenv'
 
 config({ path: '.env.local' })

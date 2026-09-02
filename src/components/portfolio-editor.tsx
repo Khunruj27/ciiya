@@ -468,68 +468,62 @@ export default function PortfolioEditor({
   }
 
   return (
-    <div className="mt-4 space-y-3">
+    <div className="mt-3 space-y-3">
       {/* ── STATUS ────────────────────────────────────────────────────
           Published or not, and the link itself. This is what the owner
           comes to this screen for, so it sits above the form. */}
       <section
-        className={`rounded-panel p-4 sm:p-5 ${
+        className={`rounded-panel p-3.5 sm:p-4 ${
           saved.is_published
             ? 'bg-ink text-white'
             : 'border border-line bg-surface'
         }`}
       >
-        <div className="flex items-center gap-2.5">
-          <span
-            className={`h-2 w-2 shrink-0 rounded-full ${
-              saved.is_published ? 'bg-gold' : 'bg-line-strong'
-            }`}
-          />
-          <p
-            className={`text-[11px] font-medium uppercase tracking-[0.18em] ${
-              saved.is_published ? 'text-white/50' : 'text-muted'
-            }`}
-          >
-            {saved.is_published ? t.pe.published : t.pe.notPublished}
-          </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5">
+              <span
+                className={`h-2 w-2 shrink-0 rounded-full ${
+                  saved.is_published ? 'bg-gold' : 'bg-line-strong'
+                }`}
+              />
+              <p
+                className={`text-[11px] font-medium uppercase tracking-[0.18em] ${
+                  saved.is_published ? 'text-white/50' : 'text-muted'
+                }`}
+              >
+                {saved.is_published ? t.pe.published : t.pe.notPublished}
+              </p>
+            </div>
+
+            <p
+              className={`mt-1.5 truncate text-[12px] font-semibold tracking-[-0.01em] sm:text-[13px] ${
+                saved.is_published ? 'text-white' : 'text-ink'
+              }`}
+            >
+              {publicUrl.replace(/^https?:\/\//, '')}
+            </p>
+          </div>
+
+          {!saved.is_published ? (
+            <div className="flex shrink-0 flex-wrap gap-1.5" aria-label={t.pe.readiness}>
+              {[
+                [t.pe.checkName, publishChecks.name],
+                [t.pe.checkPhotos, publishChecks.image],
+                [t.pe.checkContact, publishChecks.contact],
+              ].map(([label, complete]) => (
+                <div key={String(label)} className={`rounded-full border px-2.5 py-1.5 text-center text-[9px] font-medium ${complete ? 'border-gold/35 bg-gold-soft text-gold-deep' : 'border-line bg-ground-sunken text-muted'}`}>
+                  <span className="mr-1" aria-hidden>{complete ? '✓' : '○'}</span>
+                  {String(label)}
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
 
-        <p
-          className={`mt-2 break-all text-[13px] font-semibold tracking-[-0.01em] ${
-            saved.is_published ? 'text-white' : 'text-ink'
-          }`}
-        >
-          {publicUrl.replace(/^https?:\/\//, '')}
-        </p>
-
-        <p
-          className={`mt-1 text-[11px] font-normal leading-relaxed ${
-            saved.is_published ? 'text-white/50' : 'text-muted'
-          }`}
-        >
-          {saved.is_published
-            ? t.pe.linkReady
-            : t.pe.saveThenView}
-        </p>
-
-        {!saved.is_published ? (
-          <div className="mt-3 flex flex-wrap gap-1.5" aria-label={t.pe.readiness}>
-            {[
-              [t.pe.checkName, publishChecks.name],
-              [t.pe.checkPhotos, publishChecks.image],
-              [t.pe.checkContact, publishChecks.contact],
-            ].map(([label, complete]) => (
-              <div key={String(label)} className={`rounded-full border px-2.5 py-1.5 text-center text-[9px] font-medium ${complete ? 'border-gold/35 bg-gold-soft text-gold-deep' : 'border-line bg-ground-sunken text-muted'}`}>
-                <span className="mr-1" aria-hidden>{complete ? '✓' : '○'}</span>
-                {String(label)}
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           {dirty ? (
-            <span className={`inline-flex h-11 items-center rounded-full px-5 text-[13px] font-semibold opacity-50 ${saved.is_published ? 'bg-gold text-ink' : 'bg-ink text-white'}`}>
+            <span className={`inline-flex h-9 items-center rounded-full px-4 text-[11px] font-semibold opacity-50 ${saved.is_published ? 'bg-gold text-ink' : 'bg-ink text-white'}`}>
               {t.pe.saveBeforePreview}
             </span>
           ) : (
@@ -537,7 +531,7 @@ export default function PortfolioEditor({
               href={viewUrl}
               target="_blank"
               rel="noreferrer"
-              className={`inline-flex h-11 items-center rounded-full px-5 text-[13px] font-semibold transition active:scale-[0.97] ${saved.is_published ? 'bg-gold text-ink' : 'bg-ink text-white'}`}
+              className={`inline-flex h-9 items-center rounded-full px-4 text-[11px] font-semibold transition active:scale-[0.97] ${saved.is_published ? 'bg-gold text-ink' : 'bg-ink text-white'}`}
             >
               {t.pe.viewPortfolio}
             </a>
@@ -547,7 +541,7 @@ export default function PortfolioEditor({
             type="button"
             onClick={handlePublishToggle}
             disabled={status === 'saving'}
-            className={`inline-flex h-11 items-center rounded-full px-5 text-[13px] font-semibold transition active:scale-[0.97] disabled:opacity-50 ${
+            className={`inline-flex h-9 items-center rounded-full px-4 text-[11px] font-semibold transition active:scale-[0.97] disabled:opacity-50 ${
               saved.is_published
                 ? 'border border-white/20 text-white'
                 : 'border border-line text-muted'
@@ -558,10 +552,10 @@ export default function PortfolioEditor({
 
           {saved.is_published ? (
             <>
-              <button type="button" onClick={handleShare} className="inline-flex h-11 items-center rounded-full border border-white/20 px-5 text-[13px] font-semibold text-white transition active:scale-[0.97]">
+              <button type="button" onClick={handleShare} className="inline-flex h-9 items-center rounded-full border border-white/20 px-4 text-[11px] font-semibold text-white transition active:scale-[0.97]">
                 {t.pe.sharePortfolio}
               </button>
-              <button type="button" onClick={handleCopy} className="inline-flex h-11 items-center rounded-full border border-white/20 px-5 text-[13px] font-semibold text-white transition active:scale-[0.97]">
+              <button type="button" onClick={handleCopy} className="inline-flex h-9 items-center rounded-full border border-white/20 px-4 text-[11px] font-semibold text-white transition active:scale-[0.97]">
                 {copied ? t.pe.copied : t.pe.copyLink}
               </button>
             </>
@@ -580,7 +574,7 @@ export default function PortfolioEditor({
             type="button"
             onClick={() => setEditorSection(section.key)}
             aria-pressed={editorSection === section.key}
-            className={`h-10 rounded-[13px] px-2 text-[11px] font-semibold transition active:scale-95 sm:text-[12px] ${
+            className={`h-9 rounded-[12px] px-2 text-[11px] font-semibold transition active:scale-95 sm:text-[12px] ${
               editorSection === section.key
                 ? 'bg-ink text-white'
                 : 'text-muted hover:bg-ground hover:text-ink'
@@ -608,7 +602,7 @@ export default function PortfolioEditor({
         </div>
       </details>
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_420px] xl:grid-cols-[minmax(0,1fr)_500px]">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-3">
 
       {/* ── IDENTITY ─────────────────────────────────────────────── */}
@@ -692,7 +686,7 @@ export default function PortfolioEditor({
         />
 
         <div className="flex items-stretch gap-3">
-          <div className="relative aspect-[3/4] w-24 shrink-0 overflow-hidden rounded-card bg-ground-sunken">
+          <div className="relative aspect-[3/4] w-20 shrink-0 overflow-hidden rounded-card bg-ground-sunken sm:w-24">
             {form.hero_photo_url ? (
               <Image
                 src={form.hero_photo_url}
@@ -853,8 +847,8 @@ export default function PortfolioEditor({
         </p>
 
         <Field label={t.pe.galleryLayoutLabel}>
-          <p className="mb-3 text-[11px] leading-5 text-muted">{t.pe.galleryLayoutHint}</p>
-          <div className="-mx-1 flex gap-2.5 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <p className="mb-2 text-[10px] leading-4 text-muted">{t.pe.galleryLayoutHint}</p>
+          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {GALLERY_LAYOUTS.map((option) => {
               const active = (form.gallery_layout || 'carousel') === option.key
               return (
@@ -862,19 +856,18 @@ export default function PortfolioEditor({
                   key={option.key}
                   type="button"
                   onClick={() => set('gallery_layout', option.key)}
-                  className={`w-[156px] shrink-0 overflow-hidden rounded-[18px] border text-left transition active:scale-[0.98] sm:w-[176px] ${active ? 'border-gold bg-gold-soft/35 text-ink shadow-card ring-1 ring-gold/40' : 'border-line bg-surface text-ink'}`}
+                  className={`w-[124px] shrink-0 overflow-hidden rounded-[16px] border text-left transition active:scale-[0.98] sm:w-[136px] ${active ? 'border-gold bg-gold-soft/35 text-ink shadow-card ring-1 ring-gold/40' : 'border-line bg-surface text-ink'}`}
                 >
                   <GalleryLayoutPreview
                     layout={option.key}
                     images={form.gallery_urls}
                     active={active}
                   />
-                  <div className="p-3">
+                  <div className="p-2.5">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-[13px] font-semibold">{t.pe.galleryLayouts[option.key]?.label || option.label}</p>
+                      <p className="truncate text-[11px] font-semibold">{t.pe.galleryLayouts[option.key]?.label || option.label}</p>
                       <span className={`grid h-4.5 w-4.5 place-items-center rounded-full border text-[9px] ${active ? 'border-gold bg-gold text-ink' : 'border-line-strong text-transparent'}`}>✓</span>
                     </div>
-                    <p className="mt-1 line-clamp-2 min-h-8 text-[9px] leading-4 text-muted">{t.pe.galleryLayouts[option.key]?.hint || option.hint}</p>
                   </div>
                 </button>
               )
@@ -953,21 +946,12 @@ export default function PortfolioEditor({
         title={t.pe.designTitle}
         hint={t.pe.designHint}
       >
-        <div className="rounded-[22px] border border-line bg-ground p-4 sm:p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="max-w-lg">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-deep">{t.pe.collection}</p>
-              <h3 className="mt-2 text-[20px] font-semibold tracking-[-0.03em] text-ink sm:text-[22px]">{t.pe.choosePersona}</h3>
-              <p className="mt-1.5 text-[11px] leading-5 text-muted">{t.pe.cardsNote}</p>
-            </div>
-            <div className="flex shrink-0 items-center gap-3 rounded-full border border-gold/45 bg-gold-soft px-4 py-2.5">
-              <span className="grid h-6 w-6 place-items-center rounded-full bg-gold text-[10px] font-semibold text-ink">✓</span>
-              <div>
-                <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-gold-deep">{t.pe.active}</p>
-                <p className="text-[12px] font-semibold text-ink">{getPortfolioTemplate(form.layout)?.label}</p>
-              </div>
-            </div>
+        <div className="flex items-center justify-between gap-3 rounded-control border border-line bg-ground px-3 py-3">
+          <div className="min-w-0">
+            <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-muted">{t.pe.currentTemplate}</p>
+            <p className="mt-0.5 truncate text-[14px] font-semibold text-ink">{getPortfolioTemplate(form.layout)?.label}</p>
           </div>
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gold text-[10px] font-semibold text-ink">✓</span>
         </div>
 
         <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label={t.pe.filterTemplates}>
@@ -995,41 +979,37 @@ export default function PortfolioEditor({
                   type="button"
                   onClick={() => set('layout', layout.key)}
                   aria-pressed={active}
-                  className={`group relative flex min-h-[200px] w-[280px] shrink-0 overflow-hidden rounded-[20px] border text-left transition duration-300 active:scale-[0.99] sm:w-[320px] ${
+                  className={`group relative flex min-h-[164px] w-[236px] shrink-0 overflow-hidden rounded-[18px] border text-left transition duration-300 active:scale-[0.99] sm:w-[260px] ${
                     active
                       ? 'border-gold bg-gold-soft/35 text-ink shadow-card ring-1 ring-gold/40'
                       : 'border-line bg-surface text-ink hover:-translate-y-0.5 hover:border-line-strong hover:shadow-card'
                   }`}
                 >
-                  <div className="flex w-[38%] max-w-[150px] shrink-0 items-center justify-center border-r border-line bg-ground p-2.5 sm:p-3">
-                    <div className="w-full overflow-hidden rounded-[16px] border-[3px] border-ink bg-ground shadow-card">
+                  <div className="flex w-[42%] shrink-0 items-center justify-center border-r border-line bg-ground p-2">
+                    <div className="w-full overflow-hidden rounded-[13px] border-2 border-ink bg-ground shadow-card">
                       <TemplatePreview template={layout.key} portfolio={form} />
                     </div>
                   </div>
-                  <div className="flex min-w-0 flex-1 flex-col justify-center p-3.5 sm:p-4">
+                  <div className="flex min-w-0 flex-1 flex-col justify-center p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                        <div className="mb-1 flex flex-wrap items-center gap-1">
                           <span className="rounded-full bg-ground-sunken px-2 py-0.5 text-[8px] font-semibold text-muted">
                             {layout.category}
                           </span>
                           {layout.badge ? <span className="rounded-full bg-gold px-2 py-0.5 text-[8px] font-semibold text-ink">{layout.badge}</span> : null}
                         </div>
-                        <p className="truncate text-[14px] font-semibold tracking-[-0.02em] sm:text-[15px]">
+                        <p className="line-clamp-2 text-[12px] font-semibold leading-[1.25] tracking-[-0.02em] sm:text-[13px]">
                           {layout.label}
                         </p>
                         <p className="mt-1 text-[9px] font-medium text-gold-deep">
                           {layout.mood}
                         </p>
                       </div>
-                      <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border text-[10px] transition ${active ? 'border-gold bg-gold text-ink' : 'border-line-strong text-transparent group-hover:border-ink group-hover:text-ink'}`}>
+                      <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border text-[8px] transition ${active ? 'border-gold bg-gold text-ink' : 'border-line-strong text-transparent group-hover:border-ink group-hover:text-ink'}`}>
                         ✓
                       </span>
                     </div>
-                    <p className="mt-3 line-clamp-3 text-[10px] font-normal leading-5 text-muted sm:text-[11px]">
-                      {layout.hint}
-                    </p>
-                    <p className={`mt-4 text-[10px] font-semibold ${active ? 'text-gold-deep' : 'text-muted'}`}>{active ? t.pe.active : t.pe.tapToSelect} →</p>
                   </div>
                 </button>
               )
@@ -1101,15 +1081,15 @@ export default function PortfolioEditor({
               <span className="rounded-full bg-ink px-3 py-2 text-[9px] font-semibold text-white">{t.pe.mobileRatio}</span>
             </div>
 
-            <div className="bg-ground-sunken p-3 sm:p-4">
-              <div data-accent={form.accent} className="mx-auto max-w-[310px] overflow-hidden rounded-[28px] border-[5px] border-ink bg-ground p-1 shadow-card">
-                <div className="overflow-hidden rounded-[20px]">
+            <div className="bg-ground-sunken p-3">
+              <div data-accent={form.accent} className="mx-auto max-w-[224px] overflow-hidden rounded-[24px] border-4 border-ink bg-ground p-1 shadow-card">
+                <div className="overflow-hidden rounded-[17px]">
                   <TemplatePreview template={form.layout} portfolio={form} featured />
                 </div>
               </div>
             </div>
 
-            <div className="border-t border-line px-4 py-4 sm:px-5">
+            <div className="border-t border-line px-4 py-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[10px] font-medium text-muted">{t.pe.currentTemplate}</p>
@@ -1125,9 +1105,6 @@ export default function PortfolioEditor({
                 >
                   {t.pe.changeTemplate}
                 </button>
-              </div>
-              <div className="mt-3 overflow-hidden rounded-control border border-line">
-                <GalleryLayoutPreview layout={form.gallery_layout || 'carousel'} images={form.gallery_urls} active={false} />
               </div>
             </div>
           </div>
@@ -1150,16 +1127,16 @@ function Card({
 }) {
   return (
     <section id={id} className="scroll-mt-20 overflow-hidden rounded-panel border border-line bg-surface shadow-card">
-      <div className="border-b border-line bg-[linear-gradient(110deg,var(--ciiya-surface),var(--ciiya-ground))] px-4 py-4 sm:px-5">
+      <div className="border-b border-line bg-[linear-gradient(110deg,var(--ciiya-surface),var(--ciiya-ground))] px-4 py-3 sm:px-5">
         <div className="flex items-start gap-3">
           <span aria-hidden className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-gold" />
           <div>
-            <h2 className="text-[18px] font-semibold tracking-[-0.025em]">{title}</h2>
-            <p className="mt-1 text-[12px] font-normal leading-relaxed text-muted">{hint}</p>
+            <h2 className="text-[16px] font-semibold tracking-[-0.025em]">{title}</h2>
+            <p className="mt-0.5 line-clamp-2 text-[11px] font-normal leading-relaxed text-muted">{hint}</p>
           </div>
         </div>
       </div>
-      <div className="space-y-4 px-4 py-4 sm:px-5">{children}</div>
+      <div className="space-y-3 px-4 py-3.5 sm:px-5">{children}</div>
     </section>
   )
 }
@@ -1247,7 +1224,7 @@ function GalleryLayoutPreview({
   )
 
   return (
-    <div className={`grid aspect-[4/5] gap-1 border-b p-2 ${active ? 'border-gold/30 bg-gold-soft/35' : 'border-line bg-ground-sunken'}`} aria-hidden>
+    <div className={`grid aspect-[4/3] gap-1 border-b p-2 ${active ? 'border-gold/30 bg-gold-soft/35' : 'border-line bg-ground-sunken'}`} aria-hidden>
       {layout === 'carousel' ? (
         <div className="flex gap-1 overflow-hidden">{[0, 1, 2].map((i) => tile(i, 'h-full w-[60%] shrink-0 rounded-[4px]'))}</div>
       ) : layout === 'filmstrip' ? (

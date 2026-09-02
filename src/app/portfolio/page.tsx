@@ -96,47 +96,32 @@ export default async function PortfolioPage() {
   const origin = host ? `${proto}://${host}` : ''
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_85%_0%,rgba(199,168,107,0.16),transparent_28rem)] bg-ground px-4 pt-[max(16px,env(safe-area-inset-top))] pb-[max(120px,calc(env(safe-area-inset-bottom)+40px))] text-ink sm:px-8 lg:px-10">
-      <div className="mx-auto w-full max-w-[1480px]">
-        <header className="relative overflow-hidden rounded-hero border border-line bg-surface shadow-card">
-          <div aria-hidden className="absolute -right-24 -top-28 h-72 w-72 rounded-full bg-gold-soft blur-3xl" />
-          <div className="relative flex items-center justify-between gap-4 border-b border-line px-5 py-4 sm:px-8">
-            <Link
-              href="/albums"
-              className="inline-flex h-10 items-center gap-2 rounded-full border border-line bg-surface px-4 text-[12px] font-semibold text-muted transition hover:text-ink active:scale-95"
-            >
-              <span aria-hidden>←</span>
-              {t.portfolio.myJobs}
-            </Link>
-            <div className="flex items-center gap-2">
-              <span className="hidden text-[11px] font-medium text-muted sm:inline">Ciiya</span>
-              <span className="rounded-full bg-ink px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white">{t.portfolio.studio}</span>
+    <main className="min-h-screen bg-ground px-3 pt-[max(12px,env(safe-area-inset-top))] pb-[max(120px,calc(env(safe-area-inset-bottom)+40px))] text-ink sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-[1320px]">
+        <header className="relative overflow-hidden rounded-panel border border-line bg-surface shadow-card">
+          <div aria-hidden className="absolute -right-16 -top-20 h-48 w-48 rounded-full bg-gold-soft/70 blur-3xl" />
+          <div className="relative flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
+            <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+              <Link
+                href="/albums"
+                aria-label={t.portfolio.myJobs}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-line bg-ground text-[18px] text-ink transition hover:border-line-strong active:scale-95"
+              >
+                <span aria-hidden>←</span>
+              </Link>
+              <div className="min-w-0">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-gold-deep">Ciiya Portfolio</p>
+                <h1 className="mt-1 truncate text-[24px] font-semibold leading-tight tracking-[-0.04em] sm:text-[28px]">
+                  พอร์ตโฟลิโอของคุณ
+                </h1>
+                <p className="mt-1 text-[11px] leading-relaxed text-muted sm:text-[12px]">
+                  แก้ไขข้อมูล เลือกรูปแบบ แล้วบันทึกเพื่อส่งให้ลูกค้า
+                </p>
+              </div>
             </div>
-          </div>
-
-          <div className="relative grid gap-8 px-5 py-8 sm:px-8 sm:py-10 lg:grid-cols-[1.2fr_0.8fr] lg:items-end lg:gap-14 lg:px-12 lg:py-14">
-            <div className="max-w-3xl">
-              <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-gold-deep">{t.portfolio.yourPage}</p>
-              <h1 className="mt-4 text-[clamp(2.45rem,6vw,5.4rem)] font-semibold leading-[0.9] tracking-[-0.065em]">
-                {t.portfolio.headline}
-              </h1>
-              <p className="mt-6 max-w-xl text-[14px] font-normal leading-[1.8] text-muted sm:text-[16px]">
-                {t.portfolio.subtitle}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 rounded-panel border border-line bg-ground/75 p-3 sm:p-4">
-              {[
-                ['01', t.portfolio.step1],
-                ['02', t.portfolio.step2],
-                ['03', t.portfolio.step3],
-              ].map(([number, label]) => (
-                <div key={number} className="rounded-card bg-surface px-3 py-4 text-center shadow-card">
-                  <p className="text-[10px] font-semibold tracking-[0.14em] text-gold-deep">{number}</p>
-                  <p className="mt-2 text-[11px] font-semibold text-ink sm:text-[12px]">{label}</p>
-                </div>
-              ))}
-            </div>
+            <span className="self-start rounded-full bg-ink px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-white sm:self-center">
+              {t.portfolio.studio}
+            </span>
           </div>
         </header>
 

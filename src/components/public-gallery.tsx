@@ -756,13 +756,13 @@ useEffect(() => {
               tabs on the left and the density (column) controls on the right. */}
           <div className="relative mb-4 [@media(max-height:480px)]:pr-[76px] sm:mb-5">
             <div className="flex items-center justify-between gap-2 sm:gap-3">
-              <div className="inline-flex shrink-0 items-center gap-1 rounded-full border border-line bg-surface/90 p-1 shadow-lift backdrop-blur-xl">
+              <div className="inline-flex shrink-0 items-center rounded-full border border-line bg-ground-sunken p-1">
                 <button
                   type="button"
                   onClick={() => setTab('live')}
                   aria-pressed={tab === 'live'}
                   className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition sm:px-4 sm:py-2 sm:text-[13px] ${
-                    tab === 'live' ? 'bg-gold-deep text-white' : 'text-muted hover:text-ink'
+                    tab === 'live' ? 'bg-surface text-ink shadow-[0_1px_5px_rgba(15,23,42,0.1)]' : 'text-muted hover:text-ink'
                   }`}
                 >
                   {t.gallery.latestPhotos}
@@ -773,7 +773,7 @@ useEffect(() => {
                   onClick={() => setTab('popular')}
                   aria-pressed={tab === 'popular'}
                   className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition sm:px-4 sm:py-2 sm:text-[13px] ${
-                    tab === 'popular' ? 'bg-gold-deep text-white' : 'text-muted hover:text-ink'
+                    tab === 'popular' ? 'bg-surface text-ink shadow-[0_1px_5px_rgba(15,23,42,0.1)]' : 'text-muted hover:text-ink'
                   }`}
                 >
                   {t.gallery.popularPhotos}

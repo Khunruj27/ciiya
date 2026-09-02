@@ -807,9 +807,9 @@ useEffect(() => {
 
           <div
             ref={gridContainerRef}
-            className="relative h-[72vh] max-h-[900px] min-h-[320px] overflow-hidden rounded-[4px]"
+            className="relative w-full rounded-[4px]"
           >
-        {gridSize.width > 0 && gridSize.height > 0
+        {gridSize.width > 0
           ? (() => {
               const safeWidth = Math.max(1, gridSize.width)
               const responsiveCols = getResponsiveGridCols(gridCols, safeWidth)
@@ -820,14 +820,18 @@ useEffect(() => {
               )
 
               return (
+                // Height is the full content height so the grid flows with the
+                // page (one natural scroll) instead of scrolling inside a fixed
+                // box. overflow:visible stops react-window adding its own scroll.
                 <VirtualGrid
-                  height={gridSize.height}
+                  height={rowCount * rowHeight}
                   width={safeWidth}
                   columnCount={responsiveCols}
                   columnWidth={columnWidth}
                   rowCount={rowCount}
                   rowHeight={rowHeight}
                   overscanRowCount={3}
+                  style={{ overflow: 'visible' }}
                   itemData={{ ...gridData, gridCols: responsiveCols }}
                   itemKey={({ columnIndex, rowIndex, data }) => {
                     const photoIndex =

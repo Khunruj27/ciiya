@@ -1,0 +1,34 @@
+# Face worker image.
+#
+# Unlike the photo worker (Alpine + sharp, which ships musl prebuilts), the
+# face worker pulls in @tensorflow/tfjs-node — whose native addon is built for
+# glibc — and node-canvas, which needs the Cairo/Pango/JPEG/GIF/SVG libraries.
+# So this image is based on Debian (glibc) and installs those system libs.
+FROM node:24-bookworm-slim
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# node-canvas build/runtime dependencies (per the node-canvas Debian docs).
+# tfjs-node ships a prebuilt glibc binary, so it needs no extra system libs.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential \
+      python3 \
+      pkg-config \
+      libcairo2-dev \
+      libpango1.0-dev \
+      libjpeg-dev \
+      libgif-dev \
+      librsvg2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY package*.json ./
+
+# npm install (not ci): it re-resolves the platform-specific optional native
+# deps for this Linux image, matching the reasoning in Dockerfile.worker.
+RUN npm install
+
+COPY . .
+
+CMD ["npm", "run", "worker:faces"]

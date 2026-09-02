@@ -1,8 +1,9 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import localFont from "next/font/local"
 import { Manrope } from "next/font/google"
 import { getLocale } from "@/lib/i18n-server"
 import { I18nProvider } from "@/components/i18n-provider"
+import { getSiteUrl } from "@/lib/site-url"
 import "./globals.css"
 import AutoWorker from '@/components/auto-worker'
 import '@/lib/env'
@@ -37,9 +38,62 @@ const fcMittraphap = localFont({
   fallback: ["Arial", "sans-serif"],
 })
 
+const siteUrl = getSiteUrl()
+
+const tagline = "เก็บและแชร์ทุกช่วงเวลาสำคัญ"
+const summary =
+  "อัปโหลด จัดเก็บ และแชร์แกลเลอรีภาพถ่ายอย่างสวยงามและปลอดภัย — ค้นหาภาพตัวเองด้วยใบหน้า พร้อมหน้าพอร์ตโฟลิโอสำหรับช่างภาพ"
+
 export const metadata: Metadata = {
-  title: "Ciiya — Keep and share every important moment",
-  description: "Store, upload, and share photo galleries beautifully and securely",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: `Ciiya — ${tagline}`,
+    template: "%s · Ciiya",
+  },
+  description: summary,
+  applicationName: "Ciiya",
+  keywords: [
+    "Ciiya",
+    "แกลเลอรีภาพถ่าย",
+    "แชร์รูปงานอีเวนต์",
+    "ค้นหารูปด้วยใบหน้า",
+    "พอร์ตโฟลิโอช่างภาพ",
+    "photo gallery",
+    "face search",
+    "event photography",
+    "photographer portfolio",
+  ],
+  authors: [{ name: "Ciiya" }],
+  creator: "Ciiya",
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    siteName: "Ciiya",
+    title: `Ciiya — ${tagline}`,
+    description: summary,
+    url: siteUrl,
+    locale: "th_TH",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `Ciiya — ${tagline}`,
+    description: summary,
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/icon.svg",
+  },
+  robots: { index: true, follow: true },
+}
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f8f6f1" },
+    { media: "(prefers-color-scheme: dark)", color: "#171717" },
+  ],
 }
 
 export default async function RootLayout({

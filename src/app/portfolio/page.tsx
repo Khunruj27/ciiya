@@ -10,6 +10,12 @@ import { getUnreadNotificationCount } from '@/lib/notifications'
 import { getServerDictionary } from '@/lib/i18n-server'
 
 export const dynamic = 'force-dynamic'
+
+// The private editor (the public portfolio lives at /portfolio/<slug>).
+export const metadata = {
+  title: 'พอร์ตโฟลิโอของคุณ',
+  robots: { index: false, follow: false },
+}
 export const revalidate = 0
 
 export default async function PortfolioPage() {
@@ -140,11 +146,7 @@ export default async function PortfolioPage() {
           </Link>
 
           <Link href="/portfolio" className="flex h-11 w-11 items-center justify-center rounded-full bg-gold-soft text-gold-deep">
-            <AppIcon name="gallery" size={21} />
-          </Link>
-
-          <Link href="/pricing" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
-            <AppIcon name="magic-wand" size={24} />
+            <AppIcon name="magic-wand" size={21} />
           </Link>
 
           <NotificationBell userId={user.id} initialCount={unreadNotificationCount} />

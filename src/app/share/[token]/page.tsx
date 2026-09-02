@@ -28,6 +28,12 @@ import { getServerDictionary } from '@/lib/i18n-server'
 // one DB round trip instead of one each.
 export const dynamic = 'force-dynamic'
 
+// Share links are private and tokenized — keep them out of search indexes
+// (defense in depth alongside the Disallow in robots.ts).
+export const metadata = {
+  robots: { index: false, follow: false },
+}
+
 type PageProps = {
   params: Promise<{ token: string }>
 }

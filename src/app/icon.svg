@@ -1,0 +1,7 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ciiya">
+  <rect width="512" height="512" rx="116" fill="#171717"/>
+  <circle cx="256" cy="256" r="138" fill="none" stroke="#c7a86b" stroke-width="46"
+          stroke-linecap="round" stroke-dasharray="650 217"
+          transform="rotate(45 256 256)"/>
+  <circle cx="256" cy="256" r="34" fill="#c7a86b"/>
+</svg>

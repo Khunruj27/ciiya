@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import AppIcon from '@/components/app-icon'
 import { useI18n } from '@/components/i18n-provider'
 
 export default function ScrollToTopButton() {
@@ -33,11 +32,18 @@ export default function ScrollToTopButton() {
       title={t.common.backToTop}
       className="group fixed bottom-[calc(15vh-2.25rem)] right-4 z-50 flex h-11 items-center gap-2 rounded-full border border-line bg-surface/90 px-4 text-[13px] font-semibold text-ink shadow-lift backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-gold/40 hover:text-gold-deep hover:shadow-float active:scale-95"
     >
-      <AppIcon
-        name="arrow-top"
-        size={18}
-        className="transition-transform duration-200 group-hover:-translate-y-0.5"
-      />
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+        className="h-[18px] w-[18px] transition-transform duration-200 group-hover:-translate-y-0.5"
+      >
+        <path d="M12 19V5M5 12l7-7 7 7" />
+      </svg>
       {t.common.backToTop}
     </button>
   )

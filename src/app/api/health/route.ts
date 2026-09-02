@@ -113,102 +113,131 @@ return {
 }
 }
 
+async function computeHealth(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  startedAt: number
+) {
+  const [
+    photoPending,
+    photoProcessing,
+    photoFailed,
+    facePending,
+    faceProcessing,
+    faceFailed,
+    photoWorker,
+    faceWorker,
+  ] = await Promise.all([
+    countStatus(supabase, 'photo_jobs', 'pending'),
+    countStatus(supabase, 'photo_jobs', 'processing'),
+    countStatus(supabase, 'photo_jobs', 'failed'),
+    countStatus(supabase, 'face_jobs', 'pending'),
+    countStatus(supabase, 'face_jobs', 'processing'),
+    countStatus(supabase, 'face_jobs', 'failed'),
+    getWorkerHealth(supabase, 'photo'),
+    getWorkerHealth(supabase, 'face'),
+  ])
+
+  const dbOk =
+    photoPending.ok &&
+    photoProcessing.ok &&
+    photoFailed.ok &&
+    facePending.ok &&
+    faceProcessing.ok &&
+    faceFailed.ok &&
+    !photoWorker.error &&
+    !faceWorker.error
+
+  const photoQueueHealthy = photoFailed.count === 0
+  const faceQueueHealthy = faceFailed.count === 0
+
+  const workersHealthy = photoWorker.ok && faceWorker.ok
+
+  const overallHealthy =
+    dbOk && photoQueueHealthy && faceQueueHealthy && workersHealthy
+
+  const detail = {
+    success: true,
+    status: overallHealthy ? 'ok' : 'degraded',
+    checkedAt: new Date().toISOString(),
+    latencyMs: Date.now() - startedAt,
+    services: {
+      web: {
+        ok: true,
+      },
+      database: {
+        ok: dbOk,
+      },
+      photoWorker: {
+        ok: photoWorker.ok,
+        online: photoWorker.online,
+        workers: photoWorker.workers,
+        error: photoWorker.error,
+      },
+      faceWorker: {
+        ok: faceWorker.ok,
+        online: faceWorker.online,
+        workers: faceWorker.workers,
+        error: faceWorker.error,
+      },
+      photoQueue: {
+        ok: photoQueueHealthy,
+        pending: photoPending.count,
+        processing: photoProcessing.count,
+        failed: photoFailed.count,
+      },
+      faceQueue: {
+        ok: faceQueueHealthy,
+        pending: facePending.count,
+        processing: faceProcessing.count,
+        failed: faceFailed.count,
+      },
+    },
+  }
+
+  return { overallHealthy, detail }
+}
+
 export async function GET(req: Request) {
   const startedAt = Date.now()
 
+  // Uptime-monitor mode (e.g. GET /api/health?monitor=1): no auth needed, a
+  // minimal body that leaks no worker internals, and — crucially — an HTTP
+  // status that reflects health (200 ok / 503 degraded|down). A plain
+  // status-code uptime check then catches a dead worker or a failing queue and
+  // fires its own alert, no chat integration required.
+  const monitorMode = new URL(req.url).searchParams.has('monitor')
   const authorized = isAuthorizedHealthRequest(req)
 
-if (!authorized) {
-  return NextResponse.json({
-    success: true,
-    status: 'ok',
-    service: 'ciiya',
-    checkedAt: new Date().toISOString(),
-  })
-}
+  // Public liveness probe (no monitor param, unauthenticated): unchanged.
+  if (!monitorMode && !authorized) {
+    return NextResponse.json({
+      success: true,
+      status: 'ok',
+      service: 'ciiya',
+      checkedAt: new Date().toISOString(),
+    })
+  }
 
   try {
     const supabase = getSupabaseAdmin()
+    const { overallHealthy, detail } = await computeHealth(supabase, startedAt)
 
-    const [
-      photoPending,
-      photoProcessing,
-      photoFailed,
-      facePending,
-      faceProcessing,
-      faceFailed,
-      photoWorker,
-      faceWorker,
-    ] = await Promise.all([
-      countStatus(supabase, 'photo_jobs', 'pending'),
-      countStatus(supabase, 'photo_jobs', 'processing'),
-      countStatus(supabase, 'photo_jobs', 'failed'),
-      countStatus(supabase, 'face_jobs', 'pending'),
-      countStatus(supabase, 'face_jobs', 'processing'),
-      countStatus(supabase, 'face_jobs', 'failed'),
-      getWorkerHealth(supabase, 'photo'),
-      getWorkerHealth(supabase, 'face'),
-    ])
+    if (monitorMode) {
+      return NextResponse.json(
+        {
+          status: overallHealthy ? 'ok' : 'degraded',
+          checkedAt: new Date().toISOString(),
+          latencyMs: Date.now() - startedAt,
+        },
+        { status: overallHealthy ? 200 : 503 }
+      )
+    }
 
-    const dbOk =
-      photoPending.ok &&
-      photoProcessing.ok &&
-      photoFailed.ok &&
-      facePending.ok &&
-      faceProcessing.ok &&
-      faceFailed.ok &&
-      !photoWorker.error &&
-      !faceWorker.error
-
-    const photoQueueHealthy = photoFailed.count === 0
-    const faceQueueHealthy = faceFailed.count === 0
-
-    const workersHealthy = photoWorker.ok && faceWorker.ok
-
-    const overallHealthy =
-      dbOk && photoQueueHealthy && faceQueueHealthy && workersHealthy
-
-    return NextResponse.json({
-      success: true,
-      status: overallHealthy ? 'ok' : 'degraded',
-      checkedAt: new Date().toISOString(),
-      latencyMs: Date.now() - startedAt,
-      services: {
-        web: {
-          ok: true,
-        },
-        database: {
-          ok: dbOk,
-        },
-        photoWorker: {
-          ok: photoWorker.ok,
-          online: photoWorker.online,
-          workers: photoWorker.workers,
-          error: photoWorker.error,
-        },
-        faceWorker: {
-          ok: faceWorker.ok,
-          online: faceWorker.online,
-          workers: faceWorker.workers,
-          error: faceWorker.error,
-        },
-        photoQueue: {
-          ok: photoQueueHealthy,
-          pending: photoPending.count,
-          processing: photoProcessing.count,
-          failed: photoFailed.count,
-        },
-        faceQueue: {
-          ok: faceQueueHealthy,
-          pending: facePending.count,
-          processing: faceProcessing.count,
-          failed: faceFailed.count,
-        },
-      },
-    })
+    // Authenticated detailed report (admin / worker secret): always 200.
+    return NextResponse.json(detail)
   } catch (error) {
     console.error('[health] failed:', error)
-    
+
     return NextResponse.json(
       {
         success: false,
@@ -217,7 +246,7 @@ if (!authorized) {
         latencyMs: Date.now() - startedAt,
         error: 'Health check failed',
       },
-      { status: 500 }
+      { status: monitorMode ? 503 : 500 }
     )
   }
 }

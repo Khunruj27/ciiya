@@ -38,6 +38,7 @@ const th = {
     thai: 'ไทย',
     english: 'อังกฤษ',
     backToTop: 'ขึ้นบน',
+    findMyPhotos: 'ค้นหารูปฉัน',
   },
   me: {
     title: 'โปรไฟล์',
@@ -521,6 +522,7 @@ const en = {
     thai: 'Thai',
     english: 'English',
     backToTop: 'Back to top',
+    findMyPhotos: 'Find my photos',
   },
   me: {
     title: 'Profile',

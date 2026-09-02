@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import NextImage from 'next/image'
 import { extractSelfieDescriptor } from '@/lib/face-descriptor'
+import { useI18n } from '@/components/i18n-provider'
 
 type SearchResult = {
   faceId: string
@@ -34,6 +35,7 @@ export default function SelfieFaceSearch({
    */
   variant?: 'floating' | 'inline'
 }) {
+  const { t } = useI18n()
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
@@ -130,11 +132,11 @@ export default function SelfieFaceSearch({
           input?.click()
         }}
         disabled={loading}
-        aria-label="Search photos by face"
+        aria-label={t.common.findMyPhotos}
         className={
           variant === 'inline'
             ? 'ml-auto flex shrink-0 items-center gap-2 rounded-full bg-ink px-4 py-2.5 text-[12px] font-bold text-white transition active:scale-95 disabled:opacity-60'
-            : 'fixed bottom-[calc(1.25rem+15vh)] right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-ink text-white shadow-float transition hover:scale-105 disabled:opacity-60'
+            : 'group fixed bottom-[calc(1.25rem+15vh)] right-4 z-50 flex h-13 items-center gap-2 rounded-full bg-gold px-5 text-[13px] font-bold text-ink ring-4 ring-gold/25 shadow-[0_12px_34px_rgba(199,168,107,0.55)] transition duration-200 hover:-translate-y-0.5 hover:ring-gold/40 hover:shadow-[0_16px_42px_rgba(199,168,107,0.7)] active:scale-95 disabled:opacity-60'
         }
       >
         <svg
@@ -144,7 +146,7 @@ export default function SelfieFaceSearch({
           strokeWidth="1.8"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className={variant === 'inline' ? 'h-4 w-4' : 'h-7 w-7'}
+          className={variant === 'inline' ? 'h-4 w-4' : 'h-[22px] w-[22px]'}
         >
           <path d="M4 8V6a2 2 0 0 1 2-2h2" />
           <path d="M16 4h2a2 2 0 0 1 2 2v2" />
@@ -154,7 +156,7 @@ export default function SelfieFaceSearch({
           <path d="M9 16.2c.7-1 1.8-1.6 3-1.6s2.3.6 3 1.6" />
         </svg>
 
-        {variant === 'inline' ? <span>Find my photos</span> : null}
+        <span>{t.common.findMyPhotos}</span>
       </button>
 
       <input

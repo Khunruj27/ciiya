@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { getServerDictionary } from '@/lib/i18n-server'
 import PortfolioGallery from '@/components/portfolio-gallery'
 import PortfolioTemplateHero from '@/components/portfolio-template-hero'
 import { templateUsesDarkHero } from '@/lib/portfolio-templates'
@@ -80,8 +81,9 @@ export default async function PublicPortfolioPage({
   if (!view) notFound()
 
   const { portfolio, showcase } = view
+  const { t } = await getServerDictionary()
 
-  const name = portfolio.display_name || 'Photographer'
+  const name = portfolio.display_name || t.portfolioPublic.defaultName
 
   // The hero falls back through what the page actually has, so a portfolio
   // published before a hero was picked still opens on a photograph.
@@ -130,14 +132,14 @@ export default async function PublicPortfolioPage({
   const isJournal = layout === 'journal'
   const isPortrait = layout === 'portrait'
   const galleryTitle = isLuxe
-    ? 'The story of us'
+    ? t.portfolioPublic.galleryTitleLuxe
     : isPortrait
-      ? 'Personality through pictures'
+      ? t.portfolioPublic.galleryTitlePortrait
       : isJournal
-        ? 'Notes along the way'
+        ? t.portfolioPublic.galleryTitleJournal
         : isNoir
-          ? 'Selected work'
-          : 'Stories in pictures'
+          ? t.portfolioPublic.galleryTitleNoir
+          : t.portfolioPublic.galleryTitleDefault
   const galleryShell = isNoir
     ? 'border-white/10 bg-[#121210] text-white shadow-none'
     : isLuxe
@@ -181,7 +183,7 @@ export default async function PublicPortfolioPage({
     },
     portfolio.contact_phone && portfolio.show_contact_phone !== false && {
       key: 'phone',
-      label: 'Phone',
+      label: t.portfolioPublic.contactPhone,
       value: portfolio.contact_phone,
       href: telUrl(portfolio.contact_phone),
     },
@@ -205,13 +207,13 @@ export default async function PublicPortfolioPage({
     },
     portfolio.contact_email && portfolio.show_contact_email !== false && {
       key: 'email',
-      label: 'Email',
+      label: t.portfolioPublic.contactEmail,
       value: portfolio.contact_email,
       href: `mailto:${portfolio.contact_email}`,
     },
     portfolio.contact_website && portfolio.show_contact_website !== false && {
       key: 'website',
-      label: 'Website',
+      label: t.portfolioPublic.contactWebsite,
       value: displayHandle(portfolio.contact_website),
       href: websiteUrl(portfolio.contact_website),
     },
@@ -232,12 +234,12 @@ export default async function PublicPortfolioPage({
     >
       {isPreview ? (
         <div className="sticky top-0 z-50 flex items-center justify-center gap-3 bg-ink px-4 py-2.5 text-center text-[12px] font-medium text-white">
-          Preview — Not published yet — others can’t open this link
+          {t.portfolioPublic.previewBanner}
           <Link
             href="/portfolio"
             className="shrink-0 rounded-full bg-white/15 px-3 py-1 font-semibold"
           >
-            Back to editing
+            {t.portfolioPublic.backToEditing}
           </Link>
         </div>
       ) : null}
@@ -259,13 +261,13 @@ export default async function PublicPortfolioPage({
                   rel={primaryContact.href.startsWith('http') ? 'noreferrer noopener' : undefined}
                   className={`inline-flex h-12 w-full items-center justify-center gap-2.5 rounded-full px-5 text-[14px] font-semibold transition active:scale-[0.97] sm:w-auto sm:px-6 ${heroUsesLightText ? 'bg-white text-ink' : 'bg-ink text-white'}`}
                 >
-                  Get in touch
+                  {t.portfolioPublic.getInTouch}
                   <ArrowIcon />
                 </a>
               ) : null}
               {strip.length > 0 ? (
                 <a href="#gallery" className={`inline-flex h-12 w-full items-center justify-center rounded-full border px-5 text-[14px] font-semibold transition active:scale-[0.97] sm:w-auto sm:px-6 ${heroUsesLightText ? 'border-white/35 bg-black/10 text-white' : 'border-ink/20 bg-white/55 text-ink backdrop-blur'}`}>
-                  View gallery
+                  {t.portfolioPublic.viewGallery}
                 </a>
               ) : null}
             </div>
@@ -279,26 +281,26 @@ export default async function PublicPortfolioPage({
               <span className="pr-2 text-[12px] font-semibold uppercase tracking-[0.2em]">Ciiya Portfolio</span>
             </Link>
 
-            <nav className={`hidden items-center gap-6 rounded-full border px-5 py-2.5 text-[11px] font-medium backdrop-blur-md sm:flex ${heroUsesLightText ? 'border-white/25 bg-black/10' : 'border-ink/10 bg-white/65'}`} aria-label="Portfolio menu">
-              {strip.length > 0 ? <a href="#gallery" className="transition hover:opacity-60">Gallery</a> : null}
-              {portfolio.bio ? <a href="#about" className="transition hover:opacity-60">About</a> : null}
-              {contacts.length > 0 ? <a href="#contact" className="transition hover:opacity-60">Contact</a> : null}
+            <nav className={`hidden items-center gap-6 rounded-full border px-5 py-2.5 text-[11px] font-medium backdrop-blur-md sm:flex ${heroUsesLightText ? 'border-white/25 bg-black/10' : 'border-ink/10 bg-white/65'}`} aria-label={t.portfolioPublic.portfolioMenu}>
+              {strip.length > 0 ? <a href="#gallery" className="transition hover:opacity-60">{t.portfolioPublic.menuGallery}</a> : null}
+              {portfolio.bio ? <a href="#about" className="transition hover:opacity-60">{t.portfolioPublic.menuAbout}</a> : null}
+              {contacts.length > 0 ? <a href="#contact" className="transition hover:opacity-60">{t.portfolioPublic.menuContact}</a> : null}
             </nav>
 
-            {primaryContact ? <a href="#contact" className={`rounded-full border px-4 py-2 text-[12px] font-semibold backdrop-blur-md transition active:scale-95 sm:hidden ${heroUsesLightText ? 'border-white/30 bg-black/10' : 'border-ink/10 bg-white/65'}`}>Contact</a> : null}
+            {primaryContact ? <a href="#contact" className={`rounded-full border px-4 py-2 text-[12px] font-semibold backdrop-blur-md transition active:scale-95 sm:hidden ${heroUsesLightText ? 'border-white/30 bg-black/10' : 'border-ink/10 bg-white/65'}`}>{t.portfolioPublic.menuContact}</a> : null}
           </div>
         </div>
       </section>
 
       <div className={`sticky z-40 hidden border-b border-line/80 bg-ground/90 backdrop-blur-xl lg:block ${isPreview ? 'top-[41px]' : 'top-0'}`}>
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-16">
-          <a href="#" className="pf-display text-[20px] font-semibold" aria-label="Back to top">
+          <a href="#" className="pf-display text-[20px] font-semibold" aria-label={t.portfolioPublic.backToTop}>
             {name}
           </a>
-          <nav className="flex items-center gap-8 text-[12px] font-medium text-ink-soft" aria-label="Main portfolio menu">
-            {strip.length > 0 ? <a href="#gallery" className="transition hover:text-[var(--pf-accent-deep)]">Gallery</a> : null}
-            {portfolio.bio ? <a href="#about" className="transition hover:text-[var(--pf-accent-deep)]">About</a> : null}
-            {contacts.length > 0 ? <a href="#contact" className="rounded-full bg-ink px-5 py-2.5 text-white transition hover:bg-ink-soft">Get in touch</a> : null}
+          <nav className="flex items-center gap-8 text-[12px] font-medium text-ink-soft" aria-label={t.portfolioPublic.mainMenu}>
+            {strip.length > 0 ? <a href="#gallery" className="transition hover:text-[var(--pf-accent-deep)]">{t.portfolioPublic.menuGallery}</a> : null}
+            {portfolio.bio ? <a href="#about" className="transition hover:text-[var(--pf-accent-deep)]">{t.portfolioPublic.menuAbout}</a> : null}
+            {contacts.length > 0 ? <a href="#contact" className="rounded-full bg-ink px-5 py-2.5 text-white transition hover:bg-ink-soft">{t.portfolioPublic.getInTouch}</a> : null}
           </nav>
         </div>
       </div>
@@ -309,11 +311,11 @@ export default async function PublicPortfolioPage({
             <div className="flex items-center gap-4">
               <span className="pf-eyebrow tabular-nums">01</span>
               <span className="pf-rule flex-1" aria-hidden />
-              <span className="pf-eyebrow">Selected shots</span>
+              <span className="pf-eyebrow">{t.portfolioPublic.selectedShots}</span>
             </div>
             <div className="mt-6 flex items-end justify-between gap-6">
               <h2 className="pf-display text-[clamp(2.4rem,6.5vw,4.2rem)]">{galleryTitle}</h2>
-              <p className={`hidden max-w-xs text-right text-[13px] leading-relaxed sm:block ${isNoir ? 'text-white/45' : 'text-muted'}`}>Tap a photo to view full screen<br />Use the arrow keys to move to the next photo</p>
+              <p className={`hidden max-w-xs text-right text-[13px] leading-relaxed sm:block ${isNoir ? 'text-white/45' : 'text-muted'}`}>{t.portfolioPublic.tapToFullScreen}<br />{t.portfolioPublic.useArrowKeys}</p>
             </div>
           </header>
           <div className={galleryLayout === 'grid' || galleryLayout === 'masonry' || galleryLayout.startsWith('collage') ? 'mx-auto w-full max-w-6xl px-4 sm:px-8' : 'px-3 sm:px-6'}>
@@ -332,12 +334,12 @@ export default async function PublicPortfolioPage({
             <div className="relative mb-10 flex items-center gap-4">
               <span className="pf-eyebrow tabular-nums">02</span>
               <span className="pf-rule flex-1" aria-hidden />
-              <span className="pf-eyebrow">About</span>
+              <span className="pf-eyebrow">{t.portfolioPublic.menuAbout}</span>
             </div>
             <div className="relative grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
               <div>
                 <span className="pf-serif text-[54px] leading-none text-[var(--pf-accent-deep)] opacity-[0.35]" aria-hidden>“</span>
-                <h2 className={`pf-display -mt-3 text-[clamp(2.2rem,5vw,3.6rem)] ${aboutHeadingTone}`}>The story<br className="hidden sm:block" />behind the photos</h2>
+                <h2 className={`pf-display -mt-3 text-[clamp(2.2rem,5vw,3.6rem)] ${aboutHeadingTone}`}>{t.portfolioPublic.aboutHeading1}<br className="hidden sm:block" />{t.portfolioPublic.aboutHeading2}</h2>
               </div>
               <p className={`pf-serif max-w-2xl whitespace-pre-line text-[17px] font-normal leading-[1.95] sm:text-[20px] ${aboutBodyTone}`}>{portfolio.bio}</p>
             </div>
@@ -356,15 +358,15 @@ export default async function PublicPortfolioPage({
               <div className={`mb-6 flex items-center gap-4 ${isLuxe ? 'justify-center' : ''}`}>
                 <span className="pf-eyebrow tabular-nums" style={{ color: 'var(--pf-accent)' }}>03</span>
                 <span className="h-px flex-1 bg-white/20" aria-hidden />
-                <span className="pf-eyebrow" style={{ color: 'var(--pf-accent)' }}>Get in touch</span>
+                <span className="pf-eyebrow" style={{ color: 'var(--pf-accent)' }}>{t.portfolioPublic.getInTouch}</span>
               </div>
 
               <h2 className={`pf-display max-w-xl text-[clamp(2.2rem,6vw,4.2rem)] ${isLuxe ? 'mx-auto' : ''}`}>
-                Talk about your project with {name}
+                {t.portfolioPublic.talkProject(name)}
               </h2>
 
               <p className={`mt-5 max-w-md text-[14px] font-normal leading-relaxed text-white/60 sm:text-[15px] ${isLuxe ? 'mx-auto' : ''}`}>
-                Send the details, date, and location through whichever channel suits you
+                {t.portfolioPublic.contactDesc}
               </p>
             </div>
 
@@ -411,7 +413,7 @@ export default async function PublicPortfolioPage({
               </div>
             ) : (
               <p className="self-center text-[14px] font-normal text-white/50">
-                No contact channels set yet
+                {t.portfolioPublic.noContact}
               </p>
             )}
           </div>
@@ -420,7 +422,7 @@ export default async function PublicPortfolioPage({
 
       <footer className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-6 pb-[max(32px,env(safe-area-inset-bottom))] pt-4 text-[11px] text-muted">
         <p>© {new Date().getFullYear()} {name}</p>
-        <Link href="/" className="font-medium tracking-[0.04em] transition hover:text-ink">Made with Ciiya</Link>
+        <Link href="/" className="font-medium tracking-[0.04em] transition hover:text-ink">{t.portfolioPublic.madeWith}</Link>
       </footer>
     </main>
   )

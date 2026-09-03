@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useI18n } from '@/components/i18n-provider'
 
 const AUTO_DETECT_POLL_MS = 3000
 const AUTO_START_FAILURE_LIMIT = 3
@@ -23,6 +24,7 @@ type PresetItem = {
 
 
 export default function AlbumCameraStatus({ albumId }: Props) {
+  const { t } = useI18n()
   const [cameraState, setCameraState] = useState<CameraState | null>(null)
   const [autoUploadActive, setAutoUploadActive] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -177,12 +179,12 @@ useEffect(() => {
       const json = await res.json()
 
       if (!res.ok) {
-        throw new Error(json.error || 'Connect camera failed')
+        throw new Error(json.error || t.cameraStatus.connectFailed)
       }
 
       setCameraState({
   connected: true,
-  cameraName: json.cameraName || 'Camera connected',
+  cameraName: json.cameraName || t.cameraStatus.cameraConnected,
 })
 
 setAutoUploadActive(false)
@@ -197,7 +199,7 @@ if (auto) {
 }
     } catch (error) {
       if (!auto) {
-        setErrorMsg(error instanceof Error ? error.message : 'Connect failed')
+        setErrorMsg(error instanceof Error ? error.message : t.cameraStatus.connectError)
       }
       return 'no-camera'
     } finally {
@@ -219,7 +221,7 @@ if (auto) {
       const json = await res.json()
 
       if (!res.ok) {
-        throw new Error(json.error || 'Disconnect camera failed')
+        throw new Error(json.error || t.cameraStatus.disconnectFailed)
       }
 
       setCameraState({
@@ -230,7 +232,7 @@ if (auto) {
       setAutoUploadActive(false)
       setShowSettings(false)
     } catch (error) {
-      setErrorMsg(error instanceof Error ? error.message : 'Disconnect failed')
+      setErrorMsg(error instanceof Error ? error.message : t.cameraStatus.disconnectError)
     } finally {
       setBusy(false)
     }
@@ -258,7 +260,7 @@ if (auto) {
       const json = await res.json()
 
       if (!res.ok) {
-        throw new Error(json.error || 'Start auto upload failed')
+        throw new Error(json.error || t.cameraStatus.startUploadFailed)
       }
 
       setPendingConnect(false)
@@ -272,7 +274,7 @@ setShowSettings(false)
     const next = [
       selectedPreset || {
         path: presetPath,
-        name: presetPath.split('/').pop()?.replace(/\.xmp$/i, '') || 'Preset',
+        name: presetPath.split('/').pop()?.replace(/\.xmp$/i, '') || t.cameraStatus.presetDefault,
       },
       ...prev.filter((preset) => preset.path !== presetPath),
     ]
@@ -285,7 +287,7 @@ setShowSettings(false)
     } catch (error) {
       if (!auto) {
         setErrorMsg(
-          error instanceof Error ? error.message : 'Start auto upload failed'
+          error instanceof Error ? error.message : t.cameraStatus.startUploadFailed
         )
       }
       return false
@@ -318,7 +320,7 @@ setShowSettings(false)
     const json = await res.json().catch(() => null)
 
     if (!res.ok || !json?.success) {
-      throw new Error(json?.error || 'Upload preset failed')
+      throw new Error(json?.error || t.cameraStatus.uploadPresetFailed)
     }
 
     const cleanName = file.name.replace(/\.xmp$/i, '')
@@ -333,7 +335,7 @@ setShowSettings(false)
     setPresetPath(json.path)
   } catch (error) {
     setErrorMsg(
-      error instanceof Error ? error.message : 'Upload preset failed'
+      error instanceof Error ? error.message : t.cameraStatus.uploadPresetFailed
     )
   } finally {
     setUploadingPreset(false)
@@ -406,7 +408,7 @@ useEffect(() => {
         if (autoStartFailureCountRef.current >= AUTO_START_FAILURE_LIMIT) {
           autoConnectDisabledRef.current = true
           setErrorMsg(
-            'Camera connected, but auto-capture couldn’t start. Please tap Connect Camera again'
+            t.cameraStatus.autoCaptureFailed
           )
         }
       }
@@ -461,14 +463,14 @@ useEffect(() => {
               ].join(' ')}
             />
             {cameraState?.connected
-              ? cameraState.cameraName || 'Camera connected'
-              : 'Camera not connected'}
+              ? cameraState.cameraName || t.cameraStatus.cameraConnected
+              : t.cameraStatus.notConnected}
             <span className="text-muted">
               {cameraState?.connected
                 ? autoUploadActive
-                  ? ' · Auto-uploading'
-                  : ' · Not uploading yet'
-                : ' · via USB-C'}
+                  ? t.cameraStatus.autoUploading
+                  : t.cameraStatus.notUploadingYet
+                : t.cameraStatus.viaUsb}
             </span>
           </p>
 
@@ -482,7 +484,7 @@ useEffect(() => {
                     disabled={busy}
                     className="rounded-full px-3 py-1.5 text-[12px] font-medium text-muted transition hover:bg-ground-sunken hover:text-ink disabled:opacity-50"
                   >
-                    Settings
+
                   </button>
                 ) : null}
 
@@ -492,7 +494,7 @@ useEffect(() => {
                   disabled={busy}
                   className="rounded-full border border-line px-3 py-1.5 text-[12px] font-medium text-ink transition hover:bg-ground-sunken disabled:opacity-50"
                 >
-                  {busy ? 'Stopping…' : 'Disconnect'}
+                  {busy ? t.cameraStatus.stopping : t.cameraStatus.disconnect}
                 </button>
               </>
             ) : (
@@ -502,7 +504,7 @@ useEffect(() => {
                 disabled={busy}
                 className="rounded-full bg-ink px-3.5 py-1.5 text-[12px] font-medium text-white transition hover:bg-ink-soft disabled:opacity-50"
               >
-                {busy ? 'Connecting…' : 'Connect'}
+                {busy ? t.cameraStatus.connecting : t.cameraStatus.connect}
               </button>
             )}
           </div>
@@ -519,18 +521,18 @@ useEffect(() => {
     <div className="w-full max-w-[380px] rounded-panel bg-surface p-5">
 
       <h3 className="text-[18px] font-semibold text-ink">
-        Processing settings
+
       </h3>
 
       <p className="mt-1 text-[12px] text-muted">
-        Choose image size and preset
+
       </p>
 
       {/* Resize */}
 
       <div className="mt-5">
         <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-          Image size
+
         </div>
 
         <div className="grid grid-cols-4 gap-2">
@@ -558,7 +560,7 @@ useEffect(() => {
 
       <div className="mt-5">
         <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-          preset XMP
+
         </div>
 
        {recentPresets.length > 0 ? (
@@ -586,7 +588,7 @@ useEffect(() => {
           onChange={(e) => setPresetPath(e.target.value)}
           className="h-12 w-full rounded-card border border-line bg-ground-sunken px-4 text-[13px] font-bold"
         >
-          <option value="">No preset</option>
+          <option value="">{t.cameraStatus.noPreset}</option>
 
           {presets.slice(0, 3).map((preset) => (
             <option
@@ -623,7 +625,7 @@ useEffect(() => {
         : '',
     ].join(' ')}
   >
-    {uploadingPreset ? 'Uploading…' : '+ Upload XMP'}
+    {uploadingPreset ? t.cameraStatus.uploading : t.cameraStatus.uploadXmp}
   </label>
 </div>
 
@@ -635,7 +637,7 @@ useEffect(() => {
           onClick={cancelSettings}
           className="h-11 flex-1 rounded-full bg-ground-sunken font-semibold"
         >
-          Cancel
+
         </button>
 
         <button
@@ -644,7 +646,7 @@ useEffect(() => {
           disabled={busy}
           className="h-11 flex-1 rounded-full bg-ink font-semibold text-white"
         >
-          Get started
+
         </button>
       </div>
     </div>

@@ -38,6 +38,41 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // Baseline security headers on every response. Kept to the low-risk,
+        // no-configuration set — a full Content-Security-Policy needs the app's
+        // Supabase/Stripe/font/image origins enumerated and is tracked
+        // separately so it can be rolled out and tested on its own.
+        source: '/:path*',
+        headers: [
+          {
+            // Force HTTPS for two years, subdomains included. No `preload`
+            // yet — that is only meaningful once a controlled apex custom
+            // domain replaces the shared *.vercel.app host.
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains',
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            // Block clickjacking: the app (login, billing, settings) must not
+            // be framed by other origins.
+            key: 'X-Frame-Options',
+            value: 'SAMEORIGIN',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
+          },
+          {
+            // Turn off browser features the app never uses.
+            key: 'Permissions-Policy',
+            value: 'geolocation=(), microphone=(), browsing-topics=()',
+          },
+        ],
+      },
+      {
         source: '/models/:path*',
         headers: [
           {

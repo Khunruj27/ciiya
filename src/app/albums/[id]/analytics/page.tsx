@@ -2,6 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { getServerDictionary } from '@/lib/i18n-server'
 import { getUnreadNotificationCount } from '@/lib/notifications'
 import AppIcon from '@/components/app-icon'
 import NotificationBell from '@/components/notification-bell'
@@ -67,6 +68,7 @@ function getRequestTime() {
 export default async function AlbumAnalyticsPage({ params }: PageProps) {
   const { id } = await params
   const supabase = await createServerSupabaseClient()
+  const { t } = await getServerDictionary()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
@@ -156,9 +158,9 @@ export default async function AlbumAnalyticsPage({ params }: PageProps) {
     peakHour >= 0 ? `${hourLabel(peakHour)}–${hourLabel((peakHour + 1) % 24)}` : ''
 
   const engagementSplit = [
-    { label: 'Views', value: recentViews, dot: 'bg-gold' },
-    { label: 'Hearts', value: recentLikes, dot: 'bg-rose-400' },
-    { label: 'Downloads', value: uniqueDownloads, dot: 'bg-ink/30' },
+    { label: t.analytics.statViews, value: recentViews, dot: 'bg-gold' },
+    { label: t.analytics.statHearts, value: recentLikes, dot: 'bg-rose-400' },
+    { label: t.analytics.statDownloads, value: uniqueDownloads, dot: 'bg-ink/30' },
   ]
 
   const topPhotos = [...safePhotos]
@@ -170,12 +172,12 @@ export default async function AlbumAnalyticsPage({ params }: PageProps) {
     .slice(0, 5)
 
   const metrics = [
-    { label: 'Gallery views', value: Number(album.view_count || 0), detail: `${recentViews} in the last 30 days` },
-    { label: 'Downloads', value: totalDownloads, detail: `${uniqueDownloads} recently tracked` },
-    { label: 'Hearts', value: totalLikes, detail: 'Across all photographs' },
-    { label: 'Face searches', value: faceSearches, detail: 'Last 30 days' },
-    { label: 'Guest moments', value: Number(momentsResult.count || 0), detail: 'Published by guests' },
-    { label: 'Photo opens', value: totalPhotoViews, detail: 'Across the gallery' },
+    { label: t.analytics.metricGalleryViews, value: Number(album.view_count || 0), detail: t.analytics.detailInLast30(recentViews) },
+    { label: t.analytics.metricDownloads, value: totalDownloads, detail: t.analytics.detailRecentlyTracked(uniqueDownloads) },
+    { label: t.analytics.metricHearts, value: totalLikes, detail: t.analytics.detailAcrossPhotos },
+    { label: t.analytics.metricFaceSearches, value: faceSearches, detail: t.analytics.detailLast30 },
+    { label: t.analytics.metricGuestMoments, value: Number(momentsResult.count || 0), detail: t.analytics.detailPublishedByGuests },
+    { label: t.analytics.metricPhotoOpens, value: totalPhotoViews, detail: t.analytics.detailAcrossGallery },
   ]
 
   return (
@@ -183,13 +185,13 @@ export default async function AlbumAnalyticsPage({ params }: PageProps) {
       <div className="mx-auto min-h-dvh w-full max-w-6xl px-5 pt-[max(28px,env(safe-area-inset-top))] pb-[calc(112px+env(safe-area-inset-bottom))] sm:px-8 lg:px-12">
         <header className="flex items-center justify-between gap-4">
           <Link href={`/albums/${id}`} className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface text-[22px]">‹</Link>
-          <span className="rounded-full border border-line bg-surface px-4 py-2 text-[11px] font-semibold text-muted">Last 30 days</span>
+          <span className="rounded-full border border-line bg-surface px-4 py-2 text-[11px] font-semibold text-muted">{t.analytics.last30Days}</span>
         </header>
 
         <section className="pt-9 sm:pt-12">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold-deep">Gallery insights</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold-deep">{t.analytics.galleryInsights}</p>
           <h1 className="mt-3 max-w-3xl text-[clamp(2.5rem,8vw,5rem)] font-semibold leading-[0.95] tracking-[-0.055em]">{album.title}</h1>
-          <p className="mt-3 text-[14px] leading-6 text-muted">See how clients and guests are engaging with this shared gallery.</p>
+          <p className="mt-3 text-[14px] leading-6 text-muted">{t.analytics.insightsDesc}</p>
         </section>
 
         <section className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-3">
@@ -205,10 +207,10 @@ export default async function AlbumAnalyticsPage({ params }: PageProps) {
         <section className="mt-6 rounded-hero border border-line bg-surface p-5 sm:p-7">
           <div className="flex items-end justify-between gap-4">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold-deep">7-day activity</p>
-              <h2 className="mt-2 text-[22px] font-semibold tracking-[-0.035em]">When people engage</h2>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold-deep">{t.analytics.activity7Day}</p>
+              <h2 className="mt-2 text-[22px] font-semibold tracking-[-0.035em]">{t.analytics.whenEngage}</h2>
             </div>
-            <p className="text-[12px] text-muted">{safeEvents.length} events · 30 days</p>
+            <p className="text-[12px] text-muted">{t.analytics.eventsCount(safeEvents.length)}</p>
           </div>
 
           <div className="mt-6 grid grid-cols-3 gap-3">
@@ -219,7 +221,7 @@ export default async function AlbumAnalyticsPage({ params }: PageProps) {
                   <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">{item.label}</p>
                 </div>
                 <p className="mt-2 text-[clamp(1.4rem,4vw,1.9rem)] font-semibold leading-none tracking-[-0.04em]">{formatNumber(item.value)}</p>
-                <p className="mt-1 text-[10px] text-muted">Last 30 days</p>
+                <p className="mt-1 text-[10px] text-muted">{t.analytics.last30Days}</p>
               </div>
             ))}
           </div>
@@ -255,12 +257,12 @@ export default async function AlbumAnalyticsPage({ params }: PageProps) {
           <div className="mt-8 border-t border-line pt-6">
             <div className="flex items-end justify-between gap-4">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold-deep">Busiest time of day</p>
-                <h3 className="mt-2 text-[18px] font-semibold tracking-[-0.03em]">When they show up</h3>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold-deep">{t.analytics.busiestTime}</p>
+                <h3 className="mt-2 text-[18px] font-semibold tracking-[-0.03em]">{t.analytics.whenShowUp}</h3>
               </div>
               {peakHour >= 0 ? (
                 <span className="rounded-full bg-gold-soft px-3 py-1.5 text-[11px] font-semibold text-gold-deep">
-                  Peak · {peakHourRange}
+                  {t.analytics.peak(peakHourRange)}
                 </span>
               ) : null}
             </div>
@@ -271,7 +273,7 @@ export default async function AlbumAnalyticsPage({ params }: PageProps) {
                   {hourSeries.map((hour, index) => (
                     <div
                       key={index}
-                      title={`${hourLabel(index)} · ${hour.total} event${hour.total === 1 ? '' : 's'}`}
+                      title={t.analytics.hourTitle(hourLabel(index), hour.total)}
                       className={`flex h-full flex-1 flex-col justify-end rounded-[4px] pt-1 ${
                         index === peakHour ? 'bg-gold-soft/70' : ''
                       }`}
@@ -297,21 +299,21 @@ export default async function AlbumAnalyticsPage({ params }: PageProps) {
                 </div>
 
                 <p className="mt-4 text-[12px] leading-5 text-muted">
-                  Most people show up around{' '}
+                  {t.analytics.mostPeopleAround}{' '}
                   <span className="font-semibold text-ink">{peakHourRange}</span>
                   {peakBucketIndex >= 0 ? (
                     <>
-                      {' '}— the{' '}
-                      <span className="font-semibold text-ink">{TIME_BUCKETS[peakBucketIndex].label.toLowerCase()}</span>{' '}
+                      {t.analytics.theBucket}{' '}
+                      <span className="font-semibold text-ink">{t.analytics.bucketName(peakBucketIndex)}</span>{' '}
                       ({TIME_BUCKETS[peakBucketIndex].hint})
                     </>
                   ) : null}
-                  . Times are shown in your local time.
+                  {t.analytics.localTimeNote}
                 </p>
               </>
             ) : (
               <p className="mt-6 rounded-panel bg-ground px-5 py-8 text-center text-[13px] text-muted">
-                Times of day will appear here once guests start engaging.
+                {t.analytics.timesWillAppear}
               </p>
             )}
           </div>
@@ -320,10 +322,10 @@ export default async function AlbumAnalyticsPage({ params }: PageProps) {
         <section className="mt-6 rounded-hero border border-line bg-surface p-5 sm:p-7">
           <div className="flex items-end justify-between gap-4">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold-deep">Top photographs</p>
-              <h2 className="mt-2 text-[22px] font-semibold tracking-[-0.035em]">Most engaging images</h2>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold-deep">{t.analytics.topPhotographs}</p>
+              <h2 className="mt-2 text-[22px] font-semibold tracking-[-0.035em]">{t.analytics.mostEngaging}</h2>
             </div>
-            <span className="text-[11px] text-muted">Views + hearts + downloads</span>
+            <span className="text-[11px] text-muted">{t.analytics.viewsHeartsDownloads}</span>
           </div>
 
           {topPhotos.length ? (
@@ -337,14 +339,14 @@ export default async function AlbumAnalyticsPage({ params }: PageProps) {
                     ) : null}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-semibold">{photo.filename || photo.file_name || 'Photo'}</p>
-                    <p className="mt-1 text-[11px] text-muted">{Number(photo.view_count || 0)} views · {Number(photo.like_count || 0)} hearts · {Number(photo.download_count || 0)} downloads</p>
+                    <p className="truncate text-[13px] font-semibold">{photo.filename || photo.file_name || t.analytics.photoDefault}</p>
+                    <p className="mt-1 text-[11px] text-muted">{t.analytics.photoStats(Number(photo.view_count || 0), Number(photo.like_count || 0), Number(photo.download_count || 0))}</p>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="mt-6 rounded-panel bg-ground px-5 py-8 text-center text-[13px] text-muted">Engagement will appear after guests begin viewing the gallery.</p>
+            <p className="mt-6 rounded-panel bg-ground px-5 py-8 text-center text-[13px] text-muted">{t.analytics.engagementWillAppear}</p>
           )}
         </section>
       </div>

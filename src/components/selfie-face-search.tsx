@@ -86,13 +86,13 @@ export default function SelfieFaceSearch({
   async function handleFile(file: File) {
     try {
       setLoading(true)
-      setMessage('Scanning face...')
+      setMessage(t.faceSearch.scanning)
       setResults([])
       setSelectedIds(new Set())
 
       const { descriptor } = await extractSelfieDescriptor(file)
 
-      setMessage('Searching for matching photos...')
+      setMessage(t.faceSearch.searching)
 
       const searchRes = await fetch('/api/faces/search', {
         method: 'POST',
@@ -109,13 +109,13 @@ export default function SelfieFaceSearch({
       const searchData = await searchRes.json()
 
       if (!searchRes.ok || !searchData.success) {
-        throw new Error(searchData?.error || 'Search failed')
+        throw new Error(searchData?.error || t.faceSearch.searchFailed)
       }
 
       setResults(searchData.results || [])
-      setMessage(`Matching photos found ${searchData.count || 0} photos`)
+      setMessage(t.faceSearch.foundCount(searchData.count || 0))
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'An error occurred')
+      setMessage(error instanceof Error ? error.message : t.faceSearch.errorGeneric)
     } finally {
       setLoading(false)
     }
@@ -179,9 +179,9 @@ export default function SelfieFaceSearch({
       {loading && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
           <div className="rounded-hero border border-line bg-surface px-8 py-6 text-center shadow-lift">
-            <div className="mb-3 text-[16px] font-semibold text-ink">Searching photos...</div>
+            <div className="mb-3 text-[16px] font-semibold text-ink">{t.faceSearch.searchingTitle}</div>
             <div className="text-[13px] text-muted">
-              the system AI Comparing faces
+              {t.faceSearch.searchingDesc}
             </div>
           </div>
         </div>
@@ -192,9 +192,9 @@ export default function SelfieFaceSearch({
           <div className="mx-auto max-w-5xl rounded-hero bg-surface p-6">
             <div className="mb-5 flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold">Search results</h2>
+                <h2 className="text-2xl font-bold">{t.faceSearch.resultsTitle}</h2>
                 <p className="text-sm text-muted">
-                  Found {results.length} photos
+                  {t.faceSearch.resultsSubtitle(results.length)}
                 </p>
               </div>
 
@@ -206,7 +206,7 @@ export default function SelfieFaceSearch({
                 }}
                 className="rounded-full bg-ground-sunken px-4 py-2 text-sm"
               >
-                Close
+                {t.faceSearch.close}
               </button>
             </div>
 
@@ -233,7 +233,7 @@ export default function SelfieFaceSearch({
                   >
                     <NextImage
                       src={imageUrl}
-                      alt={item.photo?.filename || 'Matched photo'}
+                      alt={item.photo?.filename || t.faceSearch.matchedAlt}
                       fill
                       sizes="(max-width: 768px) 50vw, 25vw"
                       unoptimized={isOriginalFallback}
@@ -272,7 +272,7 @@ export default function SelfieFaceSearch({
           <div className="fixed inset-x-0 bottom-5 z-[95] flex justify-center px-4">
             <div className="flex items-center gap-3 rounded-full bg-ink px-3 py-2 text-white shadow-[0_18px_50px_rgba(15,23,42,0.35)]">
               <p className="whitespace-nowrap px-1 text-sm font-semibold">
-                selected {selectedIds.size}/{MAX_SELECTION} photos
+                {t.faceSearch.selectedCount(selectedIds.size, MAX_SELECTION)}
               </p>
 
               <button
@@ -281,7 +281,7 @@ export default function SelfieFaceSearch({
                 disabled={selectedIds.size === 0 || batchDownloading}
                 className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-gold px-4 py-2 text-sm font-bold text-ink transition-opacity disabled:opacity-40"
               >
-                {batchDownloading ? 'Downloading…' : '⬇ Download'}
+                {batchDownloading ? t.faceSearch.downloading : t.faceSearch.download}
               </button>
             </div>
           </div>

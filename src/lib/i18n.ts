@@ -511,6 +511,22 @@ const th = {
     photoAlt: 'รูปภาพ',
     selectedCount: (n: number, max: number) => `เลือกแล้ว ${n}/${max} รูป`,
   },
+  faceSearch: {
+    scanning: 'กำลังสแกนใบหน้า…',
+    searching: 'กำลังค้นหารูปที่ตรงกัน…',
+    searchFailed: 'ค้นหาไม่สำเร็จ',
+    errorGeneric: 'เกิดข้อผิดพลาด',
+    foundCount: (n: number) => `พบ ${n} รูปที่ตรงกัน`,
+    resultsTitle: 'ผลการค้นหา',
+    resultsSubtitle: (n: number) => `พบ ${n} รูป`,
+    close: 'ปิด',
+    searchingTitle: 'กำลังค้นหารูป…',
+    searchingDesc: 'ระบบ AI กำลังเทียบใบหน้า',
+    matchedAlt: 'รูปที่ตรงกัน',
+    selectedCount: (n: number, max: number) => `เลือกแล้ว ${n}/${max} รูป`,
+    downloading: 'กำลังดาวน์โหลด…',
+    download: '⬇ ดาวน์โหลด',
+  },
 }
 
 const en = {
@@ -995,6 +1011,22 @@ const en = {
     removeLike: 'Remove like',
     photoAlt: 'photo',
     selectedCount: (n: number, max: number) => `selected ${n}/${max} photos`,
+  },
+  faceSearch: {
+    scanning: 'Scanning face…',
+    searching: 'Searching for matching photos…',
+    searchFailed: 'Search failed',
+    errorGeneric: 'An error occurred',
+    foundCount: (n: number) => `${n} matching photos found`,
+    resultsTitle: 'Search results',
+    resultsSubtitle: (n: number) => `Found ${n} photos`,
+    close: 'Close',
+    searchingTitle: 'Searching photos…',
+    searchingDesc: 'AI is comparing faces',
+    matchedAlt: 'Matched photo',
+    selectedCount: (n: number, max: number) => `selected ${n}/${max} photos`,
+    downloading: 'Downloading…',
+    download: '⬇ Download',
   },
 }
 

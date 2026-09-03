@@ -19,6 +19,11 @@ export async function getUnreadNotificationCount(
     supabase
       .from('announcements')
       .select('id, announcement_reads(read_at)')
+      // Same order + window as the notifications list (page.tsx) so the badge
+      // counts unread within the exact same 50 announcements the list shows.
+      // Without an explicit order PostgREST returns an arbitrary 50, which can
+      // make the badge disagree with the list once there are more than 50.
+      .order('starts_at', { ascending: false })
       .limit(50),
   ])
 

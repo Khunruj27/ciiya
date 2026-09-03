@@ -106,6 +106,12 @@ export default function EditProfilePage() {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
 
+  // Captured once at mount: `t.meEdit.defaultUser` is only a first-paint
+  // fallback for an unnamed account. Freezing it here (rather than referencing
+  // `t` in the loader effect) keeps it a stable dependency, so a later language
+  // toggle can't re-run loadUser and wipe unsaved edits.
+  const [defaultUserName] = useState(() => t.meEdit.defaultUser)
+
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [region, setRegion] = useState('')
@@ -133,7 +139,7 @@ export default function EditProfilePage() {
       const displayName =
         user.user_metadata?.full_name ||
         user.user_metadata?.name ||
-        t.meEdit.defaultUser
+        defaultUserName
 
       const currentAvatar =
         user.user_metadata?.avatar_url ||
@@ -153,7 +159,7 @@ export default function EditProfilePage() {
     }
 
     loadUser()
-  }, [router, supabase])
+  }, [router, supabase, defaultUserName])
 
   useEffect(() => {
     return () => {

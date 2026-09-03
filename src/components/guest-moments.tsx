@@ -81,6 +81,19 @@ export default function GuestMoments({ token, active, onCountChange }: Props) {
   const storyPressStartedRef = useRef(0)
   const suppressStoryTapRef = useRef(false)
 
+  // Values the story-viewer effects need to read at their latest without being
+  // listed as effect deps: storyProgress must not restart the 60ms timer on
+  // every tick, the story-navigation callbacks must not tear the timer/listener
+  // down every render, and the error label is only used on a failed fetch.
+  const storyProgressRef = useRef(storyProgress)
+  storyProgressRef.current = storyProgress
+  const unableLoadRef = useRef(t.moments.unableLoad)
+  unableLoadRef.current = t.moments.unableLoad
+  const goNextStoryRef = useRef(goNextStory)
+  goNextStoryRef.current = goNextStory
+  const goPreviousStoryRef = useRef(goPreviousStory)
+  goPreviousStoryRef.current = goPreviousStory
+
   const previews = useMemo(
     () => files.map((file) => URL.createObjectURL(file)),
     [files]
@@ -104,7 +117,7 @@ export default function GuestMoments({ token, active, onCountChange }: Props) {
           signal: controller.signal,
         })
         const data = await res.json()
-        if (!res.ok || !data.success) throw new Error(data?.error || t.moments.unableLoad)
+        if (!res.ok || !data.success) throw new Error(data?.error || unableLoadRef.current)
 
         const nextMoments = Array.isArray(data.moments) ? data.moments : []
         setMoments(nextMoments)
@@ -119,7 +132,7 @@ export default function GuestMoments({ token, active, onCountChange }: Props) {
         })
       } catch (error) {
         if (controller.signal.aborted) return
-        setLoadError(error instanceof Error ? error.message : t.moments.unableLoad)
+        setLoadError(error instanceof Error ? error.message : unableLoadRef.current)
       } finally {
         if (!controller.signal.aborted) setLoading(false)
       }
@@ -139,29 +152,29 @@ export default function GuestMoments({ token, active, onCountChange }: Props) {
   useEffect(() => {
     if (!activeStory || storyPaused) return
 
-    const startingProgress = storyProgress
+    const startingProgress = storyProgressRef.current
     const startedAt = Date.now()
     const timer = window.setInterval(() => {
       const nextProgress = Math.min(100, startingProgress + ((Date.now() - startedAt) / STORY_DURATION_MS) * 100)
       setStoryProgress(nextProgress)
-      if (nextProgress >= 100) goNextStory()
+      if (nextProgress >= 100) goNextStoryRef.current()
     }, 60)
 
     return () => window.clearInterval(timer)
-  }, [activeStory, moments, storyPaused])
+  }, [activeStory, storyPaused])
 
   useEffect(() => {
     if (!activeStory) return
 
     function handleStoryKeys(event: KeyboardEvent) {
       if (event.key === 'Escape') setActiveStory(null)
-      if (event.key === 'ArrowRight') goNextStory()
-      if (event.key === 'ArrowLeft') goPreviousStory()
+      if (event.key === 'ArrowRight') goNextStoryRef.current()
+      if (event.key === 'ArrowLeft') goPreviousStoryRef.current()
     }
 
     window.addEventListener('keydown', handleStoryKeys)
     return () => window.removeEventListener('keydown', handleStoryKeys)
-  }, [activeStory, moments])
+  }, [activeStory])
 
   function resetComposer() {
     setComposerOpen(false)

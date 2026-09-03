@@ -4,6 +4,7 @@ config({ path: '.env.local' })
 
 import { createClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
+import type { Sharp } from 'sharp'
 import WebSocket from 'ws'
 
 function getSafeIntegerEnv(
@@ -392,7 +393,7 @@ function getXmpBoolean(xmp: string, key: string) {
   return false
 }
 
-function applyXmpAdjustments(image: sharp.Sharp, preset: XmpAdjustments | null) {
+function applyXmpAdjustments(image: Sharp, preset: XmpAdjustments | null) {
   if (!preset) return image
 
   const brightness = clamp(

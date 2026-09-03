@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import { useEffect, useRef, useState, type TouchEvent } from 'react'
 import type { Portfolio } from '@/lib/portfolio-types'
+import { useI18n } from '@/components/i18n-provider'
 
 type GalleryLayout = Portfolio['gallery_layout']
 
@@ -17,6 +18,7 @@ export default function PortfolioGallery({
   layout,
   ownerName,
 }: PortfolioGalleryProps) {
+  const { t } = useI18n()
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
@@ -135,11 +137,11 @@ export default function PortfolioGallery({
               type="button"
               onClick={() => openImage(index)}
               className={`group relative block overflow-hidden rounded-[10px] bg-ground-sunken text-left ring-1 ring-ink/[0.06] ${frameClass}`}
-              aria-label={`Open photo ${index + 1} of ${ownerName}`}
+              aria-label={t.portfolioGallery.openPhoto(index + 1, ownerName)}
             >
               <Image
                 src={url}
-                alt={`Photography by ${ownerName} Photo ${index + 1}`}
+                alt={t.portfolioGallery.photoAlt(ownerName, index + 1)}
                 fill
                 unoptimized
                 sizes={
@@ -176,7 +178,7 @@ export default function PortfolioGallery({
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="View full screen"
+          aria-label={t.portfolioGallery.viewFullScreen}
           className="fixed inset-0 z-[100] bg-[#0b0b0b]/96 text-white"
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
@@ -190,7 +192,7 @@ export default function PortfolioGallery({
               type="button"
               onClick={closeViewer}
               className="grid h-11 w-11 place-items-center rounded-full bg-white/10 backdrop-blur transition hover:bg-white/20"
-              aria-label="Close photo"
+              aria-label={t.portfolioGallery.closePhoto}
             >
               <CloseIcon />
             </button>
@@ -199,7 +201,7 @@ export default function PortfolioGallery({
           <div className="absolute inset-0 px-4 py-20 sm:px-20 sm:py-16">
             <Image
               src={images[activeIndex]}
-              alt={`Photography by ${ownerName} Photo ${activeIndex + 1}`}
+              alt={t.portfolioGallery.photoAlt(ownerName, activeIndex + 1)}
               fill
               unoptimized
               sizes="100vw"
@@ -214,7 +216,7 @@ export default function PortfolioGallery({
                 type="button"
                 onClick={showPrevious}
                 className="absolute left-3 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 backdrop-blur transition hover:bg-white/20 sm:left-7"
-                aria-label="Previous photo"
+                aria-label={t.portfolioGallery.prevPhoto}
               >
                 <ChevronIcon direction="left" />
               </button>
@@ -222,7 +224,7 @@ export default function PortfolioGallery({
                 type="button"
                 onClick={showNext}
                 className="absolute right-3 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white/10 backdrop-blur transition hover:bg-white/20 sm:right-7"
-                aria-label="Next photo"
+                aria-label={t.portfolioGallery.nextPhoto}
               >
                 <ChevronIcon direction="right" />
               </button>

@@ -3,12 +3,14 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
+import { useI18n } from '@/components/i18n-provider'
 
 type Props = {
   initialName: string
 }
 
 export default function EditProfileName({ initialName }: Props) {
+  const { t } = useI18n()
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState(initialName || '')
@@ -19,7 +21,7 @@ export default function EditProfileName({ initialName }: Props) {
     const nextName = name.trim()
 
     if (!nextName) {
-      setErrorMsg('Please enter your profile name')
+      setErrorMsg(t.editProfile.enterName)
       return
     }
 
@@ -41,7 +43,7 @@ export default function EditProfileName({ initialName }: Props) {
       setOpen(false)
       router.refresh()
     } catch (error) {
-      setErrorMsg(error instanceof Error ? error.message : 'Save failed')
+      setErrorMsg(error instanceof Error ? error.message : t.editProfile.saveFailed)
     } finally {
       setSaving(false)
     }
@@ -54,7 +56,7 @@ export default function EditProfileName({ initialName }: Props) {
         onClick={() => setOpen(true)}
         className="mt-5 rounded-full bg-[#2F6BFF] px-5 py-2 text-sm font-bold text-white shadow-sm"
       >
-        Edit Profile
+        {t.editProfile.editProfileTitle}
       </button>
 
       {open ? (
@@ -63,10 +65,10 @@ export default function EditProfileName({ initialName }: Props) {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-black text-ink">
-                  Edit Profile
+                  {t.editProfile.editProfileTitle}
                 </h2>
                 <p className="mt-1 text-sm text-muted">
-                  Update your display name.
+                  {t.editProfile.updateDisplayName}
                 </p>
               </div>
 
@@ -82,7 +84,7 @@ export default function EditProfileName({ initialName }: Props) {
 
             <div className="mt-5">
               <label className="text-xs font-semibold text-muted">
-                Profile name
+                {t.editProfile.profileNameLabel}
               </label>
 
               <input
@@ -92,7 +94,7 @@ export default function EditProfileName({ initialName }: Props) {
                   setErrorMsg('')
                 }}
                 className="mt-2 w-full rounded-2xl border border-line bg-ground-sunken px-4 py-3 text-sm font-semibold text-ink outline-none focus:border-[#2F6BFF] focus:bg-white"
-                placeholder="Your name"
+                placeholder={t.editProfile.namePlaceholder}
                 disabled={saving}
               />
             </div>
@@ -108,7 +110,7 @@ export default function EditProfileName({ initialName }: Props) {
                 disabled={saving}
                 className="rounded-full bg-ground-sunken px-4 py-3 text-sm font-bold text-ink-soft disabled:opacity-50"
               >
-                Cancel
+                {t.editProfile.cancel}
               </button>
 
               <button
@@ -117,7 +119,7 @@ export default function EditProfileName({ initialName }: Props) {
                 disabled={saving}
                 className="rounded-full bg-[#2F6BFF] px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
               >
-                {saving ? 'Saving...' : 'Save'}
+                {saving ? t.editProfile.saving : t.editProfile.save}
               </button>
             </div>
           </div>

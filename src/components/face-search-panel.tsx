@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useI18n } from '@/components/i18n-provider'
 
 type Cluster = {
   id: string
@@ -15,6 +16,7 @@ type Props = {
 }
 
 export default function FaceSearchPanel({ token, onSelect, onClose }: Props) {
+  const { t } = useI18n()
   const [clusters, setClusters] = useState<Cluster[]>([])
 
   useEffect(() => {
@@ -27,8 +29,8 @@ export default function FaceSearchPanel({ token, onSelect, onClose }: Props) {
     <div className="fixed inset-0 z-50 bg-black/40">
       <div className="absolute bottom-0 w-full rounded-t-2xl bg-white p-4">
         <div className="mb-3 flex justify-between">
-          <b>Select person</b>
-          <button onClick={onClose}>Close</button>
+          <b>{t.faceSearch.selectPerson}</b>
+          <button onClick={onClose}>{t.faceSearch.close}</button>
         </div>
 
         <div className="flex gap-2 overflow-x-auto">

@@ -7,7 +7,13 @@ import crypto from 'crypto'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+// This route receives the file as multipart form-data, so the request is
+// buffered by the Next proxy first and is bounded by `proxyClientMaxBodySize`
+// in next.config.ts (40mb). Keep this cap at or below that value — a higher
+// number here is a lie: the proxy rejects the request before the handler runs.
+// (Large photo uploads never hit this route; they go straight to Supabase
+// Storage and are recorded via /api/photos/finalize-upload.)
+const MAX_UPLOAD_BYTES = 40 * 1024 * 1024
 const MAX_PRESET_BYTES = 5 * 1024 * 1024
 const STORAGE_BUCKET = 'albums'
 
@@ -452,7 +458,7 @@ const presetFile =
     if (file.size > MAX_UPLOAD_BYTES) {
       return NextResponse.json(
         {
-          error: 'File too large. Maximum 100MB allowed.',
+          error: 'File too large. Maximum 40MB allowed.',
         },
         { status: 400 }
       )

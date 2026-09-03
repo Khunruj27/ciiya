@@ -6,6 +6,10 @@ const nextConfig: NextConfig = {
     // buffers uploads before forwarding them to route handlers. Guest Moments
     // accepts up to 32MB of images plus multipart metadata; the default 10MB
     // buffer truncated those requests and made request.formData() fail.
+    // Caps every request body the proxy buffers. Any form-data route handler
+    // (e.g. /api/photos/upload, used for cover images) must keep its own size
+    // check at or below this value, or it advertises a limit the proxy will
+    // not honour.
     proxyClientMaxBodySize: '40mb',
   },
 

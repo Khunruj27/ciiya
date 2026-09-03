@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import Cropper from 'react-easy-crop'
 import { useRouter } from 'next/navigation'
 import AppIcon from '@/components/app-icon'
+import { useI18n } from '@/components/i18n-provider'
 
 type Props = {
   albumId: string
@@ -21,6 +22,7 @@ export default function CoverCropUpload({
   albumId,
   iconOnly = false,
 }: Props) {
+  const { t } = useI18n()
   const router = useRouter()
 
   const [imageSrc, setImageSrc] = useState<string | null>(null)
@@ -44,7 +46,7 @@ export default function CoverCropUpload({
       file.name.toLowerCase().endsWith('.png')
 
     if (!isImage) {
-      alert('Please choose an image file')
+      alert(t.upload.chooseImageFile)
       return
     }
 
@@ -140,7 +142,7 @@ export default function CoverCropUpload({
       const data = await res.json().catch(() => null)
 
       if (!res.ok) {
-        throw new Error(data?.error || 'Upload failed')
+        throw new Error(data?.error || t.upload.uploadFailed)
       }
 
       setOpen(false)
@@ -150,7 +152,7 @@ export default function CoverCropUpload({
 
       router.refresh()
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Upload failed')
+      alert(error instanceof Error ? error.message : t.upload.uploadFailed)
     } finally {
       setLoading(false)
     }
@@ -170,7 +172,7 @@ function closeModal() {
     <>
       {iconOnly ? (
         <label
-          title="Upload Cover Image"
+          title={t.upload.coverTitle}
           className="flex"
         >
           <AppIcon name="panorama" size={24} className="opacity-80" />
@@ -186,20 +188,20 @@ function closeModal() {
         <div className="rounded-hero bg-white p-5 shadow-sm ring-1 ring-line">
           <div className="rounded-panel bg-gradient-to-br from-ink to-ink-soft p-5 text-white">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/55">
-              Album Cover
+              {t.upload.coverEyebrow}
             </p>
 
             <h3 className="mt-3 text-[26px] font-semibold leading-none tracking-[-0.05em]">
-              Upload cover
+              {t.upload.coverHeading}
             </h3>
 
             <p className="mt-3 text-sm leading-6 text-white/60">
-              Crop image to 1125 × 600 before saving as album cover.
+              {t.upload.coverDesc}
             </p>
           </div>
 
           <label className="mt-4 flex h-14 cursor-pointer items-center justify-center rounded-full bg-ink text-sm font-semibold text-white shadow-[0_16px_35px_rgba(47,107,255,0.28)] transition active:scale-[0.98]">
-            Choose a cover photo
+            {t.upload.chooseCover}
 
             <input
               type="file"
@@ -225,7 +227,7 @@ function closeModal() {
 >
           <button
             type="button"
-            aria-label="Close crop dialog"
+            aria-label={t.upload.closeCropDialog}
             onClick={() => {
             if (!loading) closeModal()
             }}
@@ -248,11 +250,11 @@ function closeModal() {
             <div className="flex shrink-0 items-start justify-between px-5 pb-3 pt-4">
               <div>
                 <h2 className="mt-2 text-[28px] font-semibold leading-none tracking-[-0.05em]">
-                  Position the cover photo
+                  {t.upload.positionCover}
                 </h2>
 
                 <p className="mt-2 text-sm font-medium text-muted">
-                  Aspect ratio 1125:600
+                  {t.upload.aspectRatio}
                 </p>
               </div>
 
@@ -308,7 +310,7 @@ function closeModal() {
                 disabled={loading}
                 className="mt-5 flex h-[52px] w-full items-center justify-center rounded-card bg-gold text-[15px] font-semibold text-white border border-line active:scale-[0.98] disabled:opacity-50"
               >
-                {loading ? 'Saving…' : 'Save cover photo'}
+                {loading ? t.upload.saving : t.upload.saveCover}
               </button>
             </div>
           </div>

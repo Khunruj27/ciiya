@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import UploadPhotoForm from '@/components/upload-photo-form'
+import { useI18n } from '@/components/i18n-provider'
 import type { OptimisticUpload } from '@/components/optimistic-upload'
 
 
@@ -26,6 +27,7 @@ export default function UploadPhotoModal({
   initialAutoPublish = false,
   onOptimisticUploads,
 }: Props) {
+  const { t } = useI18n()
 
   const [open, setOpen] = useState(false)
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null)
@@ -69,7 +71,7 @@ export default function UploadPhotoModal({
           <div className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/45 px-4 pt-[max(60px,env(safe-area-inset-top))] pb-[max(22px,calc(env(safe-area-inset-bottom)+18px))] backdrop-blur-md sm:items-center sm:pb-8">
             <button
               type="button"
-              aria-label="Close upload dialog"
+              aria-label={t.upload.closeUploadDialog}
               onClick={closeModal}
               className="absolute inset-0 cursor-default"
             />
@@ -78,7 +80,7 @@ export default function UploadPhotoModal({
               <div className="flex shrink-0 items-center justify-between px-6 pb-4 pt-5">
                 <div>
                   <h2 className="mt-3 text-[30px] font-black leading-none tracking-[-0.05em] text-black">
-                    Upload photos
+                    {t.upload.uploadPhotos}
                   </h2>
                 </div>
 
@@ -86,7 +88,7 @@ export default function UploadPhotoModal({
                   type="button"
                   onClick={closeModal}
                   className="flex h-11 w-11 items-center justify-center rounded-full border border-black/5 text-2xl font-black leading-none text-black"
-                  aria-label="Close upload dialog"
+                  aria-label={t.upload.closeUploadDialog}
                 >
                   ×
                 </button>
@@ -114,7 +116,7 @@ export default function UploadPhotoModal({
       <button
         type="button"
         onClick={openModal}
-        aria-label="Upload photos"
+        aria-label={t.upload.uploadPhotos}
         className="flex h-12 w-12 items-center justify-center rounded-full bg-ink text-gold transition active:scale-95 disabled:opacity-60"
         disabled={open}
       >

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import { useRouter } from 'next/navigation'
+import { useI18n } from '@/components/i18n-provider'
 import type { OptimisticUpload } from '@/components/optimistic-upload'
 
 
@@ -99,6 +100,7 @@ export default function UploadPhotoForm({
   onUploadStarted,
   onOptimisticUploads,
 }: Props) {
+  const { t } = useI18n()
   const supabase = useMemo(() => createClient(), [])
 
   const mountedRef = useRef(true)
@@ -308,7 +310,7 @@ export default function UploadPhotoForm({
   }
 
   throw new Error(
-    finalizeData?.error || finalizeData?.jobError || 'Finalize upload failed'
+    finalizeData?.error || finalizeData?.jobError || t.upload.finalizeFailed
   )
 }
 
@@ -369,7 +371,7 @@ export default function UploadPhotoForm({
           })
         } catch (error) {
           const message =
-            error instanceof Error ? error.message : 'Upload failed'
+            error instanceof Error ? error.message : t.upload.uploadFailed
 
           updateItem(item.id, {
             status: 'error',
@@ -390,11 +392,11 @@ export default function UploadPhotoForm({
             uploadItems.slice(currentIndex).forEach((pendingItem) => {
               updateItem(pendingItem.id, {
                 status: 'error',
-               error: 'Storage limit reached',
+               error: t.upload.storageLimit,
               })
             })
              
-            safeSetErrorMsg('Storage limit reached. Please upgrade your plan.')
+            safeSetErrorMsg(t.upload.storageLimitUpgrade)
 
 if (isMounted()) {
   router.push('/pricing')
@@ -429,7 +431,7 @@ await Promise.allSettled(
 uploadLockRef.current = true
 
     if (items.length === 0) {
-      safeSetErrorMsg('Please select at least one JPG file')
+      safeSetErrorMsg(t.upload.selectJpg)
       return
     }
 
@@ -438,7 +440,7 @@ uploadLockRef.current = true
     )
 
     if (uploadItems.length === 0) {
-      safeSetErrorMsg('No pending files to upload')
+      safeSetErrorMsg(t.upload.noPending)
       return
     }
 
@@ -458,7 +460,7 @@ uploadLockRef.current = true
     }
 
     if (presetFile && !presetFile.name.toLowerCase().endsWith('.xmp')) {
-      safeSetErrorMsg('Only .xmp preset file is allowed')
+      safeSetErrorMsg(t.upload.xmpOnly)
       return
     }
 
@@ -485,7 +487,7 @@ if (isMounted()) {
       } = await supabase.auth.getUser()
 
       if (userError || !user) {
-        throw new Error('Unauthorized')
+        throw new Error(t.upload.unauthorized)
       }
 
       let sharedPresetPath: string | null = null
@@ -527,12 +529,10 @@ if (isMounted()) {
       }
 
       if (errorCount > 0) {
-        safeSetErrorMsg(
-          `Upload failed ${errorCount} files. Tap Start upload again to retry`
-        )
+        safeSetErrorMsg(t.upload.uploadFailedCount(errorCount))
       }
     } catch (error) {
-      safeSetErrorMsg(error instanceof Error ? error.message : 'Upload failed')
+      safeSetErrorMsg(error instanceof Error ? error.message : t.upload.uploadFailed)
       safeSetCurrentFileName('')
     } finally {
   uploadLockRef.current = false
@@ -657,7 +657,7 @@ setItems((prev) => {
           className="w-full rounded-xl border border-line p-3 text-sm"
           disabled={uploading}
         >
-          <option value="">No category</option>
+          <option value="">{t.upload.noCategory}</option>
           {categories.map((category) => (
             <option key={category.id} value={category.id}>
               {category.name}
@@ -669,7 +669,7 @@ setItems((prev) => {
       {items.length > 0 ? (
         <div className="rounded-2xl bg-ground-sunken p-3">
           <div className="flex items-center justify-between text-sm text-ink-soft">
-            <span>Upload queue {items.length} files</span>
+            <span>{t.upload.queueTitle(items.length)}</span>
             <span>{totalProgress}%</span>
           </div>
 
@@ -686,9 +686,9 @@ setItems((prev) => {
 
           <div className="mt-2 flex items-center justify-between text-xs text-muted">
             <span>
-              Uploaded {uploadedCount}/{items.length}
+              {t.upload.uploadedCount(uploadedCount, items.length)}
             </span>
-            <span>{failedCount > 0 ? `failed ${failedCount}` : 'Ready to upload'}</span>
+            <span>{failedCount > 0 ? t.upload.failedCount(failedCount) : t.upload.readyToUpload}</span>
           </div>
         </div>
       ) : null}
@@ -743,12 +743,12 @@ setItems((prev) => {
                         : 'text-muted'
                   }
                 >
-                  {item.status === 'waiting' && 'Waiting to upload'}
-                  {item.status === 'uploading' && `Uploading ${item.progress}%`}
-                  {item.status === 'queued' && 'Uploaded • Generating preview'}
-                  {item.status === 'done' && 'Done'}
-                  {item.status === 'duplicate' && 'Duplicate file • Already uploaded'}
-                  {item.status === 'error' && (item.error || 'An error occurred')}
+                  {item.status === 'waiting' && t.upload.statusWaiting}
+                  {item.status === 'uploading' && t.upload.statusUploading(item.progress)}
+                  {item.status === 'queued' && t.upload.statusQueued}
+                  {item.status === 'done' && t.upload.statusDone}
+                  {item.status === 'duplicate' && t.upload.statusDuplicate}
+                  {item.status === 'error' && (item.error || t.upload.errorGeneric)}
                 </span>
 
                 <span className="text-muted">{item.progress}%</span>
@@ -760,7 +760,7 @@ setItems((prev) => {
 
       {currentFileName ? (
         <p className="truncate text-xs text-muted">
-          Uploading: {currentFileName}
+          {t.upload.uploadingName(currentFileName)}
         </p>
       ) : null}
 
@@ -777,7 +777,7 @@ setItems((prev) => {
   disabled={uploading}
   className="w-full rounded-control bg-ink py-3 font-medium text-white disabled:opacity-50"
 >
-  {uploading ? 'Uploading…' : 'Start upload'}
+  {uploading ? t.upload.uploading : t.upload.startUpload}
 </button>
 
         {items.some(

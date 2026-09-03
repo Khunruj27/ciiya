@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import IconButton from '@/components/icon-button'
+import { useI18n } from '@/components/i18n-provider'
 
 type Props = {
   albumId: string
@@ -17,6 +18,7 @@ export default function EditAlbumForm({
   initialDescription,
   iconOnly = false,
 }: Props) {
+  const { t } = useI18n()
   const router = useRouter()
 
   const [open, setOpen] = useState(false)
@@ -34,7 +36,7 @@ export default function EditAlbumForm({
     setErrorMsg('')
 
     if (!title.trim()) {
-      setErrorMsg('Title is required')
+      setErrorMsg(t.albumSettings.titleRequired)
       return
     }
 
@@ -56,7 +58,7 @@ export default function EditAlbumForm({
       const data = await res.json().catch(() => null)
 
       if (!res.ok) {
-        throw new Error(data?.error || 'Failed to update album')
+        throw new Error(data?.error || t.editAlbum.updateFailed)
       }
 
       setOpen(false)
@@ -66,7 +68,7 @@ export default function EditAlbumForm({
       setErrorMsg(
         error instanceof Error
           ? error.message
-          : 'Failed to update album'
+          : t.editAlbum.updateFailed
       )
     } finally {
       setLoading(false)
@@ -78,7 +80,7 @@ export default function EditAlbumForm({
       {iconOnly ? (
         <IconButton
           icon="pen"
-          title="Edit album"
+          title={t.editAlbum.editHeading}
           onClick={() => setOpen(true)}
           variant="ghost"
           size="sm"
@@ -91,7 +93,7 @@ export default function EditAlbumForm({
           onClick={() => setOpen(true)}
           className="flex h-11 items-center justify-center rounded-full bg-ink px-5 text-sm font-semibold tracking-[-0.02em] text-white shadow-[0_10px_30px_rgba(15,23,42,0.18)] transition active:scale-[0.98]"
         >
-          Edit album
+          {t.editAlbum.editHeading}
         </button>
       )}
 
@@ -99,7 +101,7 @@ export default function EditAlbumForm({
        <div className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/45 backdrop-blur-md px-5 pt-[max(60px,env(safe-area-inset-top))] pb-[max(40px,env(safe-area-inset-bottom))] sm:items-center">
           <button
             type="button"
-            aria-label="Close edit modal backdrop"
+            aria-label={t.editAlbum.closeBackdrop}
             onClick={() => {
   if (!loading) setOpen(false)
 }}
@@ -113,7 +115,7 @@ export default function EditAlbumForm({
                
 
                 <h2 className="mt-2 text-[28px] font-semibold leading-none tracking-[-0.05em]">
-                  Edit album
+                  {t.editAlbum.editHeading}
                 </h2>
               </div>
 
@@ -136,7 +138,7 @@ disabled={loading}
             >
               <div>
                 <label className="mb-2 block text-sm font-bold text-ink-soft">
-                  Album name
+                  {t.albumSettings.nameLabel}
                 </label>
 
                 <input
@@ -146,14 +148,14 @@ disabled={loading}
   setTitle(e.target.value)
   setErrorMsg('')
 }}
-                  placeholder="Album name"
+                  placeholder={t.albumSettings.namePlaceholder}
                   className="min-h-[110px] w-full resize-none rounded-panel border border-line bg-ground-sunken px-4 py-3 text-[15px] font-medium outline-none transition focus:border-gold focus:bg-surface"
                 />
               </div>
 
               <div>
                 <label className="mb-2 block text-sm font-bold text-ink-soft">
-                  Description
+                  {t.albumSettings.descLabel}
                 </label>
 
                 <textarea
@@ -162,7 +164,7 @@ disabled={loading}
   setDescription(e.target.value)
   setErrorMsg('')
 }}
-                  placeholder="Album description"
+                  placeholder={t.albumSettings.descPlaceholder}
                   className="
 min-h-[110px]
 w-full
@@ -190,7 +192,7 @@ transition focus:border-gold focus:bg-surface"
                 disabled={loading}
                 className="flex h-[52px] w-full items-center justify-center rounded-card bg-gold text-[15px] font-semibold text-white border border-line transition active:scale-[0.98] disabled:opacity-50"
               >
-                {loading ? 'Saving…' : 'Save changes'}
+                {loading ? t.albumSettings.saving : t.editAlbum.saveChanges}
               </button>
             </form>
           </div>

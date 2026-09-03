@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useI18n } from '@/components/i18n-provider'
 
 type DownloadSize = 'sd' | 'hd' | 'uhd' | 'original'
 
@@ -38,6 +39,7 @@ export default function AlbumSettingsForm({
   initialDownloadSize,
   initialIsPasswordProtected,
 }: Props) {
+  const { t } = useI18n()
   const router = useRouter()
 
   const [title, setTitle] = useState(initialTitle)
@@ -60,7 +62,7 @@ export default function AlbumSettingsForm({
     setSuccessMsg('')
 
     if (!title.trim()) {
-      setErrorMsg('Title is required')
+      setErrorMsg(t.albumSettings.titleRequired)
       return
     }
 
@@ -86,15 +88,15 @@ export default function AlbumSettingsForm({
       const data = await res.json().catch(() => null)
 
       if (!res.ok) {
-        throw new Error(data?.error || 'Failed to save settings')
+        throw new Error(data?.error || t.albumSettings.saveFailed)
       }
 
-      setSuccessMsg('Album settings updated successfully')
+      setSuccessMsg(t.albumSettings.saveSuccess)
       setPassword('')
       router.refresh()
     } catch (error) {
       setErrorMsg(
-        error instanceof Error ? error.message : 'Failed to save settings'
+        error instanceof Error ? error.message : t.albumSettings.saveFailed
       )
     } finally {
       setLoading(false)
@@ -107,39 +109,39 @@ export default function AlbumSettingsForm({
       className="space-y-4 rounded-3xl bg-white p-4 shadow-sm"
     >
       <div>
-        <h2 className="text-lg font-semibold text-ink">Album settings</h2>
+        <h2 className="text-lg font-semibold text-ink">{t.albumSettings.heading}</h2>
         <p className="text-sm text-muted">
-          Manage details, privacy, and download options
+          {t.albumSettings.subtitle}
         </p>
       </div>
 
       <div>
-        <label className="mb-2 block text-sm text-muted">Album name</label>
+        <label className="mb-2 block text-sm text-muted">{t.albumSettings.nameLabel}</label>
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           className="w-full rounded-2xl border border-line px-4 py-3 outline-none"
-          placeholder="Album name"
+          placeholder={t.albumSettings.namePlaceholder}
         />
       </div>
 
       <div>
-        <label className="mb-2 block text-sm text-muted">Description</label>
+        <label className="mb-2 block text-sm text-muted">{t.albumSettings.descLabel}</label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           className="min-h-[110px] w-full rounded-2xl border border-line px-4 py-3 outline-none"
-          placeholder="Album description"
+          placeholder={t.albumSettings.descPlaceholder}
         />
       </div>
 
       <div className="space-y-4 rounded-2xl border border-line p-4">
         <label className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-medium text-ink">Allow downloads</p>
+            <p className="text-sm font-medium text-ink">{t.albumSettings.allowDownloads}</p>
             <p className="text-xs text-muted">
-              Let clients save photos from the share page
+              {t.albumSettings.allowDownloadsDesc}
             </p>
           </div>
 
@@ -155,10 +157,10 @@ export default function AlbumSettingsForm({
           <div className="space-y-3 border-t border-line pt-4">
             <div>
               <p className="text-sm font-medium text-ink">
-                Download file size
+                {t.albumSettings.downloadSize}
               </p>
               <p className="text-xs text-muted">
-                The share page loads only this size; clients can’t choose their own
+                {t.albumSettings.downloadSizeDesc}
               </p>
             </div>
 
@@ -186,7 +188,7 @@ export default function AlbumSettingsForm({
                       {option.label}
                     </span>
                     <span className="block text-xs text-muted">
-                      {option.desc}
+                      {t.albumSettings.sizeDesc(option.value)}
                     </span>
                   </span>
                 </label>
@@ -200,10 +202,10 @@ export default function AlbumSettingsForm({
         <label className="flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-medium text-ink">
-              Password protection
+              {t.albumSettings.passwordProtection}
             </p>
             <p className="text-xs text-muted">
-              A password is required before viewing the album
+              {t.albumSettings.passwordProtectionDesc}
             </p>
           </div>
 
@@ -218,14 +220,14 @@ export default function AlbumSettingsForm({
         {isPasswordProtected ? (
           <div>
             <label className="mb-2 block text-sm text-muted">
-              New password
+              {t.albumSettings.newPassword}
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-2xl border border-line px-4 py-3 outline-none"
-              placeholder="Leave blank to keep the current password"
+              placeholder={t.albumSettings.passwordPlaceholder}
             />
           </div>
         ) : null}
@@ -237,7 +239,7 @@ export default function AlbumSettingsForm({
           onClick={() => history.back()}
           className="rounded-2xl bg-ground-sunken px-4 py-3 text-center text-ink-soft"
         >
-          Back
+          {t.albumSettings.back}
         </button>
 
         <button
@@ -245,7 +247,7 @@ export default function AlbumSettingsForm({
           disabled={loading}
           className="rounded-2xl bg-blue-600 px-4 py-3 text-white disabled:opacity-50"
         >
-          {loading ? 'Saving…' : 'Save settings'}
+          {loading ? t.albumSettings.saving : t.albumSettings.save}
         </button>
       </div>
 

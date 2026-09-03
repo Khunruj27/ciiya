@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import AppIcon from '@/components/app-icon'
+import { useI18n } from '@/components/i18n-provider'
 
 type Album = {
   id: string
@@ -15,6 +16,7 @@ type Props = {
 }
 
 export default function AlbumsSearch({ albums, onSearchChange }: Props) {
+  const { t } = useI18n()
   const [query, setQuery] = useState('')
 
   const filteredIds = useMemo(() => {
@@ -48,7 +50,7 @@ export default function AlbumsSearch({ albums, onSearchChange }: Props) {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by name or description"
+          placeholder={t.editAlbum.searchPlaceholder}
           className="flex-1 bg-transparent text-[16px] font-medium outline-none"
         />
 

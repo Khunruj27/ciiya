@@ -208,10 +208,8 @@ export default async function AlbumsPage() {
             href="/portfolio"
             className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95"
           >
-            <AppIcon name="gallery" size={22} />
+            <AppIcon name="magic-wand" size={22} />
           </Link>
-
-          <Link href="/magic" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95"><AppIcon name="magic-wand" size={22} /></Link>
 
           <NotificationBell
             userId={user.id}

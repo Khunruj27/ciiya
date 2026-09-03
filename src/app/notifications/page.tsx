@@ -105,8 +105,7 @@ export default async function NotificationsPage() {
       <nav className="fixed left-0 right-0 z-50 bottom-[max(20px,env(safe-area-inset-bottom))] flex justify-center px-5">
         <div className="inline-flex items-center gap-2 rounded-[18px] border border-line bg-surface/95 px-2 py-2 shadow-lift backdrop-blur-xl sm:gap-3">
           <Link href="/albums" className="flex h-11 w-11 items-center justify-center rounded-full text-muted"><AppIcon name="album" size={22} /></Link>
-          <Link href="/portfolio" className="flex h-11 w-11 items-center justify-center rounded-full text-muted"><AppIcon name="gallery" size={22} /></Link>
-          <Link href="/magic" className="flex h-11 w-11 items-center justify-center rounded-full text-muted"><AppIcon name="magic-wand" size={22} /></Link>
+          <Link href="/portfolio" className="flex h-11 w-11 items-center justify-center rounded-full text-muted"><AppIcon name="magic-wand" size={22} /></Link>
           <NotificationBell userId={user.id} initialCount={totalUnreadCount} active size={20} />
           <Link href="/me" className="flex h-11 w-11 items-center justify-center rounded-full text-muted"><AppIcon name="user-1" size={22} /></Link>
         </div>

@@ -366,11 +366,7 @@ const storageLimitBytes = Number(
           </Link>
 
           <Link href="/portfolio" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
-            <AppIcon name="gallery" size={21} />
-          </Link>
-
-          <Link href="/magic" className="flex h-11 w-11 items-center justify-center rounded-full text-muted transition active:scale-95">
-            <AppIcon name="magic-wand" size={24} />
+            <AppIcon name="magic-wand" size={21} />
           </Link>
 
           <NotificationBell userId={user.id} initialCount={unreadNotificationCount} />

@@ -428,8 +428,6 @@ await Promise.allSettled(
   return
 }
 
-uploadLockRef.current = true
-
     if (items.length === 0) {
       safeSetErrorMsg(t.upload.selectJpg)
       return
@@ -455,7 +453,7 @@ uploadLockRef.current = true
     })
 
     if (invalidFile) {
-      safeSetErrorMsg('Only JPG/JPEG files are allowed')
+      safeSetErrorMsg(t.upload.invalidFile)
       return
     }
 
@@ -463,6 +461,12 @@ uploadLockRef.current = true
       safeSetErrorMsg(t.upload.xmpOnly)
       return
     }
+
+    // Acquire the lock only after validation passes. Validation is synchronous,
+    // so a second click can't slip through before this runs; setting it earlier
+    // left the lock stuck whenever a validation branch returned, freezing the
+    // button until remount.
+    uploadLockRef.current = true
 
     try {
 safeSetUploading(true)
@@ -520,8 +524,8 @@ if (isMounted()) {
 
       safeSetSuccessMsg(
         presetFile
-          ? `Added to the queue with a preset ${successCount}/${uploadItems.length} files`
-          : `Added to the queue ${successCount}/${uploadItems.length} files`
+          ? t.upload.addedToQueuePreset(successCount, uploadItems.length)
+          : t.upload.addedToQueue(successCount, uploadItems.length)
       )
 
       if (successCount === uploadItems.length) {
@@ -530,6 +534,13 @@ if (isMounted()) {
 
       if (errorCount > 0) {
         safeSetErrorMsg(t.upload.uploadFailedCount(errorCount))
+      }
+
+      // Reload the server-rendered album grid so the freshly queued photos
+      // appear. The modal stays open (portal) so progress and this result
+      // remain visible; the refreshed grid is behind it when the user closes.
+      if (successCount > 0 && isMounted()) {
+        router.refresh()
       }
     } catch (error) {
       safeSetErrorMsg(error instanceof Error ? error.message : t.upload.uploadFailed)

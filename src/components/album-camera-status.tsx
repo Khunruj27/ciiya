@@ -484,7 +484,7 @@ useEffect(() => {
                     disabled={busy}
                     className="rounded-full px-3 py-1.5 text-[12px] font-medium text-muted transition hover:bg-ground-sunken hover:text-ink disabled:opacity-50"
                   >
-
+                    {t.cameraStatus.settings}
                   </button>
                 ) : null}
 
@@ -521,18 +521,18 @@ useEffect(() => {
     <div className="w-full max-w-[380px] rounded-panel bg-surface p-5">
 
       <h3 className="text-[18px] font-semibold text-ink">
-
+        {t.cameraStatus.processingSettings}
       </h3>
 
       <p className="mt-1 text-[12px] text-muted">
-
+        {t.cameraStatus.chooseSize}
       </p>
 
       {/* Resize */}
 
       <div className="mt-5">
         <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-
+          {t.cameraStatus.imageSize}
         </div>
 
         <div className="grid grid-cols-4 gap-2">
@@ -560,7 +560,7 @@ useEffect(() => {
 
       <div className="mt-5">
         <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-
+          {t.cameraStatus.presetXmp}
         </div>
 
        {recentPresets.length > 0 ? (
@@ -637,7 +637,7 @@ useEffect(() => {
           onClick={cancelSettings}
           className="h-11 flex-1 rounded-full bg-ground-sunken font-semibold"
         >
-
+          {t.cameraStatus.cancel}
         </button>
 
         <button
@@ -646,7 +646,7 @@ useEffect(() => {
           disabled={busy}
           className="h-11 flex-1 rounded-full bg-ink font-semibold text-white"
         >
-
+          {t.cameraStatus.getStarted}
         </button>
       </div>
     </div>

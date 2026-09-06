@@ -211,6 +211,22 @@ const cameraProcessingGridItems = (cameraImportsData || [])
                 {t.albumDetail.analytics}
               </Link>
 
+              <Link
+                href={`/albums/${album.id}/reorder`}
+                aria-label={t.albumDetail.reorder}
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface text-ink transition active:scale-95"
+              >
+                <AppIcon name="grid-3" size={20} />
+              </Link>
+
+              <Link
+                href={`/albums/${album.id}/settings`}
+                aria-label={t.albumDetail.settings}
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface text-ink transition active:scale-95"
+              >
+                <AppIcon name="settings" size={20} />
+              </Link>
+
               <EditAlbumForm
                 albumId={album.id}
                 initialTitle={album.title}

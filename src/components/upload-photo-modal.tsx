@@ -101,7 +101,6 @@ export default function UploadPhotoModal({
                 categories={categories}
                 initialAutoFaceScan={initialAutoFaceScan}
                 initialAutoPublish={initialAutoPublish}
-                onUploadStarted={() => setOpen(false)}
                 onOptimisticUploads={onOptimisticUploads}
               />
               </div>

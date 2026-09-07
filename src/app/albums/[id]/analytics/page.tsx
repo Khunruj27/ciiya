@@ -6,6 +6,7 @@ import { getServerDictionary } from '@/lib/i18n-server'
 import { getUnreadNotificationCount } from '@/lib/notifications'
 import AppIcon from '@/components/app-icon'
 import NotificationBell from '@/components/notification-bell'
+import AiAlbumInsights from '@/components/ai-album-insights'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -203,6 +204,8 @@ export default async function AlbumAnalyticsPage({ params }: PageProps) {
             </article>
           ))}
         </section>
+
+        <AiAlbumInsights albumId={id} />
 
         <section className="mt-6 rounded-hero border border-line bg-surface p-5 sm:p-7">
           <div className="flex items-end justify-between gap-4">

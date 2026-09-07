@@ -10,6 +10,15 @@ import { formatBytes, clampPercent } from '@/lib/format-bytes'
 import { PLAN_LIMITS } from '@/lib/plans'
 import BillingPortalButton from '@/components/billing-portal-button'
 import NotificationBell from '@/components/notification-bell'
+import {
+  BellRing,
+  ChevronRight,
+  Info,
+  LifeBuoy,
+  Sparkles,
+  Star,
+  UserPlus,
+} from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -36,12 +45,10 @@ export default async function MePage() {
     .select('id', { count: 'exact', head: true })
     .eq('owner_id', user.id)
 
-  const { data: latestAlbums } = await supabase
+  const { data: albumActivity } = await supabase
     .from('albums')
-    .select('id,title,cover_url,created_at,view_count,share_count')
+    .select('view_count,share_count')
     .eq('owner_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(5)
 
   const { data: storageUsage } = await supabase
     .from('user_storage_usage')
@@ -90,12 +97,12 @@ const storageLimitBytes = Number(
     storageLimitBytes > 0 ? (totalBytes / storageLimitBytes) * 100 : 0
   )
 
-  const totalViews = (latestAlbums || []).reduce(
+  const totalViews = (albumActivity || []).reduce(
     (sum, album) => sum + Number(album.view_count || 0),
     0
   )
 
-  const totalShares = (latestAlbums || []).reduce(
+  const totalShares = (albumActivity || []).reduce(
     (sum, album) => sum + Number(album.share_count || 0),
     0
   )
@@ -267,79 +274,78 @@ const storageLimitBytes = Number(
           <BillingPortalButton />
         </div>
 
-        {/* RECENT ALBUMS */}
-        <section className="mt-7">
-          <div className="mb-3 flex items-center justify-between px-1">
-            <h2 className="text-[20px] font-bold tracking-[-0.035em]">
-              {t.me.recentJobs}
-            </h2>
-
-            <Link href="/albums" className="text-[13px] font-semibold text-muted">
-              {t.common.viewAll}
-            </Link>
-          </div>
-
-          <div className="overflow-hidden rounded-panel border border-line bg-surface">
-            {(latestAlbums || []).length > 0 ? (
-              (latestAlbums || []).map((album, index) => (
-                <Link key={album.id} href={`/albums/${album.id}`}>
-                  <div className="flex items-center gap-3 px-3 py-3">
-                    <div className="relative h-[52px] w-[52px] shrink-0 overflow-hidden rounded-card bg-ground-sunken">
-                      {album.cover_url ? (
-                        <Image
-                          src={album.cover_url}
-                          alt={album.title || t.common.album}
-                          fill
-                          sizes="52px"
-                          unoptimized
-                          className="object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-[10px] font-medium text-muted">
-                          {t.me.noCover}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[15px] font-semibold tracking-[-0.02em]">
-                        {album.title || t.me.untitledJob}
-                      </p>
-
-                      <p className="mt-0.5 text-[12px] font-normal text-muted tabular-nums">
-                        {Number(album.view_count || 0)} {t.me.viewsWord} · {' '}
-                        {Number(album.share_count || 0)} {t.me.sharesWord}
-                      </p>
-                    </div>
-
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-muted">
-                      <path d="m9 18 6-6-6-6" />
-                    </svg>
-                  </div>
-
-                  {index < (latestAlbums || []).length - 1 ? (
-                    <div className="ml-[76px] h-px bg-line" />
-                  ) : null}
-                </Link>
-              ))
-            ) : (
-              <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
-                <AppIcon name="gallery" size={40} className="mb-3 opacity-30" />
-
-                <p className="text-[16px] font-semibold text-ink">
-                  {t.me.noJobs}
-                </p>
-
-                <p className="mt-1 text-[13px] font-normal text-muted">
-                  {t.me.noJobsSub}
-                </p>
-              </div>
-            )}
-          </div>
-        </section>
-
         {/* LANGUAGE */}
         <LanguageToggle current={locale} />
+
+        {/* SUPPORT AND COMMUNITY */}
+        <section className="mt-3 overflow-hidden rounded-panel border border-line bg-surface px-4">
+          {[
+            {
+              label: t.me.helpCenter,
+              href: `mailto:support@ciiya.app?subject=${encodeURIComponent(
+                locale === 'th' ? 'ขอความช่วยเหลือเกี่ยวกับ Ciiya' : 'Ciiya support request'
+              )}`,
+              icon: LifeBuoy,
+              external: true,
+            },
+            {
+              label: t.me.inviteFriend,
+              href: `mailto:?subject=${encodeURIComponent(
+                locale === 'th' ? 'ลองใช้ Ciiya' : 'Try Ciiya'
+              )}&body=${encodeURIComponent(
+                locale === 'th'
+                  ? 'ลองใช้ Ciiya สำหรับจัดเก็บและส่งมอบแกลเลอรีรูปภาพ https://ciiya.app'
+                  : 'Try Ciiya for beautiful photo gallery delivery: https://ciiya.app'
+              )}`,
+              icon: UserPlus,
+              external: true,
+            },
+            {
+              label: t.me.writeReview,
+              href: `mailto:support@ciiya.app?subject=${encodeURIComponent(
+                locale === 'th' ? 'รีวิวการใช้งาน Ciiya' : 'My Ciiya review'
+              )}`,
+              icon: Star,
+              external: true,
+            },
+            {
+              label: t.me.followUpdates,
+              href: '/notifications',
+              icon: BellRing,
+              external: false,
+            },
+            {
+              label: t.me.aboutCiiya,
+              href: '/#experience',
+              icon: Info,
+              external: false,
+            },
+          ].map(({ label, href, icon: Icon, external }, index, items) => (
+            <div key={label}>
+              <a
+                href={href}
+                target={external ? '_blank' : undefined}
+                rel={external ? 'noreferrer' : undefined}
+                className="flex min-h-14 items-center gap-3 py-3 text-ink transition active:opacity-60"
+              >
+                <Icon className="h-5 w-5 shrink-0 text-muted" strokeWidth={1.75} />
+                <span className="min-w-0 flex-1 text-[14px] font-semibold tracking-[-0.015em]">
+                  {label}
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted/60" strokeWidth={1.75} />
+              </a>
+              {index < items.length - 1 ? <div className="ml-8 h-px bg-line" /> : null}
+            </div>
+          ))}
+        </section>
+
+        <section className="mt-3 flex min-h-14 items-center gap-3 rounded-panel border border-line bg-surface px-4 py-3">
+          <Sparkles className="h-5 w-5 shrink-0 text-muted" strokeWidth={1.75} />
+          <span className="min-w-0 flex-1 text-[14px] font-semibold text-ink">
+            {t.me.version}
+          </span>
+          <span className="text-[13px] font-medium tabular-nums text-muted">23.1</span>
+        </section>
 
         {/* SIGN OUT */}
         <form action={signOutAction} className="mt-7">
@@ -351,11 +357,6 @@ const storageLimitBytes = Number(
           </button>
         </form>
 
-        <footer className="text-center">
-          <p className="pt-5 text-[11px] font-normal text-muted">
-            Ciiya Version 23.1
-          </p>
-        </footer>
       </div>
 
       {/* BOTTOM NAV */}

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { getServerDictionary } from '@/lib/i18n-server'
 import PortfolioGallery from '@/components/portfolio-gallery'
 import PortfolioTemplateHero from '@/components/portfolio-template-hero'
+import { REDESIGNED_LAYOUTS } from '@/components/portfolio-first-five'
 import { templateUsesDarkHero } from '@/lib/portfolio-templates'
 import {
   getPortfolioBySlug,
@@ -100,6 +101,7 @@ export default async function PublicPortfolioPage({
     .slice(0, 12)
 
   const layout = portfolio.layout
+  const redesignedHero = REDESIGNED_LAYOUTS.some(key => key === layout)
   const galleryLayout = portfolio.gallery_layout || 'carousel'
   const heroShell =
     layout === 'stack'
@@ -244,14 +246,14 @@ export default async function PublicPortfolioPage({
         </div>
       ) : null}
 
-      <section className={`relative isolate overflow-hidden ${heroShell}`}>
+      <section className={`relative isolate overflow-hidden ${redesignedHero ? 'mx-auto w-full max-w-[560px]' : heroShell}`}>
         <PortfolioTemplateHero
           layout={layout}
           name={name}
           tagline={portfolio.tagline}
           location={portfolio.location}
           images={heroImages}
-          className="absolute inset-0"
+          className={redesignedHero ? '' : 'absolute inset-0'}
           actions={
             <div className={`flex flex-wrap gap-2.5 ${layout === 'minimal' || layout === 'classic' ? 'justify-center' : ''}`}>
               {primaryContact ? (
@@ -274,20 +276,20 @@ export default async function PublicPortfolioPage({
           }
         />
 
-        <div className="absolute inset-x-0 top-0 z-10 px-5 pt-[max(20px,env(safe-area-inset-top))] sm:px-10 lg:px-16">
+        <div className={`absolute inset-x-0 top-0 z-10 px-5 pt-[max(20px,env(safe-area-inset-top))] ${redesignedHero ? '' : 'sm:px-10 lg:px-16'}`}>
           <div className={`mx-auto flex w-full max-w-6xl items-center justify-between ${heroUsesLightText ? 'text-white' : 'text-ink'}`}>
             <Link href="/" className={`inline-flex items-center gap-2.5 rounded-full px-2 py-1.5 backdrop-blur ${heroUsesLightText ? 'bg-black/10' : 'bg-white/55'}`} aria-label="Ciiya">
               <span className={`grid h-9 w-9 place-items-center rounded-full border text-[12px] font-semibold ${heroUsesLightText ? 'border-white/30' : 'border-ink/15'}`}>C</span>
               <span className="pr-2 text-[12px] font-semibold uppercase tracking-[0.2em]">Ciiya Portfolio</span>
             </Link>
 
-            <nav className={`hidden items-center gap-6 rounded-full border px-5 py-2.5 text-[11px] font-medium backdrop-blur-md sm:flex ${heroUsesLightText ? 'border-white/25 bg-black/10' : 'border-ink/10 bg-white/65'}`} aria-label={t.portfolioPublic.portfolioMenu}>
+            <nav className={`hidden items-center gap-6 rounded-full border px-5 py-2.5 text-[11px] font-medium backdrop-blur-md ${redesignedHero ? '' : 'sm:flex'} ${heroUsesLightText ? 'border-white/25 bg-black/10' : 'border-ink/10 bg-white/65'}`} aria-label={t.portfolioPublic.portfolioMenu}>
               {strip.length > 0 ? <a href="#gallery" className="transition hover:opacity-60">{t.portfolioPublic.menuGallery}</a> : null}
               {portfolio.bio ? <a href="#about" className="transition hover:opacity-60">{t.portfolioPublic.menuAbout}</a> : null}
               {contacts.length > 0 ? <a href="#contact" className="transition hover:opacity-60">{t.portfolioPublic.menuContact}</a> : null}
             </nav>
 
-            {primaryContact ? <a href="#contact" className={`rounded-full border px-4 py-2 text-[12px] font-semibold backdrop-blur-md transition active:scale-95 sm:hidden ${heroUsesLightText ? 'border-white/30 bg-black/10' : 'border-ink/10 bg-white/65'}`}>{t.portfolioPublic.menuContact}</a> : null}
+            {primaryContact ? <a href="#contact" className={`rounded-full border px-4 py-2 text-[12px] font-semibold backdrop-blur-md transition active:scale-95 ${redesignedHero ? '' : 'sm:hidden'} ${heroUsesLightText ? 'border-white/30 bg-black/10' : 'border-ink/10 bg-white/65'}`}>{t.portfolioPublic.menuContact}</a> : null}
           </div>
         </div>
       </section>

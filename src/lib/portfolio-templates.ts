@@ -14,7 +14,7 @@ export const PORTFOLIO_TEMPLATES: PortfolioTemplateMeta[] = [
   {
     key: 'editorial',
     label: 'The Editorial',
-    hint: 'ภาพนำขนาดใหญ่และตัวอักษรแบบนิตยสาร เหมาะกับงานที่ต้องการเล่าเรื่องอย่างมีรสนิยม',
+    hint: 'ชื่อเต็มความกว้าง ภาพหลักแนวตั้งและภาพรายละเอียดซ้อนมุม จัดจังหวะเหมือนหน้านิตยสาร',
     mood: 'สง่างาม · เล่าเรื่อง',
     category: 'ยอดนิยม',
     group: 'story',
@@ -22,7 +22,7 @@ export const PORTFOLIO_TEMPLATES: PortfolioTemplateMeta[] = [
   {
     key: 'grid',
     label: 'Clean Archive',
-    hint: 'เปิดด้วยกริดภาพที่เป็นระเบียบ เห็นผลงานหลากหลายและค้นหาภาพเด่นได้รวดเร็ว',
+    hint: 'ชื่อและคำแนะนำอยู่เหนือกริดสองคอลัมน์ พร้อมลำดับภาพที่เรียบง่าย เห็นผลงานได้ชัดเจนบนมือถือ',
     mood: 'โมเดิร์น · เป็นระบบ',
     category: 'ใช้งานง่าย',
     group: 'modern',
@@ -30,7 +30,7 @@ export const PORTFOLIO_TEMPLATES: PortfolioTemplateMeta[] = [
   {
     key: 'masonry',
     label: 'Living Frames',
-    hint: 'สลับภาพแนวตั้งและแนวนอนให้เกิดจังหวะเป็นธรรมชาติ เหมาะกับงานไลฟ์สไตล์',
+    hint: 'ภาพทรงโค้งคู่ภาพรายละเอียดสองเฟรม ตามด้วยชื่อและเรื่องราวบนพื้นโทนอุ่น',
     mood: 'อบอุ่น · มีชีวิต',
     category: 'ไลฟ์สไตล์',
     group: 'story',
@@ -38,7 +38,7 @@ export const PORTFOLIO_TEMPLATES: PortfolioTemplateMeta[] = [
   {
     key: 'stack',
     label: 'Cinema One',
-    hint: 'ภาพเต็มจอและชื่อขนาดใหญ่ สร้างความประทับใจตั้งแต่เฟรมแรก',
+    hint: 'ภาพเต็มพื้นหลัง ไล่เงารองรับข้อความ พร้อมแถบภาพสามเฟรม ให้ความรู้สึกเหมือนเปิดภาพยนตร์',
     mood: 'โดดเด่น · เต็มอารมณ์',
     category: 'อีเวนต์',
     group: 'modern',
@@ -46,7 +46,7 @@ export const PORTFOLIO_TEMPLATES: PortfolioTemplateMeta[] = [
   {
     key: 'minimal',
     label: 'Whitespace',
-    hint: 'พื้นที่ว่างที่พอดี เน้นชื่อและรายละเอียด เหมาะกับงานศิลปะและสถาปัตยกรรม',
+    hint: 'ภาพเดี่ยวในกรอบขาว ชื่อจัดกึ่งกลาง และพื้นที่ว่างที่พอดี ให้ผลงานโดดเด่นอย่างสงบ',
     mood: 'นิ่ง · พรีเมียม',
     category: 'มินิมอล',
     group: 'modern',
@@ -54,7 +54,7 @@ export const PORTFOLIO_TEMPLATES: PortfolioTemplateMeta[] = [
   {
     key: 'split',
     label: 'Studio Profile',
-    hint: 'แบ่งภาพและข้อมูลชัดเจน ให้ภาพลักษณ์มืออาชีพและติดต่อจ้างงานได้ทันที',
+    hint: 'พื้นกราไฟต์ ชื่อเต็มความกว้าง และภาพคู่ต่างสัดส่วน แยกข้อมูลชัดเจนแบบสตูดิโอมืออาชีพ',
     mood: 'มืออาชีพ · ชัดเจน',
     category: 'สตูดิโอ',
     group: 'studio',
@@ -62,7 +62,7 @@ export const PORTFOLIO_TEMPLATES: PortfolioTemplateMeta[] = [
   {
     key: 'classic',
     label: 'Heritage',
-    hint: 'สมมาตร สุภาพ และเหนือกาลเวลา เหมาะกับพิธีการ งานครอบครัว และภาพทางการ',
+    hint: 'ภาพกรอบโค้ง เส้นทองและตราอักษรย่อ จัดชื่อกึ่งกลางบนพื้นเข้มโทนอุ่นอย่างสง่างาม',
     mood: 'คลาสสิก · น่าเชื่อถือ',
     category: 'พิธีการ',
     group: 'wedding',
@@ -70,7 +70,7 @@ export const PORTFOLIO_TEMPLATES: PortfolioTemplateMeta[] = [
   {
     key: 'bold',
     label: 'Creator Impact',
-    hint: 'ตัวอักษรใหญ่ สีชัด และองค์ประกอบที่มั่นใจ สำหรับแฟชั่นและครีเอเตอร์',
+    hint: 'ชื่อขนาดใหญ่ ภาพหลักพร้อมภาพซ้อน และเส้นสีประจำแบรนด์ ให้บุคลิกที่มั่นใจแบบครีเอเตอร์',
     mood: 'มั่นใจ · ร่วมสมัย',
     category: 'ครีเอเตอร์',
     group: 'studio',
@@ -78,7 +78,7 @@ export const PORTFOLIO_TEMPLATES: PortfolioTemplateMeta[] = [
   {
     key: 'luxe',
     label: 'Maison Romance',
-    hint: 'เลเยอร์ภาพอ่อนโยนในโทนอุ่น ออกแบบเพื่อพรีเวดดิ้งและวันสำคัญโดยเฉพาะ',
+    hint: 'ชื่อกึ่งกลางและภาพโค้งซ้อนกันบนพื้นสีครีม ให้บรรยากาศโรแมนติกเหมาะกับวันสำคัญ',
     mood: 'โรแมนติก · ประณีต',
     category: 'งานแต่งงาน',
     group: 'wedding',
@@ -87,7 +87,7 @@ export const PORTFOLIO_TEMPLATES: PortfolioTemplateMeta[] = [
   {
     key: 'portrait',
     label: 'Portrait Atelier',
-    hint: 'ยกภาพบุคคลแนวตั้งให้เป็นจุดเด่น พร้อมรายละเอียดแบบพอร์ตสตูดิโอระดับมืออาชีพ',
+    hint: 'ภาพบุคคลเต็มกรอบ ตามด้วยชื่อเต็มความกว้างและภาพรายละเอียดวงกลม อ่านง่ายแบบพอร์ตสตูดิโอ',
     mood: 'มีบุคลิก · ละเมียด',
     category: 'ภาพบุคคล',
     group: 'studio',
@@ -96,7 +96,7 @@ export const PORTFOLIO_TEMPLATES: PortfolioTemplateMeta[] = [
   {
     key: 'journal',
     label: 'Field Notes',
-    hint: 'จัดภาพเหมือนบันทึกการเดินทาง มีหมายเลขและจังหวะเรื่องราวที่เป็นกันเอง',
+    hint: 'พื้นกระดาษบันทึก ภาพพรินต์เอียงเล็กน้อย และภาพรายละเอียดคู่ข้อความ ให้ความรู้สึกเป็นบันทึกส่วนตัว',
     mood: 'จริงใจ · มีเรื่องราว',
     category: 'สารคดี',
     group: 'story',
@@ -105,7 +105,7 @@ export const PORTFOLIO_TEMPLATES: PortfolioTemplateMeta[] = [
   {
     key: 'noir',
     label: 'Midnight Edition',
-    hint: 'พื้นหลังเข้ม ภาพคอนทราสต์สูง และเส้นสายแฟชั่นสตูดิโอที่ดูเอ็กซ์คลูซีฟ',
+    hint: 'ภาพขาวดำสองขนาดบนพื้นดำ ตามด้วยชื่อเต็มความกว้างและเส้นบางแบบนิตยสารแฟชั่น',
     mood: 'เข้ม · เอ็กซ์คลูซีฟ',
     category: 'แฟชั่น',
     group: 'studio',
@@ -114,7 +114,7 @@ export const PORTFOLIO_TEMPLATES: PortfolioTemplateMeta[] = [
   {
     key: 'monogram',
     label: 'Monogram House',
-    hint: 'ภาพทรงโค้งและอักษรย่อกลางหน้า ให้บรรยากาศเหมือนแบรนด์เฮาส์สำหรับงานพิธีระดับพรีเมียม',
+    hint: 'ตราอักษรย่อและชื่อกึ่งกลางเหนือภาพคู่โค้งสลับด้าน ให้ความรู้สึกเหมือนแบรนด์เฮาส์ส่วนตัว',
     mood: 'หรูหรา · เป็นส่วนตัว',
     category: 'งานแต่งงาน',
     group: 'wedding',

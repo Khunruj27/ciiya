@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import type { ReactNode } from 'react'
 import type { Portfolio } from '@/lib/portfolio-types'
+import PortfolioFirstFive, { REDESIGNED_LAYOUTS } from './portfolio-first-five'
 
 type Props = {
   layout: Portfolio['layout']
@@ -25,6 +26,11 @@ export default function PortfolioTemplateHero({
   actions,
   className = '',
 }: Props) {
+  if (REDESIGNED_LAYOUTS.some(key => key === layout)) {
+    return <div className={`mx-auto w-full max-w-[560px] [container-type:inline-size] ${compact ? 'overflow-y-auto [scrollbar-width:none]' : ''} ${className}`} data-portfolio-hero={layout} data-preview-device="mobile">
+      <PortfolioFirstFive layout={layout} name={name} tagline={tagline} location={location} images={images} compact={compact} actions={actions} />
+    </div>
+  }
   const mobile = compact && previewDevice === 'mobile'
   const photo = (index: number) => images.length ? images[index % images.length] : undefined
   const pad = compact ? 'p-2.5' : 'px-4 pb-6 pt-20 sm:px-10 sm:pb-10 sm:pt-28 lg:px-16'

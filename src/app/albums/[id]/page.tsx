@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
+import styles from './album-detail.module.css'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import ShareActions from '@/components/share-actions'
 import EditAlbumForm from '@/components/edit-album-form'
@@ -192,18 +194,18 @@ const cameraProcessingGridItems = (cameraImportsData || [])
 
   return (
   <main className="min-h-screen bg-ground text-ink">
-      <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-5 pt-[max(28px,env(safe-area-inset-top))] pb-[calc(112px+env(safe-area-inset-bottom))] sm:px-8 sm:pt-8 lg:px-12">
+      <div className={styles.container}>
         {/* HEADER */}
-        <section className="pt-2 sm:pt-4">
-          <div className="flex items-center justify-between">
+        <section>
+          <div className={styles.header}>
             <Link
               href="/albums"
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-surface text-2xl font-bold border border-line"
+              className={styles.back}
             >
-              ‹
+              <span aria-hidden className="text-2xl">‹</span> {t.albums.myAlbums}
             </Link>
 
-           <div className="flex items-center gap-3">
+           <div className={styles.tools}>
               <Link
                 href={`/albums/${album.id}/analytics`}
                 className="flex h-11 items-center justify-center rounded-full border border-line bg-surface px-4 text-[12px] font-semibold text-ink transition active:scale-95"
@@ -238,39 +240,48 @@ const cameraProcessingGridItems = (cameraImportsData || [])
             </div>
           </div>
  
-          <section className="pt-8 sm:pt-12">
-          <h1 className="mt-3 text-[clamp(2.3rem,6vw,4.5rem)] font-semibold leading-[0.96] tracking-[-0.055em] text-ink">
+          <section className={styles.hero}>
+          <div className={styles.cover}>
+            {album.cover_url ? <Image src={album.cover_url} alt={album.title || t.albums.jobCover} fill sizes="(max-width: 640px) 100vw, 420px" unoptimized priority className="object-cover" /> : <div className={styles.noCover}><AppIcon name="album" size={48} /><span>{t.albums.noCover}</span></div>}
+          </div>
+          <div className={styles.intro}>
+          <p className={styles.eyebrow}>{t.common.album}</p>
+          <h1 className={styles.title}>
            {album.title}
           </h1>
 
-          <p className="mt-2 text-[14px] font-semibold leading-relaxed text-muted">
+          <p className={styles.description}>
              {album.description || t.albums.noDescription}
           </p>
+          <div className={styles.primaryActions}>
+            <UploadPhotoModal albumId={album.id} categories={categories} initialAutoFaceScan={album.auto_face_scan} initialAutoPublish={album.auto_publish} showLabel />
+          </div>
+          </div>
           </section>
         </section>
         
        {/* SUMMARY CARDS */}
-<section className="mt-7 grid grid-cols-2 gap-3 sm:max-w-md">
-  <div className="rounded-panel border border-line bg-gold-soft px-4 py-3">
-    <p className="text-[12px] font-bold text-gold-deep">
+<section className={styles.stats}>
+  <div className={styles.stat}>
+    <p className="text-[13px] font-medium text-muted">
       {t.albumDetail.allPhotos}
     </p>
 
-    <p className="mt-1 text-[26px] font-bold leading-none tracking-[-0.05em] text-ink">
+    <p className={styles.statValue}>
       {photoCount}
     </p>
   </div>
 
   <Link
     href={`/albums/${album.id}/people`}
-    className="rounded-panel border border-line bg-gold-soft px-4 py-3 transition active:scale-[0.98]"
+    className={styles.stat}
   >
-    <p className="text-[12px] font-bold text-gold-deep">
+    <p className="text-[13px] font-medium text-muted">
       {t.albumDetail.peopleInJob}
     </p>
 
-    <p className="mt-1 text-[26px] font-bold leading-none tracking-[-0.05em] text-ink">
-      {peopleCount || 0}
+    <p className={styles.statValue}>
+      {peopleCount || 0}<span aria-hidden className="ml-2 text-sm text-gold-deep">↗</span>
     </p>
   </Link>
 </section>
@@ -280,16 +291,16 @@ const cameraProcessingGridItems = (cameraImportsData || [])
 
         {/* PHOTO GRID */}
         <section className="mt-6">
-          <div className="rounded-panel bg-surface border border-line p-4 sm:p-6">
+          <div className={styles.gallery}>
             {/* Sharing lives on this row now. It used to sit in a card of its
                 own whose only content was these three buttons, so moving them
                 took the card with it. */}
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <h2 className="text-[24px] font-bold tracking-[-0.05em] sm:text-[30px]">
+            <div className={styles.galleryHeader}>
+              <h2 className="text-[22px] font-medium leading-normal">
                 {t.albumDetail.photos}
               </h2>
 
-              <div className="shrink-0 rounded-full border border-line bg-surface px-3 py-2">
+              <div className="shrink-0 rounded-2xl border border-line bg-surface px-2 py-1">
                 <ShareActions shareToken={shareToken} />
               </div>
             </div>

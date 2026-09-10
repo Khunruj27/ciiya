@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import NextImage from 'next/image'
+import { ScanFace } from 'lucide-react'
 import { extractSelfieDescriptor } from '@/lib/face-descriptor'
 import { useI18n } from '@/components/i18n-provider'
 
@@ -139,22 +140,11 @@ export default function SelfieFaceSearch({
             : 'group fixed bottom-[calc(1.25rem+15vh)] right-4 z-50 flex h-16 w-16 items-center justify-center rounded-full border border-line bg-surface/90 text-ink shadow-lift backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-gold/40 hover:text-gold-deep hover:shadow-float active:scale-95 disabled:opacity-60'
         }
       >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+        <ScanFace
+          aria-hidden="true"
+          strokeWidth={1.4}
           className={variant === 'inline' ? 'h-4 w-4' : 'h-7 w-7'}
-        >
-          <path d="M4 8V6a2 2 0 0 1 2-2h2" />
-          <path d="M16 4h2a2 2 0 0 1 2 2v2" />
-          <path d="M20 16v2a2 2 0 0 1-2 2h-2" />
-          <path d="M8 20H6a2 2 0 0 1-2-2v-2" />
-          <circle cx="12" cy="11" r="3.2" />
-          <path d="M9 16.2c.7-1 1.8-1.6 3-1.6s2.3.6 3 1.6" />
-        </svg>
+        />
 
         {variant === 'inline' ? <span>{t.common.findMyPhotos}</span> : null}
       </button>

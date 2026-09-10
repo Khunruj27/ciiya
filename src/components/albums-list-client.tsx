@@ -6,6 +6,7 @@ import Image from 'next/image'
 import AlbumsSearch from './albums-search'
 import DeleteAlbumButton from './delete-album-button'
 import AppIcon from '@/components/app-icon'
+import { useI18n } from '@/components/i18n-provider'
 
 type Album = {
   id: string
@@ -20,6 +21,8 @@ type Props = {
 }
 
 export default function AlbumsListClient({ albums, photoCountMap }: Props) {
+  const { locale, t } = useI18n()
+  const searchLabel = locale === 'th' ? 'ค้นหาอัลบั้มของคุณ' : 'Search your albums'
   const [visibleIds, setVisibleIds] = useState<string[]>([])
   const [query, setQuery] = useState('')
   const [isSearchOpen, setIsSearchOpen] = useState(false)
@@ -40,11 +43,11 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
       <button
         type="button"
         onClick={() => setIsSearchOpen(true)}
-        className="mt-3 flex h-[56px] w-full items-center gap-3 rounded-full border border-line bg-white px-5 text-left"
+        className="flex h-[52px] w-full items-center gap-3 rounded-2xl border border-line bg-white px-4 text-left transition hover:border-gold"
       >
         <AppIcon name="search" size={22} className="opacity-50" />
-        <span className="text-[16px] font-medium text-muted">
-          Search jobs
+        <span className="text-[14px] font-medium text-muted">
+          {searchLabel}
         </span>
       </button>
 
@@ -53,7 +56,7 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
           <div className="mx-auto w-full max-w-xl rounded-panel border border-line bg-ground p-4 shadow-lift sm:p-6">
             <div className="flex items-center justify-between">
               <p className="text-[22px] font-semibold tracking-[-0.05em]">
-                Search jobs
+                {searchLabel}
               </p>
 
               <button
@@ -100,7 +103,7 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
                             />
                           ) : (
                             <div className="flex h-full items-center justify-center text-xs font-bold text-muted">
-                              No cover
+                              {t.albums.noCover}
                             </div>
                           )}
 
@@ -111,15 +114,15 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
 
                         <div className="min-w-0 flex-1 pr-7">
                           <p className="truncate text-[16px] font-semibold text-ink">
-                            {album.title || 'Untitled Album'}
+                            {album.title || t.me.untitledJob}
                           </p>
 
                           <span className="mt-1 inline-block rounded-full bg-gold-soft px-3 py-1 text-[11px] font-semibold text-ink">
-                            Album
+                            {t.common.album}
                           </span>
 
                           <p className="mt-2 line-clamp-2 text-[13px] font-semibold leading-snug text-muted">
-                            {album.description || 'No description yet'}
+                            {album.description || t.albums.noDescription}
                           </p>
                         </div>
                       </Link>
@@ -130,11 +133,11 @@ export default function AlbumsListClient({ albums, photoCountMap }: Props) {
                     <AppIcon name="gallery" size={42} className="mx-auto opacity-35" />
 
                     <p className="mt-4 text-[18px] font-semibold text-ink">
-                      No matching jobs found
+                      {locale === 'th' ? 'ไม่พบอัลบั้มที่ค้นหา' : 'No matching albums found'}
                     </p>
 
                     <p className="mt-1 text-[13px] font-semibold text-muted">
-                      Try another keyword.
+                      {locale === 'th' ? 'ลองค้นหาด้วยชื่อหรือคำอธิบายอื่น' : 'Try another name or description.'}
                     </p>
                   </div>
                 )}

@@ -748,14 +748,13 @@ useEffect(() => {
         now low enough to fit one, and the ceiling keeps a tall desktop
         window from turning the grid into an endless column.
       */}
-      <section className="overflow-hidden rounded-hero border border-line bg-surface shadow-card">
-        <div className="relative px-4 py-5 sm:px-6 sm:py-6">
-          <div aria-hidden className="absolute -right-16 -top-20 h-48 w-48 rounded-full bg-gold/20 blur-3xl" />
+      <section className="overflow-hidden rounded-2xl bg-surface">
+        <div className="relative px-1 py-3 sm:px-3 sm:py-4">
 
           {/* Toolbar sits inside the card, above the grid: the Latest/Popular
               tabs on the left and the density (column) controls on the right. */}
           <div className="relative mb-4 [@media(max-height:480px)]:pr-[76px] sm:mb-5">
-            <div className="flex items-center justify-between gap-2 sm:gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="inline-flex shrink-0 items-center rounded-full border border-line bg-ground-sunken p-1">
                 <button
                   type="button"

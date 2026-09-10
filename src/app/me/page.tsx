@@ -10,6 +10,7 @@ import { formatBytes, clampPercent } from '@/lib/format-bytes'
 import { PLAN_LIMITS } from '@/lib/plans'
 import BillingPortalButton from '@/components/billing-portal-button'
 import NotificationBell from '@/components/notification-bell'
+import styles from './me.module.css'
 import {
   BellRing,
   ChevronRight,
@@ -135,28 +136,34 @@ const storageLimitBytes = Number(
   }
 
   return (
-    <main className="min-h-screen bg-ground px-5 pt-[max(32px,env(safe-area-inset-top))] pb-[max(120px,calc(env(safe-area-inset-bottom)+40px))] text-ink sm:px-8 lg:px-12">
-      <div className="mx-auto w-full max-w-5xl">
-        <h1 className="px-1 text-[32px] font-bold leading-none tracking-[-0.045em]">
+    <main className={`${styles.page} min-h-screen bg-ground text-ink`}>
+      <div className={styles.container}>
+        <header className={styles.header}>
+        <div>
+        <p className={styles.eyebrow}>CIIYA / {locale === 'th' ? 'พื้นที่ของคุณ' : 'YOUR SPACE'}</p>
+        <h1 className={styles.heading}>
           {t.me.title}
         </h1>
+        </div>
+        <Link href="/me/edit" className={styles.editLink}>
+          {locale === 'th' ? 'แก้ไขโปรไฟล์' : 'Edit profile'}<ChevronRight size={15} aria-hidden />
+        </Link>
+        </header>
 
-        {/*
-          The profile reads as a row rather than the centred portrait block it
-          was: the name and address matter more than a 112px avatar, and the
-          row leaves the storage card below as the screen's one focal point.
-        */}
+        <div className={styles.layout}>
+        <div className={styles.overview}>
+        <div className={styles.identity}>
         <Link
           href="/me/edit"
-          className="mt-5 flex items-center gap-4 rounded-panel border border-line bg-surface p-3 transition active:scale-[0.99]"
+          className={styles.profile}
         >
-          <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-ground-sunken">
+          <div className={styles.avatar}>
             {avatarUrl ? (
               <Image
                 src={avatarUrl}
                 alt={displayName}
                 fill
-                sizes="56px"
+                sizes="76px"
                 className="object-cover"
               />
             ) : (
@@ -167,7 +174,7 @@ const storageLimitBytes = Number(
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[17px] font-semibold tracking-[-0.02em]">
+            <p className={styles.name}>
               {displayName}
             </p>
             <p className="mt-0.5 truncate text-[13px] font-normal text-muted">
@@ -187,12 +194,7 @@ const storageLimitBytes = Number(
           </svg>
         </Link>
 
-        {/*
-          Four figures on one surface separated by hairlines. As four saturated
-          cards — pink, lime, cream, blue — they read as four unrelated things
-          competing for the same glance, when they are just four counts.
-        */}
-        <section className="mt-3 grid grid-cols-4 divide-x divide-line rounded-panel border border-line bg-surface py-3">
+        <section className={styles.stats}>
           {[
             [t.me.jobs, albumCount || 0],
             [t.me.photos, photoCount || 0],
@@ -200,27 +202,28 @@ const storageLimitBytes = Number(
             [t.me.shares, totalShares],
           ].map(([label, value]) => (
             <div key={String(label)} className="px-1 text-center">
-              <p className="text-[20px] font-semibold leading-none tracking-[-0.04em] tabular-nums">
-                {value}
+              <p className={styles.statValue} title={String(value)}>
+                {new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(Number(value))}
               </p>
-              <p className="mt-1.5 text-[10px] font-medium uppercase tracking-[0.1em] text-muted">
+              <p className="mt-1.5 text-[11px] font-medium text-muted">
                 {label}
               </p>
             </div>
           ))}
         </section>
+        </div>
 
         {/* Storage is the one thing on this screen with a limit worth watching,
             so it gets the dark card and everything else stays quiet. */}
-        <section className="mt-3 rounded-hero bg-ink p-5 text-white">
+        <section className={styles.storage}>
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
+              <p className="text-[14px] font-medium text-white/75">
                 {t.me.storage}
               </p>
-              <p className="mt-2 text-[26px] font-bold leading-none tracking-[-0.045em] tabular-nums">
+              <p className="mt-3 flex flex-wrap items-baseline gap-x-1 gap-y-2 text-[28px] font-medium leading-tight tabular-nums">
                 {formatBytes(totalBytes)}
-                <span className="text-[14px] font-normal text-white/45">
+                <span className="text-[13px] font-normal text-white/65">
                   {' '}/ {formatBytes(storageLimitBytes)}
                 </span>
               </p>
@@ -231,24 +234,23 @@ const storageLimitBytes = Number(
             </span>
           </div>
 
-          <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-white/12">
+          <div role="progressbar" aria-label={t.me.storage} aria-valuenow={Math.round(usagePercent)} aria-valuemin={0} aria-valuemax={100} className="mt-6 h-1.5 overflow-hidden rounded-full bg-white/12">
             <div
               className={`${barColor} h-full rounded-full transition-all duration-500`}
               style={{ width: `${usagePercent}%` }}
             />
           </div>
 
-          <div className="mt-2.5 flex items-center justify-between text-[11px] font-normal text-white/45 tabular-nums">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[12px] font-normal text-white/65 tabular-nums">
             <span>{t.me.used} {Math.round(usagePercent)}%</span>
             <span>
               {t.me.left} {formatBytes(Math.max(0, storageLimitBytes - totalBytes))}
             </span>
           </div>
-        </section>
 
         <Link
           href="/pricing"
-          className="mt-3 flex items-center gap-3 rounded-panel border border-gold/30 bg-gold-soft px-4 py-3.5 transition active:scale-[0.99]"
+          className={styles.upgrade}
         >
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink text-gold">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
@@ -257,10 +259,10 @@ const storageLimitBytes = Number(
           </span>
 
           <span className="min-w-0 flex-1">
-            <span className="block text-[14px] font-semibold text-ink">
+            <span className="block text-[14px] font-semibold text-white">
               {t.me.upgrade}
             </span>
-            <span className="block text-[12px] font-normal text-gold-deep">
+            <span className="mt-1 block text-[12px] font-normal text-white/65">
               {t.me.upgradeSub}
             </span>
           </span>
@@ -269,16 +271,20 @@ const storageLimitBytes = Number(
             <path d="m9 18 6-6-6-6" />
           </svg>
         </Link>
+        </section>
 
         <div className="mt-3">
           <BillingPortalButton />
         </div>
+        </div>
 
+        <div className={styles.settings}>
+        <h2 className={styles.sectionTitle}>{locale === 'th' ? 'การตั้งค่าและบริการ' : 'Settings & services'}</h2>
         {/* LANGUAGE */}
         <LanguageToggle current={locale} />
 
         {/* SUPPORT AND COMMUNITY */}
-        <section className="mt-3 overflow-hidden rounded-panel border border-line bg-surface px-4">
+        <section className={`${styles.menu} mt-3 overflow-hidden rounded-panel border border-line bg-surface px-4`}>
           {[
             {
               label: t.me.helpCenter,
@@ -326,15 +332,15 @@ const storageLimitBytes = Number(
                 href={href}
                 target={external ? '_blank' : undefined}
                 rel={external ? 'noreferrer' : undefined}
-                className="flex min-h-14 items-center gap-3 py-3 text-ink transition active:opacity-60"
+                className={styles.menuLink}
               >
-                <Icon className="h-5 w-5 shrink-0 text-muted" strokeWidth={1.75} />
+                <span className={styles.menuIcon}><Icon className="h-[18px] w-[18px]" strokeWidth={1.6} aria-hidden /></span>
                 <span className="min-w-0 flex-1 text-[14px] font-semibold tracking-[-0.015em]">
                   {label}
                 </span>
                 <ChevronRight className="h-4 w-4 shrink-0 text-muted/60" strokeWidth={1.75} />
               </a>
-              {index < items.length - 1 ? <div className="ml-8 h-px bg-line" /> : null}
+              {index < items.length - 1 ? <div className="ml-12 h-px bg-line" /> : null}
             </div>
           ))}
         </section>
@@ -348,15 +354,16 @@ const storageLimitBytes = Number(
         </section>
 
         {/* SIGN OUT */}
-        <form action={signOutAction} className="mt-7">
+        <form action={signOutAction} className="mt-5">
           <button
             type="submit"
-            className="flex h-12 w-full items-center justify-center rounded-full border border-line bg-surface text-[14px] font-semibold text-red-600 transition active:scale-[0.99]"
+            className={styles.signOut}
           >
             {t.common.signOut}
           </button>
         </form>
-
+        </div>
+        </div>
       </div>
 
       {/* BOTTOM NAV */}

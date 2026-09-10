@@ -20,6 +20,7 @@ import {
 } from '@/lib/share-access'
 import { facebookUrl, telUrl, displayHandle } from '@/lib/portfolio-links'
 import { getServerDictionary } from '@/lib/i18n-server'
+import styles from './share.module.css'
 
 // The page itself stays dynamic (it reads the visitor's password-access
 // cookie fresh on every request), but the underlying album/photos
@@ -144,17 +145,12 @@ export default async function SharePage({ params }: PageProps) {
       : null
 
   return (
-   <main className="min-h-screen bg-ground text-ink">
+   <main className={`${styles.page} min-h-screen bg-ground text-ink`}>
       <ShareViewTracker token={token} />
 
-      {/*
-        HERO — full bleed. It sits outside the padded container so the cover
-        runs edge to edge with no card, border, or corner radius around it.
-        Height tracks the viewport and is deliberately shorter than the rest
-        of the page's rhythm on phones, where a tall cover pushed the photos
-        themselves below the fold.
-      */}
-      <section className="relative h-[30vh] max-h-[360px] min-h-[170px] w-full overflow-hidden bg-black sm:h-[34vh] sm:max-h-[440px]">
+      {/* Album title sits at the bottom of the cover above a contrast gradient. */}
+      <section className={styles.hero}>
+        <div className={styles.cover}>
         {album.cover_url ? (
           <Image
             src={album.cover_url}
@@ -169,7 +165,7 @@ export default async function SharePage({ params }: PageProps) {
           <div className="h-full w-full bg-gradient-to-br from-gold via-gold-deep to-ink" />
         )}
 
-        <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/20 to-black/78" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/15" />
 
         {/* Overlay text keeps the container's gutters so it lines up with the
             gallery below instead of hugging the screen edge. */}
@@ -185,38 +181,27 @@ export default async function SharePage({ params }: PageProps) {
           </div>
         </div>
 
-        <div className="absolute inset-x-0 bottom-0">
-          <div className="mx-auto w-full max-w-5xl px-4 pb-4 text-center sm:px-6 sm:pb-5 lg:px-8">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/70 sm:text-[11px]">
-              {t.share.sharedAlbum}
-            </p>
-            {/*
-              The title block is anchored to the bottom of the cover, so an
-              unclamped title grows upward: a real two-line Thai album name
-              ran 29px into the pills on a landscape phone. Clamping the
-              lines caps that growth, and on short viewports the type shrinks
-              and the description steps aside to leave room.
-            */}
-            <h1 className="mt-1.5 line-clamp-2 text-[clamp(1.75rem,1.1rem+2.4vw,2.75rem)] font-bold leading-[0.98] tracking-[-0.04em] text-white text-balance [@media(max-height:480px)]:text-[1.5rem] sm:mt-2">
+          <div className={styles.coverCaption}>
+            <h1 className={styles.title}>
               {album.title}
             </h1>
-            <p className="mt-1.5 line-clamp-2 text-[12px] font-normal leading-snug text-white/80 [@media(max-height:480px)]:hidden sm:mt-2 sm:text-[14px]">
-              {album.description || t.share.heroSubtitle}
-            </p>
           </div>
         </div>
       </section>
 
       {/* No top padding here — the CONTENT section below already carries it,
           and doubling them left a wide gap under the full-bleed cover. */}
-      <div className="mx-auto w-full max-w-5xl px-4 pb-5 sm:px-6 sm:pb-6 lg:px-8">
+      <div id="shared-gallery" className={styles.content}>
 
       {/* CONTENT */}
       <section className="pb-12 pt-5">
         <div className="space-y-5">
           <ShareGalleryTabs token={token} contact={contactCard} initialGalleryLikes={galleryLikeTotal} initialMomentCount={momentCount}>
             <div className="space-y-5">
-              <SelfieFaceSearch albumId={album.id} token={token} />
+              <div className={styles.searchBar}>
+                <span>{t.common.findMyPhotos}</span>
+                <SelfieFaceSearch albumId={album.id} token={token} variant="inline" />
+              </div>
 
               {visiblePhotos.length > 0 ? (
                 <PublicGalleryInfinite

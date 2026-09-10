@@ -52,7 +52,7 @@ export default function ShareGalleryTabs({
   }, [])
 
   function tabClass(tab: Tab, extra = '') {
-    return `rounded-full px-4 py-2.5 text-[12px] font-semibold transition ${extra} ${
+    return `min-h-11 min-w-0 rounded-xl px-2 py-2.5 text-[12px] sm:text-[14px] font-medium transition focus-visible:outline-2 focus-visible:outline-gold ${extra} ${
       activeTab === tab ? 'bg-ink text-white' : 'text-muted hover:text-ink'
     }`
   }
@@ -60,8 +60,8 @@ export default function ShareGalleryTabs({
   return (
     <div className="space-y-5">
       <nav
-        className="sticky top-3 z-40 mx-auto flex w-fit max-w-[calc(100vw-2rem)] items-center gap-1 overflow-x-auto rounded-full border border-line bg-surface/90 p-1.5 shadow-lift backdrop-blur-xl"
-        aria-label="Shared album sections"
+        className={`sticky top-2 z-40 grid w-full ${contact ? 'grid-cols-3' : 'grid-cols-2'} gap-1 rounded-2xl border border-line bg-surface/95 p-1.5 backdrop-blur-xl`}
+        aria-label={t.share.ciiyaGallery}
       >
         <button
           type="button"

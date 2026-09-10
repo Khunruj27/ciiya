@@ -6,7 +6,9 @@ import { getServerDictionary } from '@/lib/i18n-server'
 import { getUnreadNotificationCount } from '@/lib/notifications'
 import AppIcon from '@/components/app-icon'
 import NotificationBell from '@/components/notification-bell'
-import AiAlbumInsights from '@/components/ai-album-insights'
+import { Eye, Download, Heart, ScanFace, Camera, Images, ArrowLeft } from 'lucide-react'
+import styles from './analytics.module.css'
+import { DailyActivityChart, HourlyActivityChart } from '@/components/analytics-activity-charts'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -19,8 +21,8 @@ const DAY_MS = 86_400_000
 // hours are bucketed in Bangkok time rather than the server's UTC.
 const LOCAL_TZ = 'Asia/Bangkok'
 
-function shortDay(date: Date) {
-  return new Intl.DateTimeFormat('en', { weekday: 'short', timeZone: LOCAL_TZ }).format(date)
+function shortDay(date: Date, locale: string) {
+  return new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: LOCAL_TZ }).format(date)
 }
 
 // YYYY-MM-DD in local time (en-CA formats in that order).
@@ -69,7 +71,7 @@ function getRequestTime() {
 export default async function AlbumAnalyticsPage({ params }: PageProps) {
   const { id } = await params
   const supabase = await createServerSupabaseClient()
-  const { t } = await getServerDictionary()
+  const { t, locale } = await getServerDictionary()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
@@ -124,14 +126,13 @@ export default async function AlbumAnalyticsPage({ params }: PageProps) {
     const likes = dayEvents.filter((event) => event.event_type === 'photo_like').length
     return {
       key,
-      label: shortDay(date),
+      label: shortDay(date, locale),
       count: dayEvents.length,
       views,
       likes,
       other: dayEvents.length - views - likes,
     }
   })
-  const maxDayCount = Math.max(1, ...daySeries.map((day) => day.count))
 
   // Which part of the day draws the most engagement (local time).
   const bucketCounts = [0, 0, 0, 0]
@@ -150,7 +151,6 @@ export default async function AlbumAnalyticsPage({ params }: PageProps) {
     else slot.other += 1
     slot.total += 1
   }
-  const maxHourCount = Math.max(1, ...hourSeries.map((hour) => hour.total))
   const peakHour = bucketedTotal
     ? hourSeries.reduce((best, hour, index) => (hour.total > hourSeries[best].total ? index : best), 0)
     : -1
@@ -180,85 +180,71 @@ export default async function AlbumAnalyticsPage({ params }: PageProps) {
     { label: t.analytics.metricGuestMoments, value: Number(momentsResult.count || 0), detail: t.analytics.detailPublishedByGuests },
     { label: t.analytics.metricPhotoOpens, value: totalPhotoViews, detail: t.analytics.detailAcrossGallery },
   ]
+  const metricIcons = [Eye, Download, Heart, ScanFace, Camera, Images]
 
   return (
     <main className="min-h-dvh bg-ground text-ink">
-      <div className="mx-auto min-h-dvh w-full max-w-6xl px-5 pt-[max(28px,env(safe-area-inset-top))] pb-[calc(112px+env(safe-area-inset-bottom))] sm:px-8 lg:px-12">
+      <div className={styles.container}>
         <header className="flex items-center justify-between gap-4">
-          <Link href={`/albums/${id}`} className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface text-[22px]">‹</Link>
+          <Link href={`/albums/${id}`} className={styles.back}><ArrowLeft size={16} aria-hidden />{locale === 'th' ? 'กลับไปอัลบั้ม' : 'Back to album'}</Link>
           <span className="rounded-full border border-line bg-surface px-4 py-2 text-[11px] font-semibold text-muted">{t.analytics.last30Days}</span>
         </header>
 
-        <section className="pt-9 sm:pt-12">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold-deep">{t.analytics.galleryInsights}</p>
-          <h1 className="mt-3 max-w-3xl text-[clamp(2.5rem,8vw,5rem)] font-semibold leading-[0.95] tracking-[-0.055em]">{album.title}</h1>
-          <p className="mt-3 text-[14px] leading-6 text-muted">{t.analytics.insightsDesc}</p>
+        <section className={styles.hero}>
+          <div className={styles.heroCopy}>
+          <p className={styles.eyebrow}>{t.analytics.galleryInsights}</p>
+          <h1 className={styles.title}>{album.title}</h1>
+          <p className={styles.subtitle}>{t.analytics.insightsDesc}</p>
+          </div>
+          {album.cover_url ? <div className={styles.cover}><Image src={album.cover_url} alt={album.title || t.albums.jobCover} fill sizes="(max-width: 600px) 88px, 160px" unoptimized className="object-cover" /></div> : null}
         </section>
 
-        <section className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-3">
-          {metrics.map((metric, index) => (
-            <article key={metric.label} className={`rounded-panel border p-4 sm:p-5 ${index === 0 ? 'border-gold/40 bg-gold-soft' : 'border-line bg-surface'}`}>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{metric.label}</p>
-              <p className="mt-3 text-[clamp(2rem,6vw,3.3rem)] font-semibold leading-none tracking-[-0.055em]">{formatNumber(metric.value)}</p>
-              <p className="mt-2 text-[11px] leading-5 text-muted">{metric.detail}</p>
+        <section className={styles.metrics}>
+          {metrics.map((metric, index) => {
+            const Icon = metricIcons[index]
+            return (
+            <article key={metric.label} className={`${styles.metric} ${index === 0 ? styles.featured : ''}`}>
+              <Icon size={19} strokeWidth={1.6} aria-hidden className={styles.metricIcon} />
+              <p className={styles.metricLabel}>{metric.label}</p>
+              <p className={styles.metricValue}>{formatNumber(metric.value)}</p>
+              <p className={styles.metricDetail}>{metric.detail}</p>
             </article>
-          ))}
+          )})}
         </section>
 
-        <AiAlbumInsights albumId={id} />
-
-        <section className="mt-6 rounded-hero border border-line bg-surface p-5 sm:p-7">
-          <div className="flex items-end justify-between gap-4">
+        <div className={styles.reports}>
+        <section className={`${styles.panel} ${styles.widePanel}`}>
+          <div className={styles.panelHeading}>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold-deep">{t.analytics.activity7Day}</p>
               <h2 className="mt-2 text-[22px] font-semibold tracking-[-0.035em]">{t.analytics.whenEngage}</h2>
             </div>
-            <p className="text-[12px] text-muted">{t.analytics.eventsCount(safeEvents.length)}</p>
+            <p className="text-[12px] text-muted">{formatNumber(daySeries.reduce((sum, day) => sum + day.count, 0))} {locale === 'th' ? 'กิจกรรม · 7 วัน' : 'events · 7 days'}</p>
           </div>
 
-          <div className="mt-6 grid grid-cols-3 gap-3">
+          <DailyActivityChart days={daySeries} />
+        </section>
+
+        <section className={styles.panel}>
+          <div className={styles.panelHeading}>
+            <h2 className="text-[18px]">{locale === 'th' ? 'ภาพรวมการมีส่วนร่วม' : 'Engagement overview'}</h2>
+            <span className="text-[11px] text-muted">{t.analytics.last30Days}</span>
+          </div>
+          <div className="mt-6 space-y-5">
             {engagementSplit.map((item) => (
-              <div key={item.label} className="rounded-panel border border-line bg-ground px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <span className={`h-2 w-2 rounded-full ${item.dot}`} />
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">{item.label}</p>
+              <div key={item.label} className="min-w-0">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-[12px] font-medium text-muted">{item.label}</p>
+                  <p className="text-[13px] font-medium tabular-nums">{formatNumber(item.value)}</p>
                 </div>
-                <p className="mt-2 text-[clamp(1.4rem,4vw,1.9rem)] font-semibold leading-none tracking-[-0.04em]">{formatNumber(item.value)}</p>
-                <p className="mt-1 text-[10px] text-muted">{t.analytics.last30Days}</p>
+                <div className="h-3 overflow-hidden rounded-full bg-ground-sunken" aria-hidden><div className="h-full rounded-full bg-gold" style={{width: `${item.value / Math.max(1, ...engagementSplit.map(entry => entry.value)) * 100}%`}} /></div>
               </div>
             ))}
           </div>
 
-          <div className="mt-8 grid h-52 grid-cols-7 items-end gap-2 sm:gap-4">
-            {daySeries.map((day) => (
-              <div key={day.key} className="flex h-full min-w-0 flex-col justify-end text-center">
-                <span className="mb-2 text-[10px] font-semibold tabular-nums text-muted">{day.count || ''}</span>
-                <div className="flex h-36 items-end rounded-2xl bg-ground-sunken p-1">
-                  <div
-                    className="flex w-full flex-col-reverse overflow-hidden rounded-xl transition-all"
-                    style={{ height: `${day.count ? Math.max(10, (day.count / maxDayCount) * 100) : 3}%` }}
-                  >
-                    {day.views ? <div className="w-full bg-gold" style={{ flexGrow: day.views, flexBasis: 0 }} /> : null}
-                    {day.likes ? <div className="w-full bg-rose-400" style={{ flexGrow: day.likes, flexBasis: 0 }} /> : null}
-                    {day.other ? <div className="w-full bg-ink/25" style={{ flexGrow: day.other, flexBasis: 0 }} /> : null}
-                  </div>
-                </div>
-                <span className="mt-2 truncate text-[10px] font-medium text-muted">{day.label}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2">
-            {engagementSplit.map((item) => (
-              <span key={item.label} className="inline-flex items-center gap-2 text-[11px] text-muted">
-                <span className={`h-2 w-2 rounded-full ${item.dot}`} />
-                {item.label}
-              </span>
-            ))}
-          </div>
-
-          <div className="mt-8 border-t border-line pt-6">
-            <div className="flex items-end justify-between gap-4">
+        </section>
+          <section className={styles.panel}>
+            <div className={styles.panelHeading}>
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold-deep">{t.analytics.busiestTime}</p>
                 <h3 className="mt-2 text-[18px] font-semibold tracking-[-0.03em]">{t.analytics.whenShowUp}</h3>
@@ -272,34 +258,7 @@ export default async function AlbumAnalyticsPage({ params }: PageProps) {
 
             {peakHour >= 0 ? (
               <>
-                <div className="mt-6 flex h-40 items-end gap-[2px] sm:gap-[3px]">
-                  {hourSeries.map((hour, index) => (
-                    <div
-                      key={index}
-                      title={t.analytics.hourTitle(hourLabel(index), hour.total)}
-                      className={`flex h-full flex-1 flex-col justify-end rounded-[4px] pt-1 ${
-                        index === peakHour ? 'bg-gold-soft/70' : ''
-                      }`}
-                    >
-                      <div
-                        className="flex w-full flex-col-reverse overflow-hidden rounded-[3px] transition-all"
-                        style={{ height: `${hour.total ? Math.max(5, (hour.total / maxHourCount) * 100) : 2}%` }}
-                      >
-                        {hour.views ? <div className="w-full bg-gold" style={{ flexGrow: hour.views, flexBasis: 0 }} /> : null}
-                        {hour.likes ? <div className="w-full bg-rose-400" style={{ flexGrow: hour.likes, flexBasis: 0 }} /> : null}
-                        {hour.other ? <div className="w-full bg-ink/25" style={{ flexGrow: hour.other, flexBasis: 0 }} /> : null}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-2 flex justify-between text-[9px] font-medium tabular-nums text-muted">
-                  <span>00:00</span>
-                  <span>06:00</span>
-                  <span>12:00</span>
-                  <span>18:00</span>
-                  <span>23:00</span>
-                </div>
+                <HourlyActivityChart counts={hourSeries.map(hour => hour.total)} peak={peakHour} />
 
                 <p className="mt-4 text-[12px] leading-5 text-muted">
                   {t.analytics.mostPeopleAround}{' '}
@@ -319,11 +278,10 @@ export default async function AlbumAnalyticsPage({ params }: PageProps) {
                 {t.analytics.timesWillAppear}
               </p>
             )}
-          </div>
         </section>
 
-        <section className="mt-6 rounded-hero border border-line bg-surface p-5 sm:p-7">
-          <div className="flex items-end justify-between gap-4">
+        <section className={`${styles.panel} ${styles.widePanel}`}>
+          <div className={styles.panelHeading}>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold-deep">{t.analytics.topPhotographs}</p>
               <h2 className="mt-2 text-[22px] font-semibold tracking-[-0.035em]">{t.analytics.mostEngaging}</h2>
@@ -334,7 +292,7 @@ export default async function AlbumAnalyticsPage({ params }: PageProps) {
           {topPhotos.length ? (
             <div className="mt-5 divide-y divide-line">
               {topPhotos.map((photo, index) => (
-                <div key={photo.id} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
+                <div key={photo.id} className="flex items-center gap-3 py-4 first:pt-0 last:pb-0">
                   <span className="w-5 text-[12px] font-semibold text-gold-deep">{String(index + 1).padStart(2, '0')}</span>
                   <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-card bg-ground-sunken">
                     {photo.thumbnail_url || photo.preview_url ? (
@@ -352,6 +310,7 @@ export default async function AlbumAnalyticsPage({ params }: PageProps) {
             <p className="mt-6 rounded-panel bg-ground px-5 py-8 text-center text-[13px] text-muted">{t.analytics.engagementWillAppear}</p>
           )}
         </section>
+        </div>
       </div>
 
       <nav className="fixed left-0 right-0 z-50 bottom-[max(20px,env(safe-area-inset-bottom))] flex justify-center px-5">

@@ -30,6 +30,7 @@ import {
   PORTFOLIO_TEMPLATES,
 } from '@/lib/portfolio-templates'
 import PortfolioTemplateHero from '@/components/portfolio-template-hero'
+import PortfolioGalleryLayout, { UPDATED_GALLERY_LAYOUTS } from '@/components/portfolio-gallery-layout'
 
 type Props = {
   initial: Portfolio
@@ -1217,6 +1218,11 @@ function GalleryLayoutPreview({
   images: string[]
   active: boolean
 }) {
+  if (UPDATED_GALLERY_LAYOUTS.some(key => key === layout)) {
+    return <div className={`aspect-[4/3] overflow-hidden border-b p-2 ${active ? 'border-gold/30 bg-gold-soft/35' : 'border-line bg-ground-sunken'}`} aria-hidden>
+      <PortfolioGalleryLayout images={images.slice(0, 6)} layout={layout} photoLabel={() => ''} preview />
+    </div>
+  }
   const photo = (index: number) =>
     images.length > 0 ? images[index % images.length] : undefined
   const tile = (index: number, className: string) => (

@@ -18,6 +18,7 @@ type Props = {
   initialAutoFaceScan?: boolean
   initialAutoPublish?: boolean
   onOptimisticUploads?: (items: OptimisticUpload[]) => void
+  showLabel?: boolean
 }
 
 export default function UploadPhotoModal({
@@ -26,6 +27,7 @@ export default function UploadPhotoModal({
   initialAutoFaceScan = true,
   initialAutoPublish = false,
   onOptimisticUploads,
+  showLabel = false,
 }: Props) {
   const { t } = useI18n()
 
@@ -116,10 +118,11 @@ export default function UploadPhotoModal({
         type="button"
         onClick={openModal}
         aria-label={t.upload.uploadPhotos}
-        className="flex h-12 w-12 items-center justify-center rounded-full bg-ink text-gold transition active:scale-95 disabled:opacity-60"
+        className={`flex h-12 items-center justify-center gap-2 bg-ink text-gold transition active:scale-95 disabled:opacity-60 ${showLabel ? 'rounded-xl px-5' : 'w-12 rounded-full'}`}
         disabled={open}
       >
         <span className="text-[34px] font-light leading-none">+</span>
+        {showLabel ? <span className="text-[14px] font-medium text-white">{t.upload.uploadPhotos}</span> : null}
       </button>
 
       {modal}

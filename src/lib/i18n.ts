@@ -35,8 +35,8 @@ const th = {
     signOut: 'ออกจากระบบ',
     album: 'อัลบั้ม',
     language: 'ภาษา',
-    thai: 'ไทย',
-    english: 'อังกฤษ',
+    thai: 'THA',
+    english: 'ENG',
     backToTop: 'ขึ้นบน',
     findMyPhotos: 'ค้นหารูปฉัน',
   },
@@ -361,7 +361,7 @@ const th = {
     titleDefault: (a: string) => `มีกิจกรรมใหม่ใน ${a}`,
   },
   landing: {
-    nav: { features: 'จุดเด่น', howItWorks: 'เริ่มต้นอย่างไร', portfolio: 'พอร์ตโฟลิโอ', pricing: 'แพ็กเกจ', signIn: 'เข้าสู่ระบบ', startFree: 'ลองใช้ฟรี', createAccount: 'สมัครใช้งาน' },
+    nav: { features: 'ฟีเจอร์เด่น', howItWorks: 'เริ่มต้นใช้งาน', portfolio: 'พอร์ตโฟลิโอ', pricing: 'แพ็กเกจ', signIn: 'เข้าสู่ระบบ', startFree: 'ลองใช้ฟรี', createAccount: 'สมัครใช้งาน' },
     hero: {
       badge: 'พื้นที่ส่งมอบภาพสำหรับช่างภาพมืออาชีพ',
       line1: 'จากภาพที่คุณตั้งใจ', line2: 'สู่ประสบการณ์ที่ลูกค้า', line3: 'อยากบอกต่อ',
@@ -435,7 +435,7 @@ const th = {
       ],
     },
     card: { riverside: 'Wedding at The Riverside', readyToShare: 'พร้อมส่งลูกค้า', clientGallery: 'แกลเลอรีส่วนตัว', dayWorthKeeping: 'เรื่องราวที่อยากเปิดดูอีกครั้ง', originalPhotos: 'ภาพต้นฉบับ 248 รูป', date: '24 พ.ค. 2026', delivered: 'ส่งงานเรียบร้อยแล้ว', keptSafely: 'ไฟล์ต้นฉบับถูกจัดเก็บแล้ว', detailsPreserved: 'ทุกรายละเอียดยังคงชัดเจน' },
-    cta: { eyebrow: 'พร้อมส่งงานในแบบที่เป็นคุณหรือยัง', h2: 'สร้างแกลเลอรีแรก แล้วให้ผลงานพาคุณไปสู่งานถัดไป', sub: 'เริ่มใช้ฟรี อัปโหลดภาพจริง และสัมผัสประสบการณ์เดียวกับที่ลูกค้าของคุณจะได้รับ', startFree: 'เริ่มใช้งานฟรี' },
+    cta: { eyebrow: 'พร้อมส่งงานในแบบที่เป็นคุณหรือยัง', h2: 'สร้างแกลเลอรี่แรก แล้วให้ผลงานพาคุณไปสู่งานถัดไป', sub: 'เริ่มใช้ฟรี อัปโหลดภาพจริง และสัมผัสประสบการณ์เดียวกับที่ลูกค้าของคุณจะได้รับ', startFree: 'เริ่มใช้งานฟรี' },
     footer: { tagline: 'พื้นที่ส่งมอบภาพที่ช่วยให้ช่างภาพทำงานง่ายขึ้น และทำให้ลูกค้าจดจำทุกงานได้นานขึ้น', features: 'จุดเด่น', pricing: 'แพ็กเกจ', signIn: 'เข้าสู่ระบบ', createAccount: 'สมัครใช้งาน' },
   },
   albumDetail: {
@@ -1100,7 +1100,7 @@ const en = {
     titleDefault: (a: string) => `New activity in ${a}`,
   },
   landing: {
-    nav: { features: 'Why Ciiya', howItWorks: 'How to start', portfolio: 'Portfolio', pricing: 'Plans', signIn: 'Sign in', startFree: 'Try for free', createAccount: 'Get started' },
+    nav: { features: 'Features', howItWorks: 'How to', portfolio: 'Portfolio', pricing: 'Price', signIn: 'Sign in', startFree: 'Try for free', createAccount: 'Get started' },
     hero: {
       badge: 'Professional photo delivery for photographers',
       line1: 'From work you care about', line2: 'to an experience clients', line3: 'want to share',
@@ -1175,7 +1175,7 @@ const en = {
     },
     card: { riverside: 'Wedding at The Riverside', readyToShare: 'Ready for the client', clientGallery: 'Private gallery', dayWorthKeeping: 'A story worth opening again.', originalPhotos: '248 original photographs', date: '24 May 2026', delivered: 'Delivery complete', keptSafely: 'Original files are safely stored', detailsPreserved: 'Every detail stays clear' },
     cta: { eyebrow: 'Ready to deliver work in your own way?', h2: 'Create your first gallery and let it lead to the next job.', sub: 'Start free, upload real photographs, and experience the same polished journey your clients will receive.', startFree: 'Start for free' },
-    footer: { tagline: 'Photo delivery that makes work easier for photographers and every gallery more memorable for clients.', features: 'Why Ciiya', pricing: 'Plans', signIn: 'Sign in', createAccount: 'Get started' },
+    footer: { tagline: 'Photo delivery that makes work easier for photographers and every gallery more memorable for clients.', features: 'Features', pricing: 'Price', signIn: 'Sign in', createAccount: 'Get started' },
   },
   albumDetail: {
     connProblem: 'Connection problem',

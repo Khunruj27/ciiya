@@ -1,0 +1,32 @@
+.container { width: 100%; max-width: 1120px; margin: auto; padding: max(24px, env(safe-area-inset-top)) 24px calc(120px + env(safe-area-inset-bottom)); }
+.header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.back { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; color: #77736d; font-size: 13px; }
+.tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.hero { display: grid; grid-template-columns: minmax(0,.85fr) minmax(0,1.15fr); overflow: hidden; border: 1px solid #e8e4dc; border-radius: 24px; background: #fff; }
+.cover { position: relative; min-height: 300px; background: #eee8dd; }
+.noCover { display: flex; height: 100%; min-height: 240px; align-items: center; justify-content: center; flex-direction: column; gap: 12px; color: #77736d; font-size: 12px; }
+.intro { min-width: 0; align-self: center; padding: 32px; }
+.eyebrow { font-size: 12px; font-weight: 500; color: #866c3d; }
+.title { margin-top: 10px; font-size: clamp(28px, 3.5vw, 40px); font-weight: 500; line-height: 1.35; overflow-wrap: anywhere; }
+.description { margin-top: 12px; font-size: 14px; line-height: 1.8; color: #77736d; overflow-wrap: anywhere; white-space: pre-line; }
+.primaryActions { margin-top: 24px; }
+.stats { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); margin-top: 16px; border: 1px solid #e8e4dc; border-radius: 18px; background: #fff; }
+.stat { min-width: 0; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 18px 24px; }
+.stat + .stat { border-left: 1px solid #e8e4dc; }
+.statValue { font-size: 24px; font-weight: 500; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.gallery { border-top: 1px solid #e8e4dc; padding-top: 24px; }
+.galleryHeader { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; }
+.container a:focus-visible, .container button:focus-visible { outline: 2px solid #c7a86b; outline-offset: 3px; }
+@media (max-width: 640px) {
+  .container { padding-left: 16px; padding-right: 16px; }
+  .header { gap: 12px; margin-bottom: 16px; }
+  .tools { width: 100%; justify-content: space-between; gap: 6px; }
+  .hero { grid-template-columns: minmax(0,1fr); border-radius: 20px; }
+  .cover { min-height: 0; aspect-ratio: 16 / 9; }
+  .noCover { min-height: 0; }
+  .intro { padding: 22px 20px; }
+  .title { font-size: 28px; }
+  .primaryActions { margin-top: 20px; }
+  .stat { padding: 14px; align-items: flex-start; flex-direction: column; gap: 4px; }
+  .gallery { padding-top: 20px; }
+}

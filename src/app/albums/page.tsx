@@ -10,6 +10,7 @@ import AppIcon from '@/components/app-icon'
 import Image from 'next/image'
 import AlbumsListClient from '@/components/albums-list-client'
 import NotificationBell from '@/components/notification-bell'
+import styles from './albums.module.css'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -23,7 +24,7 @@ export default async function AlbumsPage() {
 
   if (!user) redirect('/login')
 
-  const { t } = await getServerDictionary()
+  const { t, locale } = await getServerDictionary()
 
   const { data: albumsData } = await supabase
   .from('albums')
@@ -63,7 +64,7 @@ export default async function AlbumsPage() {
 
   return (
     <main className="min-h-dvh overflow-x-hidden bg-ground text-ink">
-      <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-5 pt-[max(28px,env(safe-area-inset-top))] pb-[calc(112px+env(safe-area-inset-bottom))] sm:px-8 sm:pt-8 lg:px-12">
+      <div className={styles.container}>
         {/* HEADER */}
        <section className="shrink-0">
           <div className="flex w-full items-center justify-between">
@@ -86,19 +87,24 @@ export default async function AlbumsPage() {
         </section>
 
         {/* HERO */}
-       <section className="pt-10 sm:pt-14">
-          <h1 className="mt-3 text-[clamp(2.4rem,6vw,4.5rem)] font-semibold leading-[0.96] tracking-[-0.045em] text-ink">
+       <section className={styles.hero}>
+         <div className={styles.heroCopy}>
+          <p className={styles.greeting}>
   {t.albums.greeting}, {(
     user.user_metadata?.full_name ||
     user.user_metadata?.name ||
     user.email?.split('@')[0] ||
     ''
   ).split(' ')[0]}
-</h1>
+</p>
+          <h1 className={styles.title}>{t.albums.myAlbums}</h1>
+          <p className={styles.subtitle}>{locale === 'th' ? 'ทุกงานถ่ายภาพ พร้อมส่งต่อความทรงจำ' : 'Every collection, ready to be shared.'}</p>
 
-          <p className="mt-3 text-[14px] font-medium tracking-[-0.01em] text-muted">
-            {albums.length} {t.albums.albumsWord} · {totalPhotos} {t.albums.photosWord}
+          <p className={styles.summary}>
+            <span>{albums.length.toLocaleString(locale)} {t.albums.albumsWord}</span><span>{totalPhotos.toLocaleString(locale)} {t.albums.photosWord}</span>
           </p>
+          </div>
+          <div className={styles.create}><CreateAlbumModal /></div>
         </section>
 
     <AlbumsListClient
@@ -106,21 +112,12 @@ export default async function AlbumsPage() {
   photoCountMap={photoCountMap}
 />
 
-        {/* ACTION CARDS */}
-      <section className="pt-7">
-          <div className="flex min-h-[112px] w-full items-center justify-center rounded-panel border border-gold/30 bg-gold-soft p-5 transition active:scale-[0.99] sm:min-h-[124px]">
-             
-             <CreateAlbumModal />
-             
-         </div>
-       </section>
-
         {/* ALBUM LIST */}
       <section className="pt-5">
           <div className="w-full">
             <div className="mb-3 flex items-center justify-between px-1">
-              <h2 className="text-[20px] font-bold tracking-[-0.035em] text-ink">
-              {t.albums.myAlbums}
+              <h2 className="text-[16px] font-medium text-ink">
+              {locale === 'th' ? 'อัลบั้มทั้งหมด' : 'All albums'}
             </h2>
 
               <span className="shrink-0 text-[13px] font-semibold text-muted">
@@ -129,27 +126,27 @@ export default async function AlbumsPage() {
             </div>
 
             {albums.length > 0 ? (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className={styles.grid}>
                 {albums.map((album) => (
                   <div
                     key={album.id}
-                    className="relative w-full overflow-hidden rounded-panel border border-line bg-surface p-2 shadow-card"
+                    className={styles.card}
                   >
                    
-                    <DeleteAlbumButton albumId={album.id} />
+                    <div className={styles.deleteAction}><DeleteAlbumButton albumId={album.id} /></div>
                     
 
-                    <Link href={`/albums/${album.id}`} className="flex min-w-0 gap-3">
-                      <div className="relative h-[86px] w-[96px] shrink-0 overflow-hidden rounded-card bg-ground-sunken">
+                    <Link href={`/albums/${album.id}`} className={styles.albumLink}>
+                      <div className={styles.cover}>
                         {album.cover_url ? (
                           <Image
                             src={album.cover_url}
                             loading="lazy"
                             alt={album.title || t.albums.jobCover}
                             fill
-                            sizes="96px"
+                            sizes="(max-width: 600px) 112px, (max-width: 1000px) 45vw, 340px"
                             unoptimized
-                            className="object-cover"
+                            className={styles.coverImage}
                           />
                         ) : (
                           <div className="flex h-full items-center justify-center text-xs text-muted">
@@ -158,18 +155,18 @@ export default async function AlbumsPage() {
                         )}
 
                         <span className="absolute bottom-2 left-2 rounded-full bg-ink/75 px-2 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
-                          {photoCountMap[album.id] || 0}
+                          {(photoCountMap[album.id] || 0).toLocaleString(locale)} {t.albums.photosWord}
                         </span>
                       </div>
 
-                      <div className="min-w-0 flex-1 py-1 pr-7">
-                        <p className="truncate text-[15px] font-semibold tracking-[-0.02em] text-ink sm:text-[16px]">
-                          {album.title}
+                      <div className={styles.details}>
+                        <p className={styles.albumTitle}>
+                          {album.title || t.me.untitledJob}
                         </p>
 
-                        <span className="mt-1.5 inline-block rounded-full border border-gold/40 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-gold-deep">
-                          {t.albums.jobsBadge}
-                        </span>
+                        <time dateTime={album.created_at} className={styles.date}>
+                          {new Date(album.created_at).toLocaleDateString(locale === 'th' ? 'th-TH' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </time>
 
                         <p className="mt-2 line-clamp-2 text-[12px] font-normal leading-snug text-muted">
                           {album.description || t.albums.noDescription}

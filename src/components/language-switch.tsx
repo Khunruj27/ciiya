@@ -19,7 +19,7 @@ export default function LanguageSwitch({
   const router = useRouter()
   const [pending, startTransition] = useTransition()
 
-  const shortLabel: Record<Locale, string> = { th: 'ไทย', en: 'EN' }
+  const shortLabel: Record<Locale, string> = { th: 'THA', en: 'EN' }
 
   function choose(locale: Locale) {
     if (locale === current) return

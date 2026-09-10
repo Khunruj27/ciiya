@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import AuthShell from '@/components/auth-shell'
+import AuthPasswordInput from '@/components/auth-password-input'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
@@ -13,7 +15,7 @@ export default function LoginForm({
   initialError?: string
 }) {
   const router = useRouter()
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [emailLoading, setEmailLoading] = useState(false)
@@ -53,47 +55,7 @@ export default function LoginForm({
   }
 
   return (
-    <main className="min-h-dvh overflow-hidden bg-ground text-ink">
-      <div className="pointer-events-none fixed inset-0">
-        <div className="absolute -top-32 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-gold/15 blur-3xl" />
-      </div>
-
-      <div className="relative mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-5 pt-[max(28px,env(safe-area-inset-top))] pb-[max(28px,env(safe-area-inset-bottom))] sm:px-8 lg:px-12">
-        <header className="flex items-center justify-between">
-          <Link
-            href="/"
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface/80 text-[22px] font-semibold backdrop-blur-xl transition active:scale-95"
-          >
-            ‹
-          </Link>
-
-          <Link
-            href="/signup"
-            className="flex h-11 items-center justify-center rounded-full border border-line bg-surface/80 px-5 text-[13px] font-semibold text-ink backdrop-blur-xl transition active:scale-95"
-          >
-            Sign up
-          </Link>
-        </header>
-
-        <section className="grid flex-1 items-center gap-10 py-10 lg:grid-cols-2 lg:gap-20">
-          <div className="px-1">
-            <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/70 px-3 py-1.5 backdrop-blur-xl">
-              <span className="h-2 w-2 rounded-full bg-gold" />
-              <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
-                {t.login.welcome}
-              </span>
-            </div>
-
-            <h1 className="mt-6 text-[clamp(2.7rem,7vw,5rem)] font-semibold leading-[0.95] tracking-[-0.05em] text-ink">
-              {t.login.headline}
-            </h1>
-
-            <p className="mt-4 max-w-[310px] text-[14px] font-normal leading-6 text-muted">
-              {t.login.subtitle}
-            </p>
-          </div>
-
-          <div className="w-full rounded-hero border border-line bg-surface/90 p-5 shadow-lift backdrop-blur-xl sm:p-7 lg:ml-auto lg:max-w-md">
+    <AuthShell mode="login">
             <form onSubmit={handleEmailLogin} className="space-y-4">
               <div>
                 <label
@@ -123,15 +85,15 @@ export default function LoginForm({
                   >
                     {t.login.password}
                   </label>
-                  <span className="text-[11px] text-muted">{t.login.passwordHint}</span>
+                  <Link href="/forgot-password" className="text-[12px] text-gold-deep underline-offset-4 hover:underline">{locale === 'th' ? 'ลืมรหัสผ่าน?' : 'Forgot password?'}</Link>
                 </div>
-                <input
+                <AuthPasswordInput
                   id="login-password"
                   type="password"
                   autoComplete="current-password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Enter your password"
+                  placeholder={t.login.password}
                   required
                   minLength={6}
                   className="h-13 w-full rounded-control border border-line bg-ground px-4 text-[15px] text-ink outline-none transition placeholder:text-muted/60 focus:border-gold focus:bg-white focus:ring-4 focus:ring-gold/10"
@@ -155,10 +117,10 @@ export default function LoginForm({
               <span className="h-px flex-1 bg-line" />
             </div>
 
-            <GoogleSignInButton next="/albums" onError={setErrorMsg} />
+            <GoogleSignInButton next="/albums" label={locale === 'th' ? 'เข้าสู่ระบบด้วย Google' : 'Continue with Google'} onError={setErrorMsg} />
 
             {errorMsg ? (
-              <p className="mt-4 rounded-panel border border-red-100 bg-red-50 px-4 py-3 text-[13px] font-medium text-red-600">
+              <p role="alert" className="mt-4 rounded-panel border border-red-100 bg-red-50 px-4 py-3 text-[13px] font-medium text-red-600">
                 {errorMsg}
               </p>
             ) : null}
@@ -175,9 +137,6 @@ export default function LoginForm({
                 {t.login.createAccount}
               </Link>
             </div>
-          </div>
-        </section>
-      </div>
-    </main>
+      </AuthShell>
   )
 }

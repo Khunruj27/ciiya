@@ -42,7 +42,7 @@ export default async function HomePage() {
           <p className={s.eyebrow}><span />{text('สำหรับทุกงานที่คุณตั้งใจถ่าย', 'FOR THE WORK YOU CARE ABOUT')}</p>
           <h1>{text('ภาพสวยแล้ว', 'Beautiful photographs.')}<br />{text('ส่งมอบให้', 'Beautifully ')}<em>{text('น่าจดจำ', 'delivered.')}</em></h1>
           <p className={s.lead}>{text('ให้ลูกค้าเปิดดูรูปด้วยรอยยิ้ม จัดเก็บ ส่งแกลเลอรี และโชว์ผลงานของคุณในพื้นที่เดียวที่ชื่อ Ciiya', 'Give clients a gallery they will love opening. Store photographs, deliver galleries, and showcase your work in one place: Ciiya.')}</p>
-          <div className={s.actions}><Link className={s.button} href="/signup">{text('สร้างแกลเลอรีแรก', 'Create your first gallery')}<ArrowUpRight size={19} /></Link><a className={s.textLink} href="#experience">{text('ดูประสบการณ์ส่งรูป', 'Explore the experience')}<ArrowRight size={17} /></a></div>
+          <div className={s.actions}><Link className={s.button} href="/signup">{text('สร้างแกลเลอรี่แรก', 'Create your first gallery')}<ArrowUpRight size={19} /></Link><a className={s.textLink} href="#experience">{text('ดูประสบการณ์ส่งรูป', 'Explore the experience')}<ArrowRight size={17} /></a></div>
           <p className={s.reassurance}><Check size={15} />{text('เริ่มใช้ฟรี • ลูกค้าเปิดดูได้โดยไม่ต้องสมัคร', 'Start free • No account needed for recipients')}</p>
         </div>
         <div className={s.heroVisual}>
@@ -93,7 +93,7 @@ export default async function HomePage() {
 
       <section className={s.faq}><div><p className={s.eyebrow}>{text('ก่อนเริ่มใช้งาน', 'BEFORE YOU BEGIN')}</p><h2>{text('อยากรู้เพิ่มเติม?', 'A few good questions.')}</h2><p>{text('คำตอบสั้น ๆ สำหรับแกลเลอรีแรกของคุณ', 'A little clarity before your first gallery.')}</p></div><div>{faq.map(([q,a])=><details key={q}><summary>{q}<span>+</span></summary><p>{a}</p></details>)}</div></section>
 
-      <section className={s.finalCta}><div><Photo name="editorial-couple" alt={text('ภาพคู่บ่าวสาวในสวน', 'A wedding portrait in a garden')}/></div><div><p className={s.eyebrow}>{text('งานถัดไป ส่งด้วย Ciiya', 'YOUR NEXT DELIVERY, WITH CIIYA')}</p><h2>{text('ให้ภาพที่คุณรัก', 'The work you love.')}<br/>{text('ไปถึงคนที่รอ', 'For the people waiting.')}</h2><p>{text('สร้างแกลเลอรีแรกของคุณวันนี้ แล้วลองเปิดดูในมุมของลูกค้า', 'Create your first gallery today. See it through your client’s eyes.')}</p><Link className={s.lightButton} href="/signup">{text('เริ่มใช้งานฟรี', 'Start for free')}<ArrowUpRight size={19}/></Link></div></section>
+      <section className={s.finalCta}><div><Photo name="editorial-couple" alt={text('ภาพคู่บ่าวสาวในสวน', 'A wedding portrait in a garden')}/></div><div><p className={s.eyebrow}>{text('งานถัดไป ส่งด้วย Ciiya', 'YOUR NEXT DELIVERY, WITH CIIYA')}</p><h2>{text('ให้ภาพที่คุณรัก', 'The work you love.')}<br/>{text('ไปถึงคนที่รอ', 'For the people waiting.')}</h2><p>{text('สร้างแกลเลอรี่แรกของคุณวันนี้ แล้วลองเปิดดูในมุมของลูกค้า', 'Create your first gallery today. See it through your client’s eyes.')}</p><Link className={s.lightButton} href="/signup">{text('เริ่มใช้งานฟรี', 'Start for free')}<ArrowUpRight size={19}/></Link></div></section>
       <footer className={s.footer}><div><Image src="/logo-usage.svg" width={100} height={38} alt="Ciiya"/><p>{text('เก็บภาพสำคัญ ให้สวยและเข้าถึงง่าย', 'A considered home for meaningful photographs.')}</p></div><div><LanguageSwitch current={locale}/><Link href="/login">{L.nav.signIn}</Link><Link href="/signup">{L.nav.createAccount}</Link><span>© {new Date().getFullYear()} Ciiya</span></div></footer>
     </main>
   )

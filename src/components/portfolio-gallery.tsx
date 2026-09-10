@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { useEffect, useRef, useState, type TouchEvent } from 'react'
 import type { Portfolio } from '@/lib/portfolio-types'
 import { useI18n } from '@/components/i18n-provider'
+import PortfolioGalleryLayout, { UPDATED_GALLERY_LAYOUTS } from './portfolio-gallery-layout'
 
 type GalleryLayout = Portfolio['gallery_layout']
 
@@ -108,7 +109,7 @@ export default function PortfolioGallery({
 
   return (
     <>
-      <div className={containerClass}>
+      {UPDATED_GALLERY_LAYOUTS.some(key => key === layout) ? <PortfolioGalleryLayout images={images} layout={layout} photoLabel={index => t.portfolioGallery.openPhoto(index + 1, ownerName)} onSelect={openImage} /> : <div className={containerClass}>
         {images.map((url, index) => {
           const frameClass =
             layout === 'grid'
@@ -172,7 +173,7 @@ export default function PortfolioGallery({
             </button>
           )
         })}
-      </div>
+      </div>}
 
       {activeIndex !== null ? (
         <div

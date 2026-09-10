@@ -1,0 +1,18 @@
+.page { padding-top: max(24px, env(safe-area-inset-top)); padding-bottom: env(safe-area-inset-bottom); }
+.hero { max-width: 1200px; margin: auto; padding: 0 24px; }
+.cover { position: relative; height: clamp(260px, 46vw, 510px); overflow: hidden; border-radius: 20px; background: #343434; }
+.coverCaption { position: absolute; inset: auto 0 0; padding: 64px 24px 28px; background: linear-gradient(transparent, rgba(0,0,0,.62)); text-align: center; }
+.title { margin: 0 auto; max-width: 880px; color: white; font-size: clamp(26px, 4vw, 44px); font-weight: 500; line-height: 1.35; letter-spacing: -.02em; overflow-wrap: anywhere; text-wrap: balance; text-shadow: 0 2px 12px rgba(0,0,0,.25); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.content { max-width: 1200px; margin: auto; padding: 0 24px 24px; scroll-margin-top: 16px; }
+.searchBar { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid #e8e4dc; border-radius: 16px; padding: 14px 16px; background: #fff; }
+.searchBar > span { font-size: 14px; font-weight: 500; color: #77736d; }
+@media (max-width: 600px) {
+  .page { padding-top: max(12px, env(safe-area-inset-top)); }
+  .hero { padding: 0 12px; }
+  .cover { height: 310px; height: clamp(230px, 42svh, 360px); border-radius: 16px; }
+  .coverCaption { padding: 48px 20px 24px; }
+  .title { font-size: 28px; }
+  .content { padding: 0 12px 20px; }
+  .searchBar { padding: 12px; }
+  .searchBar > span { font-size: 12px; }
+}

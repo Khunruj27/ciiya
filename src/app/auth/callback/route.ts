@@ -34,16 +34,18 @@ export async function GET(req: NextRequest) {
     req.nextUrl.searchParams.get('error')
 
   if (providerError) {
+    const errorPath = next === '/reset-password' ? '/forgot-password' : '/login'
+    const errorCode = next === '/reset-password' ? 'expired' : 'oauth_failed'
     return NextResponse.redirect(
-      `${origin}/login?error=${encodeURIComponent(providerError)}`
+      `${origin}${errorPath}?error=${errorCode}`
     )
   }
 
   if (!code) {
+    const errorPath = next === '/reset-password' ? '/forgot-password' : '/login'
+    const errorCode = next === '/reset-password' ? 'expired' : 'oauth_failed'
     return NextResponse.redirect(
-      `${origin}/login?error=${encodeURIComponent(
-        'Didn’t receive a confirmation code from the provider. Please try again'
-      )}`
+      `${origin}${errorPath}?error=${errorCode}`
     )
   }
 
@@ -53,8 +55,10 @@ export async function GET(req: NextRequest) {
   if (error) {
     console.error('[auth/callback] code exchange failed:', error.message)
 
+    const errorPath = next === '/reset-password' ? '/forgot-password' : '/login'
+    const errorCode = next === '/reset-password' ? 'expired' : 'oauth_failed'
     return NextResponse.redirect(
-      `${origin}/login?error=${encodeURIComponent(error.message)}`
+      `${origin}${errorPath}?error=${errorCode}`
     )
   }
 

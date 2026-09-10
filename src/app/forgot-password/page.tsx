@@ -1,12 +1,23 @@
-import { redirect } from 'next/navigation'
+import PasswordRecoveryForm from '@/components/password-recovery-form'
+import { getLocale } from '@/lib/i18n-server'
 
-/*
- * There are no passwords to recover: the Supabase email provider is disabled
- * and every account signs in through Google. Left as-is this page would ask
- * for an address and then fail with "Email logins are disabled", so it sends
- * people to the one door that works instead. Kept as a route rather than
- * deleted so older links and bookmarks still land somewhere useful.
- */
-export default function ForgotPasswordPage() {
-  redirect('/login')
+export default async function ForgotPasswordPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string | string[] }>
+}) {
+  const { error } = await searchParams
+  const locale = await getLocale()
+  const initialError =
+    typeof error === 'string' && error === 'expired'
+      ? locale === 'th'
+        ? 'ลิงก์ตั้งรหัสผ่านหมดอายุหรือไม่ถูกต้อง กรุณาขอลิงก์ใหม่'
+        : 'This password reset link is invalid or has expired. Request a new one.'
+      : typeof error === 'string'
+        ? locale === 'th'
+          ? 'เปิดลิงก์ตั้งรหัสผ่านไม่สำเร็จ กรุณาขอลิงก์ใหม่'
+          : 'We could not open that password reset link. Request a new one.'
+        : ''
+
+  return <PasswordRecoveryForm initialError={initialError} />
 }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PublicGallery from '@/components/public-gallery'
 import PublicGalleryRealtime from '@/components/public-gallery-realtime'
+import { useI18n } from '@/components/i18n-provider'
 
 type Photo = {
   id: string
@@ -64,10 +65,12 @@ export default function PublicGalleryInfinite({
   shareToken,
   initialCursor,
 }: Props) {
+  const { locale } = useI18n()
   const [photos, setPhotos] = useState<Photo[]>(initialPhotos)
   const [cursor, setCursor] = useState(initialCursor)
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(Boolean(initialCursor))
+  const [loadError, setLoadError] = useState(false)
 
   const loaderRef = useRef<HTMLDivElement | null>(null)
   const isFetchingRef = useRef(false)
@@ -125,6 +128,7 @@ export default function PublicGalleryInfinite({
     try {
       isFetchingRef.current = true
       setLoading(true)
+      setLoadError(false)
 
       const params = new URLSearchParams({
         token: resolvedShareToken,
@@ -152,7 +156,9 @@ export default function PublicGalleryInfinite({
       console.error('[PublicGalleryInfinite]', error)
 
       if (mountedRef.current) {
-        setHasMore(false)
+        // Keep the cursor and hasMore flag so a temporary network failure does
+        // not silently truncate the rest of the gallery.
+        setLoadError(true)
       }
     } finally {
       isFetchingRef.current = false
@@ -210,13 +216,25 @@ export default function PublicGalleryInfinite({
         <div className="flex flex-col items-center gap-4 py-10">
           <div ref={loaderRef} className="h-10 w-full" />
 
+          {loadError ? (
+            <p role="alert" className="text-center text-[13px] text-[#B95757]">
+              {locale === 'th'
+                ? 'โหลดรูปต่อไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่'
+                : 'More photos could not be loaded. Check your connection and try again.'}
+            </p>
+          ) : null}
+
           <button
             type="button"
             onClick={loadMore}
             disabled={loading}
             className="rounded-full border border-line bg-surface px-5 py-3 text-[13px] font-semibold text-ink shadow-card transition hover:bg-ground disabled:opacity-50"
           >
-            {loading ? 'Loading…' : 'Load more photos'}
+            {loading
+              ? locale === 'th' ? 'กำลังโหลด…' : 'Loading…'
+              : loadError
+                ? locale === 'th' ? 'ลองใหม่' : 'Try again'
+                : locale === 'th' ? 'โหลดรูปเพิ่ม' : 'Load more photos'}
           </button>
         </div>
       ) : null}

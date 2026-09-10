@@ -34,7 +34,7 @@ export function DailyActivityChart({ days }: { days: Day[] }) {
   return (
     <div className="mt-5">
       <div className="flex flex-wrap gap-2" aria-label={t.analytics.activity7Day}>
-        {choices.map(choice => <button key={choice.key} type="button" aria-pressed={metric === choice.key} onClick={() => setMetric(choice.key)} className={`min-h-10 rounded-full px-3 text-[12px] transition ${metric === choice.key ? 'bg-gold-soft text-gold-deep' : 'text-muted hover:bg-ground'}`}>{choice.label}</button>)}
+        {choices.map(choice => <button key={choice.key} type="button" aria-pressed={metric === choice.key} onClick={() => setMetric(choice.key)} className={`min-h-11 rounded-full px-3 text-[12px] transition ${metric === choice.key ? 'bg-gold-soft text-gold-deep' : 'text-muted hover:bg-ground'}`}>{choice.label}</button>)}
       </div>
       <p role="status" className="mt-2 min-h-6 text-[12px] text-muted">{active ? `${active.key} · ${active[metric].toLocaleString(locale)} ${locale === 'th' ? 'กิจกรรม' : 'events'}` : locale === 'th' ? 'แตะจุดบนกราฟเพื่อดูจำนวนกิจกรรม' : 'Select a point to see activity counts'}</p>
       <div className="mt-4 flex gap-3">
@@ -47,7 +47,7 @@ export function DailyActivityChart({ days }: { days: Day[] }) {
               <path d={`${path} L 100 100 L 0 100 Z`} fill={`url(#${gradient})`} />
               <path d={path} fill="none" stroke="#B39152" strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
             </svg>
-            {points.map((point,index) => <button key={days[index].key} type="button" onFocus={() => setSelected(index)} onClick={() => setSelected(index)} onMouseEnter={() => setSelected(index)} aria-label={`${days[index].key}, ${choices.find(choice => choice.key === metric)?.label}: ${days[index][metric]}`} aria-pressed={selected === index} style={{left: `${point.x}%`, top: `${point.y}%`}} className="absolute flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-gold"><span className={`h-2.5 w-2.5 rounded-full border-2 border-white bg-[#B39152] ${selected === index ? 'ring-4 ring-gold/20' : ''}`} /></button>)}
+            {points.map((point,index) => <button key={days[index].key} type="button" onFocus={() => setSelected(index)} onClick={() => setSelected(index)} onMouseEnter={() => setSelected(index)} aria-label={`${days[index].key}, ${choices.find(choice => choice.key === metric)?.label}: ${days[index][metric]}`} aria-pressed={selected === index} style={{left: `${point.x}%`, top: `${point.y}%`}} className="absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-gold"><span className={`h-2.5 w-2.5 rounded-full border-2 border-white bg-[#B39152] ${selected === index ? 'ring-4 ring-gold/20' : ''}`} /></button>)}
           </div>
           <div className="relative mt-5 h-5 text-[10px] text-muted">{days.map((day,index) => <span key={day.key} title={day.key} style={{left: `${points[index].x}%`}} className={`absolute whitespace-nowrap ${index === 0 ? '' : index === days.length - 1 ? '-translate-x-full' : '-translate-x-1/2'}`}>{weekdayLabel(day.key, locale)}</span>)}</div>
         </div>

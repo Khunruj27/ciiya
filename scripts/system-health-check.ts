@@ -126,20 +126,21 @@ const staleWorkerHeartbeats = await count('worker_heartbeats', (q) =>
   console.log('Face Failed :', faceFailedPhotos)
 
   console.log('\nWORKERS')
-console.log('--------------------------------')
-console.log('Online      :', onlineWorkers)
-console.log('Old Records :', staleWorkerHeartbeats)
+  console.log('--------------------------------')
+  console.log('Online      :', onlineWorkers)
+  console.log('Old Records :', staleWorkerHeartbeats)
 
   console.log('\n==============================')
 
+  // Active processing is normal queue activity. Only failed or stale work
+  // indicates that processing is unhealthy and should trigger an alert.
   const hasCriticalIssue =
-  stalePhotoJobs > 0 ||
-  staleFaceJobs > 0 ||
-  failedPhotoJobs > 0 ||
-  failedFaceJobs > 0 ||
-  processingPhotos > 0 ||
-  failedPhotos > 0 ||
-  faceFailedPhotos > 0
+    stalePhotoJobs > 0 ||
+    staleFaceJobs > 0 ||
+    failedPhotoJobs > 0 ||
+    failedFaceJobs > 0 ||
+    failedPhotos > 0 ||
+    faceFailedPhotos > 0
 
   console.log(
     hasCriticalIssue ? 'SYSTEM STATUS: WARNING' : 'SYSTEM STATUS: HEALTHY'

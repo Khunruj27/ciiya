@@ -163,7 +163,7 @@ export default function AiAlbumInsights({ albumId }: Props) {
                   <p className="mt-2 text-[14px] font-semibold">{insight.notificationDraft.title}</p>
                   <p className="mt-1 text-[12px] leading-5 text-white/60">{insight.notificationDraft.summary}</p>
                 </div>
-                <button type="button" onClick={copyNotification} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/15 text-white/75 transition hover:bg-white/10" aria-label="คัดลอกร่างข้อความ">
+                <button type="button" onClick={copyNotification} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 text-white/75 transition hover:bg-white/10" aria-label="คัดลอกร่างข้อความ">
                   {copied ? <Check size={15} /> : <Copy size={15} />}
                 </button>
               </div>
@@ -172,7 +172,7 @@ export default function AiAlbumInsights({ albumId }: Props) {
 
           <div className="flex flex-col gap-3 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
             <p className="max-w-xl text-[10px] leading-4 text-white/35">{insight.privacy}</p>
-            <button type="button" onClick={generate} disabled={generating} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-[12px] border border-white/15 px-4 text-[12px] font-semibold text-white/80 transition hover:bg-white/8 disabled:cursor-wait disabled:opacity-50">
+            <button type="button" onClick={generate} disabled={generating} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-[12px] border border-white/15 px-4 text-[12px] font-semibold text-white/80 transition hover:bg-white/8 disabled:cursor-wait disabled:opacity-50">
               <RefreshCw size={14} className={generating ? 'animate-spin' : ''} />
               {generating ? 'กำลังวิเคราะห์…' : 'วิเคราะห์ใหม่'}
             </button>

@@ -8,11 +8,14 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
 import GoogleSignInButton from '@/components/google-sign-in-button'
 import { useI18n } from '@/components/i18n-provider'
+import { getAuthErrorMessage } from '@/lib/auth-error-message'
 
 export default function LoginForm({
   initialError = '',
+  passwordReset = false,
 }: {
   initialError?: string
+  passwordReset?: boolean
 }) {
   const router = useRouter()
   const { t, locale } = useI18n()
@@ -46,7 +49,7 @@ export default function LoginForm({
 
     if (error) {
       setEmailLoading(false)
-      setErrorMsg(error.message)
+      setErrorMsg(getAuthErrorMessage(error, locale, 'login'))
       return
     }
 
@@ -85,7 +88,7 @@ export default function LoginForm({
                   >
                     {t.login.password}
                   </label>
-                  <Link href="/forgot-password" className="text-[12px] text-gold-deep underline-offset-4 hover:underline">{locale === 'th' ? 'ลืมรหัสผ่าน?' : 'Forgot password?'}</Link>
+                  <Link href="/forgot-password" className="inline-flex min-h-11 items-center text-[12px] text-gold-deep underline-offset-4 hover:underline">{locale === 'th' ? 'ลืมรหัสผ่าน?' : 'Forgot password?'}</Link>
                 </div>
                 <AuthPasswordInput
                   id="login-password"
@@ -117,11 +120,25 @@ export default function LoginForm({
               <span className="h-px flex-1 bg-line" />
             </div>
 
-            <GoogleSignInButton next="/albums" label={locale === 'th' ? 'เข้าสู่ระบบด้วย Google' : 'Continue with Google'} onError={setErrorMsg} />
+            <GoogleSignInButton
+              next="/albums"
+              label={locale === 'th' ? 'เข้าสู่ระบบด้วย Google' : 'Continue with Google'}
+              onError={(message) =>
+                setErrorMsg(
+                  message ? getAuthErrorMessage(message, locale, 'oauth') : ''
+                )
+              }
+            />
 
             {errorMsg ? (
               <p role="alert" className="mt-4 rounded-panel border border-red-100 bg-red-50 px-4 py-3 text-[13px] font-medium text-red-600">
                 {errorMsg}
+              </p>
+            ) : null}
+
+            {passwordReset ? (
+              <p role="status" className="mt-4 rounded-panel border border-emerald-100 bg-emerald-50 px-4 py-3 text-[13px] font-medium text-emerald-700">
+                {locale === 'th' ? 'ตั้งรหัสผ่านใหม่สำเร็จ เข้าสู่ระบบด้วยรหัสผ่านใหม่ได้เลย' : 'Password updated. You can now sign in with your new password.'}
               </p>
             ) : null}
 
@@ -132,7 +149,7 @@ export default function LoginForm({
 
               <Link
                 href="/signup"
-                className="mt-2 inline-block text-[13px] font-semibold text-ink underline decoration-gold decoration-2 underline-offset-4"
+                className="mt-2 inline-flex min-h-11 items-center text-[13px] font-semibold text-ink underline decoration-gold decoration-2 underline-offset-4"
               >
                 {t.login.createAccount}
               </Link>

@@ -524,7 +524,7 @@ export default function PortfolioEditor({
 
         <div className="mt-3 flex flex-wrap gap-2">
           {dirty ? (
-            <span className={`inline-flex h-9 items-center rounded-full px-4 text-[11px] font-semibold opacity-50 ${saved.is_published ? 'bg-gold text-ink' : 'bg-ink text-white'}`}>
+            <span className={`inline-flex h-11 items-center rounded-full px-4 text-[11px] font-semibold opacity-50 ${saved.is_published ? 'bg-gold text-ink' : 'bg-ink text-white'}`}>
               {t.pe.saveBeforePreview}
             </span>
           ) : (
@@ -532,7 +532,7 @@ export default function PortfolioEditor({
               href={viewUrl}
               target="_blank"
               rel="noreferrer"
-              className={`inline-flex h-9 items-center rounded-full px-4 text-[11px] font-semibold transition active:scale-[0.97] ${saved.is_published ? 'bg-gold text-ink' : 'bg-ink text-white'}`}
+              className={`inline-flex h-11 items-center rounded-full px-4 text-[11px] font-semibold transition active:scale-[0.97] ${saved.is_published ? 'bg-gold text-ink' : 'bg-ink text-white'}`}
             >
               {t.pe.viewPortfolio}
             </a>
@@ -542,7 +542,7 @@ export default function PortfolioEditor({
             type="button"
             onClick={handlePublishToggle}
             disabled={status === 'saving'}
-            className={`inline-flex h-9 items-center rounded-full px-4 text-[11px] font-semibold transition active:scale-[0.97] disabled:opacity-50 ${
+            className={`inline-flex h-11 items-center rounded-full px-4 text-[11px] font-semibold transition active:scale-[0.97] disabled:opacity-50 ${
               saved.is_published
                 ? 'border border-white/20 text-white'
                 : 'border border-line text-muted'
@@ -553,10 +553,10 @@ export default function PortfolioEditor({
 
           {saved.is_published ? (
             <>
-              <button type="button" onClick={handleShare} className="inline-flex h-9 items-center rounded-full border border-white/20 px-4 text-[11px] font-semibold text-white transition active:scale-[0.97]">
+              <button type="button" onClick={handleShare} className="inline-flex h-11 items-center rounded-full border border-white/20 px-4 text-[11px] font-semibold text-white transition active:scale-[0.97]">
                 {t.pe.sharePortfolio}
               </button>
-              <button type="button" onClick={handleCopy} className="inline-flex h-9 items-center rounded-full border border-white/20 px-4 text-[11px] font-semibold text-white transition active:scale-[0.97]">
+              <button type="button" onClick={handleCopy} className="inline-flex h-11 items-center rounded-full border border-white/20 px-4 text-[11px] font-semibold text-white transition active:scale-[0.97]">
                 {copied ? t.pe.copied : t.pe.copyLink}
               </button>
             </>
@@ -575,7 +575,7 @@ export default function PortfolioEditor({
             type="button"
             onClick={() => setEditorSection(section.key)}
             aria-pressed={editorSection === section.key}
-            className={`h-9 rounded-[12px] px-2 text-[11px] font-semibold transition active:scale-95 sm:text-[12px] ${
+            className={`h-11 rounded-[12px] px-2 text-[11px] font-semibold transition active:scale-95 sm:text-[12px] ${
               editorSection === section.key
                 ? 'bg-ink text-white'
                 : 'text-muted hover:bg-ground hover:text-ink'
@@ -962,7 +962,7 @@ export default function PortfolioEditor({
               type="button"
               onClick={() => setTemplateGroup(group.key)}
               aria-pressed={templateGroup === group.key}
-              className={`h-10 shrink-0 rounded-full border px-4 text-[12px] font-semibold transition active:scale-95 ${templateGroup === group.key ? 'border-ink bg-ink text-white' : 'border-line bg-surface text-muted hover:border-line-strong hover:text-ink'}`}
+              className={`h-11 shrink-0 rounded-full border px-4 text-[12px] font-semibold transition active:scale-95 ${templateGroup === group.key ? 'border-ink bg-ink text-white' : 'border-line bg-surface text-muted hover:border-line-strong hover:text-ink'}`}
             >
               {t.pe.templateGroups[group.key] || group.label}
             </button>
@@ -1102,7 +1102,7 @@ export default function PortfolioEditor({
                     setEditorSection('design')
                     window.requestAnimationFrame(() => document.getElementById('portfolio-design')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
                   }}
-                  className="inline-flex h-9 items-center rounded-full border border-line px-4 text-[11px] font-semibold text-ink transition active:scale-95"
+                  className="inline-flex h-11 items-center rounded-full border border-line px-4 text-[11px] font-semibold text-ink transition active:scale-95"
                 >
                   {t.pe.changeTemplate}
                 </button>

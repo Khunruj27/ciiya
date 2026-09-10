@@ -513,7 +513,7 @@ export default function GuestMoments({ token, active, onCountChange }: Props) {
           <form onSubmit={submitMoment} className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-[26px] bg-surface p-5 shadow-float sm:rounded-hero sm:p-7">
             <div className="flex items-start justify-between gap-4">
               <div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gold-deep">{t.moments.composerEyebrow}</p><h3 className="mt-2 text-[24px] font-semibold tracking-[-0.03em]">{t.moments.composerHeading}</h3></div>
-              <button type="button" onClick={resetComposer} disabled={uploading} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-ground text-[20px] disabled:opacity-40" aria-label={t.moments.close}>×</button>
+              <button type="button" onClick={resetComposer} disabled={uploading} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-ground text-[20px] disabled:opacity-40" aria-label={t.moments.close}>×</button>
             </div>
 
             <label className="mt-6 block text-[12px] font-semibold">{t.moments.yourName}</label>
@@ -581,7 +581,7 @@ export default function GuestMoments({ token, active, onCountChange }: Props) {
               <div className="mt-3 flex items-center gap-3">
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/30 bg-gold-soft text-[12px] font-semibold uppercase text-gold-deep">{activeStoryMoment.guest_name.slice(0, 1)}</span>
                 <div className="min-w-0 flex-1"><p className="truncate text-[12px] font-semibold">{activeStoryMoment.guest_name}</p><p className="mt-0.5 text-[9px] text-white/65">{formatMomentTime(activeStoryMoment.created_at, t, locale)} · {activeStory.momentIndex + 1}/{moments.length}</p></div>
-                <button type="button" onClick={() => setActiveStory(null)} className="pointer-events-auto grid h-10 w-10 place-items-center rounded-full bg-white/10 text-[23px] backdrop-blur" aria-label={t.moments.closeStory}>×</button>
+                <button type="button" onClick={() => setActiveStory(null)} className="pointer-events-auto grid h-11 w-11 place-items-center rounded-full bg-white/10 text-[23px] backdrop-blur" aria-label={t.moments.closeStory}>×</button>
               </div>
             </div>
 

@@ -8,10 +8,11 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
 import GoogleSignInButton from '@/components/google-sign-in-button'
 import { useI18n } from '@/components/i18n-provider'
+import { getAuthErrorMessage } from '@/lib/auth-error-message'
 
 export default function SignupPage() {
   const router = useRouter()
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -56,7 +57,7 @@ export default function SignupPage() {
 
     if (error) {
       setEmailLoading(false)
-      setErrorMsg(error.message)
+      setErrorMsg(getAuthErrorMessage(error, locale, 'signup'))
       return
     }
 
@@ -72,7 +73,7 @@ export default function SignupPage() {
 
   function handleProviderError(message: string) {
     setSuccessMsg('')
-    setErrorMsg(message)
+    setErrorMsg(message ? getAuthErrorMessage(message, locale, 'oauth') : '')
   }
 
   return (
@@ -182,7 +183,7 @@ export default function SignupPage() {
 
               <Link
                 href="/login"
-                className="mt-2 inline-block text-[13px] font-semibold text-ink underline decoration-gold decoration-2 underline-offset-4"
+                className="mt-2 inline-flex min-h-11 items-center text-[13px] font-semibold text-ink underline decoration-gold decoration-2 underline-offset-4"
               >
                 {t.signup.signIn}
               </Link>

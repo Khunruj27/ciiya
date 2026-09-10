@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test'
 /**
  * E2E config for Ciiya's core flows.
  *
- * - Local (default): starts `npm run dev` and tests http://localhost:3000.
+ * - Local (default): starts an isolated dev server on 127.0.0.1:3100.
  * - Against a deployment: set E2E_BASE_URL=https://ciiya.vercel.app and the
  *   local dev server is not started.
  *
@@ -11,7 +11,8 @@ import { defineConfig, devices } from '@playwright/test'
  * public share flow); those specs skip themselves when the value is absent so
  * the suite stays green in a bare checkout.
  */
-const baseURL = process.env.E2E_BASE_URL || 'http://localhost:3000'
+const localBaseURL = 'http://127.0.0.1:3100'
+const baseURL = process.env.E2E_BASE_URL || localBaseURL
 const useLocalServer = !process.env.E2E_BASE_URL
 
 export default defineConfig({
@@ -29,12 +30,13 @@ export default defineConfig({
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'mobile-chrome', use: { ...devices['Pixel 7'] } },
   ],
   webServer: useLocalServer
     ? {
-        command: 'npm run dev',
-        url: 'http://localhost:3000',
-        reuseExistingServer: !process.env.CI,
+        command: 'npm run dev -- --hostname 127.0.0.1 --port 3100',
+        url: localBaseURL,
+        reuseExistingServer: false,
         timeout: 120_000,
       }
     : undefined,

@@ -160,21 +160,21 @@ export default function NotificationsList({
       <div className="mt-7 flex items-start justify-between gap-3">
         <div className="flex max-w-full gap-1 overflow-x-auto rounded-full border border-line bg-surface p-1">
           {filters.map(({ value, label }) => (
-            <button key={value} type="button" onClick={() => setFilter(value)} className={`shrink-0 rounded-full px-3.5 py-2 text-[11px] font-semibold transition ${filter === value ? 'bg-ink text-white' : 'text-muted'}`}>
+            <button key={value} type="button" onClick={() => setFilter(value)} className={`min-h-11 shrink-0 rounded-full px-3.5 py-2 text-[11px] font-semibold transition ${filter === value ? 'bg-ink text-white' : 'text-muted'}`}>
               {label}
             </button>
           ))}
         </div>
 
         {unreadCount ? (
-          <button type="button" onClick={markAllRead} disabled={marking} className="hidden h-10 shrink-0 items-center gap-2 rounded-full bg-ink px-4 text-[12px] font-semibold text-white transition active:scale-95 disabled:opacity-50 sm:inline-flex">
+          <button type="button" onClick={markAllRead} disabled={marking} className="hidden h-11 shrink-0 items-center gap-2 rounded-full bg-ink px-4 text-[12px] font-semibold text-white transition active:scale-95 disabled:opacity-50 sm:inline-flex">
             <span aria-hidden>✓</span>{marking ? t.notif.updating : t.notif.markAll}
           </button>
         ) : null}
       </div>
 
       {unreadCount ? (
-        <button type="button" onClick={markAllRead} disabled={marking} className="mt-3 inline-flex h-10 items-center gap-2 rounded-full bg-ink px-4 text-[12px] font-semibold text-white disabled:opacity-50 sm:hidden">
+        <button type="button" onClick={markAllRead} disabled={marking} className="mt-3 inline-flex h-11 items-center gap-2 rounded-full bg-ink px-4 text-[12px] font-semibold text-white disabled:opacity-50 sm:hidden">
           <span aria-hidden>✓</span>{marking ? t.notif.updating : t.notif.markAll}
         </button>
       ) : null}

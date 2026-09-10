@@ -12,8 +12,8 @@ test.describe('landing → auth entry', () => {
     expect(response?.status()).toBeLessThan(400)
 
     await expect(page.locator('h1').first()).toBeVisible()
-    await expect(page.locator('a[href="/signup"]').first()).toBeVisible()
-    await expect(page.locator('a[href="/login"]').first()).toBeVisible()
+    await expect(page.locator('a[href="/signup"]:visible').first()).toBeVisible()
+    await expect(page.locator('a[href="/login"]:visible').first()).toBeVisible()
   })
 
   test('login page exposes Google sign-in', async ({ page }) => {
@@ -28,10 +28,9 @@ test.describe('landing → auth entry', () => {
     await expect(page.getByText(/Google/i).first()).toBeVisible()
   })
 
-  test('pricing page loads', async ({ page }) => {
-    const response = await page.goto('/pricing')
-    expect(response?.status()).toBeLessThan(400)
-    await expect(page.locator('body')).toBeVisible()
+  test('pricing requires an account', async ({ page }) => {
+    await page.goto('/pricing')
+    await expect(page).toHaveURL(/\/login/)
   })
 })
 

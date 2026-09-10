@@ -3,7 +3,11 @@
 import { useState } from 'react'
 import NextImage from 'next/image'
 import { ScanFace } from 'lucide-react'
-import { extractSelfieDescriptor } from '@/lib/face-descriptor'
+import {
+  extractSelfieDescriptor,
+  SelfieQualityError,
+  type FaceDescriptorStage,
+} from '@/lib/face-descriptor'
 import { useI18n } from '@/components/i18n-provider'
 
 type SearchResult = {
@@ -38,6 +42,7 @@ export default function SelfieFaceSearch({
 }) {
   const { t } = useI18n()
   const [loading, setLoading] = useState(false)
+  const [progress, setProgress] = useState(0)
   const [message, setMessage] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -87,12 +92,35 @@ export default function SelfieFaceSearch({
   async function handleFile(file: File) {
     try {
       setLoading(true)
-      setMessage(t.faceSearch.scanning)
+      setProgress(4)
+      setMessage(t.faceSearch.loadingEngine)
       setResults([])
       setSelectedIds(new Set())
 
-      const { descriptor } = await extractSelfieDescriptor(file)
+      const stageMessage = (stage: FaceDescriptorStage) => {
+        switch (stage) {
+          case 'engine':
+            return t.faceSearch.loadingEngine
+          case 'detector':
+            return t.faceSearch.loadingDetector
+          case 'landmarks':
+            return t.faceSearch.loadingLandmarks
+          case 'recognition':
+            return t.faceSearch.loadingRecognition
+          case 'analyzing':
+            return t.faceSearch.analyzingSelfie
+        }
+      }
 
+      const { descriptor } = await extractSelfieDescriptor(
+        file,
+        ({ progress: nextProgress, stage }) => {
+          setProgress(nextProgress)
+          setMessage(stageMessage(stage))
+        }
+      )
+
+      setProgress(96)
       setMessage(t.faceSearch.searching)
 
       const searchRes = await fetch('/api/faces/search', {
@@ -101,10 +129,10 @@ export default function SelfieFaceSearch({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-  albumId,
-  token,
-  descriptor,
-}),
+          albumId,
+          token,
+          descriptor,
+        }),
       })
 
       const searchData = await searchRes.json()
@@ -114,9 +142,18 @@ export default function SelfieFaceSearch({
       }
 
       setResults(searchData.results || [])
+      setProgress(100)
       setMessage(t.faceSearch.foundCount(searchData.count || 0))
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : t.faceSearch.errorGeneric)
+      if (error instanceof SelfieQualityError) {
+        setMessage(
+          error.reason === 'no-face'
+            ? t.faceSearch.noFace
+            : t.faceSearch.unclearFace
+        )
+      } else {
+        setMessage(t.faceSearch.errorGeneric)
+      }
     } finally {
       setLoading(false)
     }
@@ -136,7 +173,7 @@ export default function SelfieFaceSearch({
         aria-label={t.common.findMyPhotos}
         className={
           variant === 'inline'
-            ? 'ml-auto flex shrink-0 items-center gap-2 rounded-full bg-ink px-4 py-2.5 text-[12px] font-bold text-white transition active:scale-95 disabled:opacity-60'
+            ? 'ml-auto flex min-h-11 shrink-0 items-center gap-2 rounded-full bg-ink px-4 py-2.5 text-[12px] font-bold text-white transition active:scale-95 disabled:opacity-60'
             : 'group fixed bottom-[calc(1.25rem+15vh)] right-4 z-50 flex h-16 w-16 items-center justify-center rounded-full border border-line bg-surface/90 text-ink shadow-lift backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-gold/40 hover:text-gold-deep hover:shadow-float active:scale-95 disabled:opacity-60'
         }
       >
@@ -167,11 +204,35 @@ export default function SelfieFaceSearch({
       )}
 
       {loading && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
-          <div className="rounded-hero border border-line bg-surface px-8 py-6 text-center shadow-lift">
-            <div className="mb-3 text-[16px] font-semibold text-ink">{t.faceSearch.searchingTitle}</div>
-            <div className="text-[13px] text-muted">
-              {t.faceSearch.searchingDesc}
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-5">
+          <div
+            className="w-full max-w-sm rounded-hero border border-line bg-surface px-6 py-6 text-left shadow-lift"
+            aria-live="polite"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div className="text-[16px] font-semibold text-ink">
+                {t.faceSearch.searchingTitle}
+              </div>
+              <div className="text-[13px] font-semibold tabular-nums text-gold-deep">
+                {progress}%
+              </div>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-ground-sunken">
+              <div
+                role="progressbar"
+                aria-label={t.faceSearch.searchingTitle}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={progress}
+                className="h-full rounded-full bg-gold transition-[width] duration-300 ease-out"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <div className="mt-3 text-[13px] text-muted">
+              {message || t.faceSearch.searchingDesc}
+            </div>
+            <div className="mt-4 rounded-control bg-ground px-3 py-3 text-[12px] leading-5 text-muted">
+              {t.faceSearch.firstLoadNote}
             </div>
           </div>
         </div>
@@ -194,7 +255,7 @@ export default function SelfieFaceSearch({
                   setMessage('')
                   setSelectedIds(new Set())
                 }}
-                className="rounded-full bg-ground-sunken px-4 py-2 text-sm"
+                className="min-h-11 rounded-full bg-ground-sunken px-4 py-2 text-sm"
               >
                 {t.faceSearch.close}
               </button>
@@ -269,7 +330,7 @@ export default function SelfieFaceSearch({
                 type="button"
                 onClick={handleBatchDownload}
                 disabled={selectedIds.size === 0 || batchDownloading}
-                className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-gold px-4 py-2 text-sm font-bold text-ink transition-opacity disabled:opacity-40"
+                className="flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full bg-gold px-4 py-2 text-sm font-bold text-ink transition-opacity disabled:opacity-40"
               >
                 {batchDownloading ? t.faceSearch.downloading : t.faceSearch.download}
               </button>

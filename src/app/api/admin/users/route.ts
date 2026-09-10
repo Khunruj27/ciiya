@@ -23,14 +23,7 @@ type AdminCheckResult =
     }
 
 async function requireAdmin(): Promise<AdminCheckResult> {
-  if (process.env.NODE_ENV === 'development') {
-    return {
-      ok: true,
-    }
-  }
-
-  const supabase =
-    await createServerSupabaseClient()
+  const supabase = await createServerSupabaseClient()
 
   const {
     data: { user },
@@ -38,15 +31,21 @@ async function requireAdmin(): Promise<AdminCheckResult> {
   } = await supabase.auth.getUser()
 
   if (authError) {
-    console.error(
-      '[admin/users] authentication failed:',
+    const missingSession = /session missing|auth session missing/i.test(
       authError.message
     )
 
+    if (!missingSession) {
+      console.error(
+        '[admin/users] authentication failed:',
+        authError.message
+      )
+    }
+
     return {
       ok: false,
-      status: 500,
-      error: 'Unable to verify authentication',
+      status: missingSession ? 401 : 500,
+      error: missingSession ? 'Unauthorized' : 'Unable to verify authentication',
     }
   }
 
@@ -108,18 +107,18 @@ function formatUserName(email?: string | null) {
 
 export async function GET() {
   try {
-   const adminCheck = await requireAdmin()
+    const adminCheck = await requireAdmin()
 
-if (!adminCheck.ok) {
-  return NextResponse.json(
-    {
-      error: adminCheck.error,
-    },
-    {
-      status: adminCheck.status,
+    if (!adminCheck.ok) {
+      return NextResponse.json(
+        {
+          error: adminCheck.error,
+        },
+        {
+          status: adminCheck.status,
+        }
+      )
     }
-  )
-}
 
     const supabase = getSupabaseAdmin()
 
@@ -173,51 +172,49 @@ if (!adminCheck.ok) {
           .in('user_id', userIds),
       ])
 
-      const relatedQueryErrors = [
-  {
-    name: 'albums',
-    error: albumsResult.error,
-  },
-  {
-    name: 'photos',
-    error: photosResult.error,
-  },
-  {
-    name: 'storage usage',
-    error: storageResult.error,
-  },
-  {
-    name: 'subscriptions',
-    error: subscriptionsResult.error,
-  },
-].filter(
-  (
-    item
-  ): item is {
-    name: string
-    error: NonNullable<
-      typeof albumsResult.error
-    >
-  } => Boolean(item.error)
-)
-
-if (relatedQueryErrors.length > 0) {
-  for (const item of relatedQueryErrors) {
-    console.error(
-      `[admin/users] load ${item.name} failed:`,
-      item.error.message
+    const relatedQueryErrors = [
+      {
+        name: 'albums',
+        error: albumsResult.error,
+      },
+      {
+        name: 'photos',
+        error: photosResult.error,
+      },
+      {
+        name: 'storage usage',
+        error: storageResult.error,
+      },
+      {
+        name: 'subscriptions',
+        error: subscriptionsResult.error,
+      },
+    ].filter(
+      (
+        item
+      ): item is {
+        name: string
+        error: NonNullable<typeof albumsResult.error>
+      } => Boolean(item.error)
     )
-  }
 
-  return NextResponse.json(
-    {
-      error: 'Unable to load user statistics',
-    },
-    {
-      status: 500,
+    if (relatedQueryErrors.length > 0) {
+      for (const item of relatedQueryErrors) {
+        console.error(
+          `[admin/users] load ${item.name} failed:`,
+          item.error.message
+        )
+      }
+
+      return NextResponse.json(
+        {
+          error: 'Unable to load user statistics',
+        },
+        {
+          status: 500,
+        }
+      )
     }
-  )
-}
 
     const albums = albumsResult.data || []
     const photos = photosResult.data || []

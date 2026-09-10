@@ -5,6 +5,7 @@
 .page h2 { font-size:clamp(30px,3.2vw,48px); line-height:1.35; text-wrap:balance; }
 .page p { text-wrap:pretty; }
 .page a { text-decoration:none; }
+.nav>a,.navLinks a,.login,.mobileNav a,.textLink,.footer a { display:inline-flex; align-items:center; min-height:44px; }
 .page a:focus-visible,.page summary:focus-visible { outline:3px solid #a28244; outline-offset:5px; }
 .header { position:sticky; top:0; z-index:30; background:#f8f6f1ed; backdrop-filter:blur(18px); border-bottom:1px solid var(--line); }
 .nav { max-width:1360px; margin:auto; padding:0 40px; height:84px; display:flex; align-items:center; justify-content:space-between; gap:24px; }
@@ -13,7 +14,7 @@
 .navActions { gap:16px; }
 .navLinks a:hover,.textLink:hover { color:#927440; }
 .smallButton,.button,.lightButton { display:inline-flex; align-items:center; justify-content:center; gap:22px; min-height:52px; padding:12px 24px; border-radius:12px; background:#171717; color:white; font-weight:500; transition:background .2s; }
-.smallButton { min-height:42px; padding:8px 17px; gap:10px; }
+.smallButton { min-height:44px; padding:8px 17px; gap:10px; }
 .button:hover,.smallButton:hover { background:#343434; }
 .mobileNav { display:none; }
 .hero { max-width:1360px; margin:auto; padding:76px 40px 86px; display:grid; grid-template-columns:.95fr 1.05fr; align-items:center; gap:65px; }
@@ -93,7 +94,7 @@
  .navLinks { display:none; }.hero { gap:30px; padding-block:50px; }.hero h1 { font-size:48px; }.galleryCover { height:250px; }.floatingNote { left:0; }.promiseStrip { gap:30px; }.toolGrid { grid-template-columns:repeat(2,minmax(0,1fr)); }.workflow { margin-inline:24px; gap:35px; padding:35px; }.portfolio { gap:35px; }.pricingGrid { grid-template-columns:repeat(2,minmax(0,1fr)); }.sectionHeading { gap:30px; }.finalCta>div:last-child { padding:50px 35px; }
 }
 @media (max-width:700px) {
- .nav { height:66px; padding:0 20px; gap:10px; }.logo { width:78px; }.navActions { gap:9px; }.navActions>div { display:none; }.login { display:none; }.smallButton { font-size:13px; min-height:40px; padding:8px 14px; }.mobileNav { display:flex; padding:0 20px 10px; gap:24px; font-size:12px; color:#68635b; overflow-x:auto; white-space:nowrap; }
+ .nav { height:66px; padding:0 20px; gap:10px; }.logo { width:78px; }.navActions { gap:9px; }.navActions>div { display:none; }.login { display:none; }.smallButton { font-size:13px; min-height:44px; padding:8px 14px; }.mobileNav { display:flex; min-height:54px; padding:0 20px 10px; gap:16px; font-size:12px; color:#68635b; overflow-x:auto; white-space:nowrap; }.mobileNav a { min-height:44px; padding-inline:4px; }
  .hero { grid-template-columns:1fr; padding:38px 22px 50px; gap:28px; }.hero h1 { font-size:clamp(36px,9vw,48px); line-height:1.35; }.heroCopy .eyebrow { font-size:11px; }.lead { font-size:15px; margin-top:17px!important; }.actions { margin-top:22px; gap:18px; }.button { font-size:14px; gap:12px; min-height:48px; padding:12px 19px; }.textLink { font-size:13px; }.reassurance { font-size:11px; }.heroVisual { padding-left:0; }.galleryCover { height:230px; }.galleryCover h2 { font-size:26px; }.galleryGrid>div { aspect-ratio:1; }.floatingNote { padding:10px 14px; }.visualCaption { font-size:8px; }
  .promiseStrip { display:grid; grid-template-columns:1fr 1fr; gap:16px 20px; font-size:11px; padding:22px; }
  .section,.toolbox,.faq { padding:52px 22px; }.sectionHeading { display:block; margin-bottom:26px; }.sectionHeading>p { margin-top:18px; font-size:14px; max-width:none; }.page h2 { font-size:31px; }.eyebrow { font-size:11px; margin-bottom:15px!important; }.experienceGrid { grid-template-columns:1fr; gap:16px; }.storyImage { height:260px; }.storyCopy,.searchStory,.momentStory { padding:23px; }.page h3 { font-size:21px; }.sideStories { gap:16px; }.toolGrid { gap:25px 18px; margin-top:25px; }.toolGrid h3 { font-size:16px; }.toolGrid p { font-size:12px; }

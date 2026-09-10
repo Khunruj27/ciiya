@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase-client'
 import AppIcon from '@/components/app-icon'
 
+const FALLBACK_POLL_INTERVAL_MS = 60_000
+
 /*
  * Bottom-nav notification bell with a live unread badge. It seeds from the
  * server count (no flash), then keeps itself current three ways: a Supabase
@@ -99,8 +101,13 @@ export default function NotificationBell({
       })
     })()
 
-    // Poll backs up realtime if the socket drops or is blocked.
-    const poll = window.setInterval(refresh, 10000)
+    // Realtime is the primary path. A conservative poll backs it up without
+    // generating six authenticated requests per minute for every open tab.
+    const poll = window.setInterval(() => {
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        void refresh()
+      }
+    }, FALLBACK_POLL_INTERVAL_MS)
 
     const refreshWhenActive = () => {
       if (document.visibilityState === 'visible') void refresh()

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase-client'
 import { useRouter } from 'next/navigation'
 import { useI18n } from '@/components/i18n-provider'
 import type { OptimisticUpload } from '@/components/optimistic-upload'
+import { retryAsync } from '@/lib/retry'
 
 
 type Category = {
@@ -70,26 +71,57 @@ function getQuickFileHash(file: File) {
   return `${file.name}-${file.size}-${file.lastModified}`
 }
 
-async function retryAsync<T>(
-  fn: () => Promise<T>,
-  retries = MAX_UPLOAD_RETRIES,
-  delay = 1000
-): Promise<T> {
-  let lastError: unknown
+function getServiceStatus(error: unknown) {
+  if (!error || typeof error !== 'object') return 0
 
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      return await fn()
-    } catch (error) {
-      lastError = error
-
-      if (attempt < retries) {
-        await new Promise((resolve) => setTimeout(resolve, delay * attempt))
-      }
-    }
+  const candidate = error as {
+    status?: string | number
+    statusCode?: string | number
   }
 
-  throw lastError
+  return Number(candidate.statusCode || candidate.status || 0)
+}
+
+function getServiceMessage(error: unknown) {
+  if (error instanceof Error) return error.message
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as { message?: unknown }).message || '')
+  }
+  return ''
+}
+
+function isRetryableServiceError(error: unknown) {
+  const status = getServiceStatus(error)
+  const message = getServiceMessage(error).toLowerCase()
+
+  return (
+    status === 408 ||
+    status === 425 ||
+    status === 429 ||
+    status >= 500 ||
+    message.includes('network') ||
+    message.includes('fetch failed') ||
+    message.includes('timeout') ||
+    message.includes('temporarily unavailable')
+  )
+}
+
+function retryableResultError(error: unknown) {
+  if (!error || !isRetryableServiceError(error)) return null
+  return new Error(getServiceMessage(error) || 'Temporary upload error')
+}
+
+function retryableResponseError(response: Response) {
+  if (
+    response.status === 408 ||
+    response.status === 425 ||
+    response.status === 429 ||
+    response.status >= 500
+  ) {
+    return new Error(`Temporary server error (${response.status})`)
+  }
+
+  return null
 }
 
 export default function UploadPhotoForm({
@@ -251,11 +283,16 @@ export default function UploadPhotoForm({
     const fileHash = getQuickFileHash(item.file)
     const storagePath = `${userId}/${albumId}/original/${safeFileName}`
 
-    const { error: uploadError } = await retryAsync(() =>
-      supabase.storage.from('albums').upload(storagePath, item.file, {
-        contentType: item.file.type || 'image/jpeg',
-        upsert: false,
-      })
+    const { error: uploadError } = await retryAsync(
+      () =>
+        supabase.storage.from('albums').upload(storagePath, item.file, {
+          contentType: item.file.type || 'image/jpeg',
+          upsert: false,
+        }),
+      {
+        attempts: MAX_UPLOAD_RETRIES,
+        getRetryableResultError: (result) => retryableResultError(result.error),
+      }
     )
 
     if (uploadError) {
@@ -267,26 +304,38 @@ export default function UploadPhotoForm({
       status: 'uploading',
     })
 
-    const finalizeRes = await retryAsync(() =>
-      fetch('/api/photos/finalize-upload', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          albumId,
-          storagePath,
-          fileName: item.file.name,
-          fileHash,
-          fileSizeBytes: item.file.size,
-          size,
-          categoryId: categoryId || null,
-          presetPath,
-          autoFaceScan,
-          autoPublish,
-        }),
-      })
-    )
+    let finalizeRes: Response
+
+    try {
+      finalizeRes = await retryAsync(
+        () =>
+          fetch('/api/photos/finalize-upload', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              albumId,
+              storagePath,
+              fileName: item.file.name,
+              fileHash,
+              fileSizeBytes: item.file.size,
+              size,
+              categoryId: categoryId || null,
+              presetPath,
+              autoFaceScan,
+              autoPublish,
+            }),
+          }),
+        {
+          attempts: MAX_UPLOAD_RETRIES,
+          getRetryableResultError: retryableResponseError,
+        }
+      )
+    } catch (error) {
+      await supabase.storage.from('albums').remove([storagePath])
+      throw error
+    }
 
     const finalizeData = await finalizeRes.json().catch(() => null)
 
@@ -303,16 +352,16 @@ export default function UploadPhotoForm({
     }
 
     if (!finalizeRes.ok || !finalizeData?.success) {
-  await supabase.storage.from('albums').remove([storagePath])
+      await supabase.storage.from('albums').remove([storagePath])
 
-  if (finalizeData?.code === 'STORAGE_LIMIT_EXCEEDED') {
-    throw new Error('STORAGE_LIMIT_EXCEEDED')
-  }
+      if (finalizeData?.code === 'STORAGE_LIMIT_EXCEEDED') {
+        throw new Error('STORAGE_LIMIT_EXCEEDED')
+      }
 
-  throw new Error(
-    finalizeData?.error || finalizeData?.jobError || t.upload.finalizeFailed
-  )
-}
+      throw new Error(
+        finalizeData?.error || finalizeData?.jobError || t.upload.finalizeFailed
+      )
+    }
 
     updateItem(item.id, {
       progress: 100,
@@ -500,11 +549,16 @@ if (isMounted()) {
         const presetSafeName = getSafeFileName(presetFile.name)
         sharedPresetPath = `${user.id}/${albumId}/presets/${presetSafeName}`
 
-        const { error: presetUploadError } = await retryAsync(() =>
-          supabase.storage.from('albums').upload(sharedPresetPath!, presetFile, {
-            contentType: 'application/xml',
-            upsert: true,
-          })
+        const { error: presetUploadError } = await retryAsync(
+          () =>
+            supabase.storage.from('albums').upload(sharedPresetPath!, presetFile, {
+              contentType: 'application/xml',
+              upsert: true,
+            }),
+          {
+            attempts: MAX_UPLOAD_RETRIES,
+            getRetryableResultError: (result) => retryableResultError(result.error),
+          }
         )
 
         if (presetUploadError) {

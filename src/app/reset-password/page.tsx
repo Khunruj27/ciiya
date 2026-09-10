@@ -1,11 +1,16 @@
 import { redirect } from 'next/navigation'
+import PasswordResetForm from '@/components/password-reset-form'
+import { createServerSupabaseClient } from '@/lib/supabase-server'
 
-/*
- * The destination of password-reset emails, which are no longer sent — the
- * Supabase email provider is disabled and every account signs in through
- * Google. Kept as a route rather than deleted so any reset link still in
- * someone's inbox lands on the working sign-in page instead of a 404.
- */
-export default function ResetPasswordPage() {
-  redirect('/login')
+export const dynamic = 'force-dynamic'
+
+export default async function ResetPasswordPage() {
+  const supabase = await createServerSupabaseClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) redirect('/forgot-password?error=expired')
+
+  return <PasswordResetForm />
 }

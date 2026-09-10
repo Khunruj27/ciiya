@@ -278,7 +278,7 @@ export default async function PublicPortfolioPage({
 
         <div className={`absolute inset-x-0 top-0 z-10 px-5 pt-[max(20px,env(safe-area-inset-top))] ${redesignedHero ? '' : 'sm:px-10 lg:px-16'}`}>
           <div className={`mx-auto flex w-full max-w-6xl items-center justify-between ${heroUsesLightText ? 'text-white' : 'text-ink'}`}>
-            <Link href="/" className={`inline-flex items-center gap-2.5 rounded-full px-2 py-1.5 backdrop-blur ${heroUsesLightText ? 'bg-black/10' : 'bg-white/55'}`} aria-label="Ciiya">
+            <Link href="/" className={`inline-flex min-h-11 items-center gap-2.5 rounded-full px-2 py-1.5 backdrop-blur ${heroUsesLightText ? 'bg-black/10' : 'bg-white/55'}`} aria-label="Ciiya">
               <span className={`grid h-9 w-9 place-items-center rounded-full border text-[12px] font-semibold ${heroUsesLightText ? 'border-white/30' : 'border-ink/15'}`}>C</span>
               <span className="pr-2 text-[12px] font-semibold uppercase tracking-[0.2em]">Ciiya Portfolio</span>
             </Link>
@@ -289,7 +289,7 @@ export default async function PublicPortfolioPage({
               {contacts.length > 0 ? <a href="#contact" className="transition hover:opacity-60">{t.portfolioPublic.menuContact}</a> : null}
             </nav>
 
-            {primaryContact ? <a href="#contact" className={`rounded-full border px-4 py-2 text-[12px] font-semibold backdrop-blur-md transition active:scale-95 ${redesignedHero ? '' : 'sm:hidden'} ${heroUsesLightText ? 'border-white/30 bg-black/10' : 'border-ink/10 bg-white/65'}`}>{t.portfolioPublic.menuContact}</a> : null}
+            {primaryContact ? <a href="#contact" className={`inline-flex min-h-11 items-center rounded-full border px-4 py-2 text-[12px] font-semibold backdrop-blur-md transition active:scale-95 ${redesignedHero ? '' : 'sm:hidden'} ${heroUsesLightText ? 'border-white/30 bg-black/10' : 'border-ink/10 bg-white/65'}`}>{t.portfolioPublic.menuContact}</a> : null}
           </div>
         </div>
       </section>
@@ -302,7 +302,7 @@ export default async function PublicPortfolioPage({
           <nav className="flex items-center gap-8 text-[12px] font-medium text-ink-soft" aria-label={t.portfolioPublic.mainMenu}>
             {strip.length > 0 ? <a href="#gallery" className="transition hover:text-[var(--pf-accent-deep)]">{t.portfolioPublic.menuGallery}</a> : null}
             {portfolio.bio ? <a href="#about" className="transition hover:text-[var(--pf-accent-deep)]">{t.portfolioPublic.menuAbout}</a> : null}
-            {contacts.length > 0 ? <a href="#contact" className="rounded-full bg-ink px-5 py-2.5 text-white transition hover:bg-ink-soft">{t.portfolioPublic.getInTouch}</a> : null}
+            {contacts.length > 0 ? <a href="#contact" className="inline-flex min-h-11 items-center rounded-full bg-ink px-5 py-2.5 text-white transition hover:bg-ink-soft">{t.portfolioPublic.getInTouch}</a> : null}
           </nav>
         </div>
       </div>

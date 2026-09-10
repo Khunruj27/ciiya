@@ -40,7 +40,7 @@ export default function LanguageSwitch({
           type="button"
           onClick={() => choose(locale)}
           aria-pressed={locale === current}
-          className={`rounded-full px-2.5 py-1.5 transition ${
+          className={`flex min-h-11 min-w-11 items-center justify-center rounded-full px-2.5 py-1.5 transition ${
             locale === current ? 'bg-ink text-white' : 'text-muted hover:text-ink'
           }`}
         >

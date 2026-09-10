@@ -100,5 +100,5 @@ export default async function HomePage() {
 }
 
 function Photo({ name, alt, priority = false }: { name: string; alt: string; priority?: boolean }) {
-  return <Image src={'/landing/' + name + '.webp'} alt={alt} fill priority={priority} sizes="(max-width: 700px) 92vw, (max-width: 1100px) 50vw, 640px" className={s.photo}/>
+  return <Image src={'/landing/' + name + '.webp'} alt={alt} fill loading={priority ? 'eager' : 'lazy'} sizes="(max-width: 700px) 92vw, (max-width: 1100px) 50vw, 640px" className={s.photo}/>
 }

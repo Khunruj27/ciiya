@@ -1,4 +1,6 @@
 import LoginForm from '@/components/login-form'
+import { getAuthErrorMessage } from '@/lib/auth-error-message'
+import { getLocale } from '@/lib/i18n-server'
 
 /*
  * A server component so the form ships in the first HTML response. Reading
@@ -10,8 +12,10 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
-  const { error } = await searchParams
-  const initialError = typeof error === 'string' ? error : ''
+  const { error, reset } = await searchParams
+  const locale = await getLocale()
+  const initialError =
+    typeof error === 'string' ? getAuthErrorMessage(error, locale, 'oauth') : ''
 
-  return <LoginForm initialError={initialError} />
+  return <LoginForm initialError={initialError} passwordReset={reset === 'success'} />
 }

@@ -43,21 +43,52 @@ export type SelfieDescriptor = {
   previewUrl: string
 }
 
-/** Thrown when the selfie itself is the problem, with a guest-facing message. */
-export class SelfieQualityError extends Error {}
+export type FaceDescriptorStage =
+  | 'engine'
+  | 'detector'
+  | 'landmarks'
+  | 'recognition'
+  | 'analyzing'
 
-async function ensureModels(): Promise<FaceApiModule> {
+export type FaceDescriptorProgress = {
+  progress: number
+  stage: FaceDescriptorStage
+}
+
+type ProgressHandler = (update: FaceDescriptorProgress) => void
+
+/** Thrown when the selfie itself is the problem. UI copy is localized by the caller. */
+export class SelfieQualityError extends Error {
+  constructor(
+    public readonly reason: 'no-face' | 'unclear-face',
+    message: string
+  ) {
+    super(message)
+    this.name = 'SelfieQualityError'
+  }
+}
+
+async function ensureModels(
+  onProgress?: ProgressHandler
+): Promise<FaceApiModule> {
+  onProgress?.({ progress: 6, stage: 'engine' })
+
   if (!faceapi) faceapi = await import('@vladmandic/face-api')
+  onProgress?.({ progress: 18, stage: 'engine' })
 
   if (!modelsPromise) {
     modelsPromise = (async () => {
+      onProgress?.({ progress: 24, stage: 'detector' })
       await faceapi!.nets.ssdMobilenetv1.loadFromUri('/models')
+      onProgress?.({ progress: 58, stage: 'landmarks' })
       await faceapi!.nets.faceLandmark68Net.loadFromUri('/models')
+      onProgress?.({ progress: 72, stage: 'recognition' })
       await faceapi!.nets.faceRecognitionNet.loadFromUri('/models')
     })()
   }
 
   await modelsPromise
+  onProgress?.({ progress: 88, stage: 'recognition' })
   return faceapi!
 }
 
@@ -100,10 +131,13 @@ async function normalize(
 }
 
 export async function extractSelfieDescriptor(
-  file: File
+  file: File,
+  onProgress?: ProgressHandler
 ): Promise<SelfieDescriptor> {
-  const api = await ensureModels()
+  const api = await ensureModels(onProgress)
+  onProgress?.({ progress: 90, stage: 'analyzing' })
   const { img, previewUrl } = await normalize(file)
+  onProgress?.({ progress: 94, stage: 'analyzing' })
 
   const detections = await api
     .detectAllFaces(
@@ -115,6 +149,7 @@ export async function extractSelfieDescriptor(
 
   if (!detections.length) {
     throw new SelfieQualityError(
+      'no-face',
       'No face found — use a clear, front-facing selfie.'
     )
   }
@@ -128,6 +163,7 @@ export async function extractSelfieDescriptor(
 
   if (best.detection.score < MIN_DETECTION_SCORE || minSide < MIN_FACE_PX) {
     throw new SelfieQualityError(
+      'unclear-face',
       'Face is too small or unclear — move closer and use a well-lit selfie.'
     )
   }

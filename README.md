@@ -35,3 +35,30 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
 # ciiya
+
+## Quality checks
+
+Run the same checks used by CI before a release:
+
+```bash
+npm run check
+npm run test:e2e
+```
+
+The public and anonymous-route tests run in every checkout. Configure
+`E2E_USER_EMAIL` and `E2E_USER_PASSWORD` with a dedicated test account to run
+the create-album, upload, share and cleanup flow. `E2E_SHARE_TOKEN` enables the
+public gallery reaction tests.
+
+GitHub Actions also needs the Supabase and worker secrets listed in
+`.env.example`. Never use a personal account for E2E credentials.
+`npm run check:env` prevents CI from passing when code starts using an
+environment variable that has not been documented in `.env.example`.
+
+## Monitoring
+
+Next.js server rendering failures and browser runtime errors are written as
+structured `ciiya-monitor` events to the deployment logs. Set an HTTPS
+`ERROR_MONITORING_WEBHOOK_URL` to forward sanitized server error events to an
+external incident system. The existing `/api/health?monitor=1` endpoint is the
+status-code probe for an uptime monitor (200 healthy, 503 degraded).

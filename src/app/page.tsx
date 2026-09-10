@@ -100,5 +100,7 @@ export default async function HomePage() {
 }
 
 function Photo({ name, alt, priority = false }: { name: string; alt: string; priority?: boolean }) {
-  return <Image src={'/landing/' + name + '.webp'} alt={alt} fill loading={priority ? 'eager' : 'lazy'} sizes="(max-width: 700px) 92vw, (max-width: 1100px) 50vw, 640px" className={s.photo}/>
+  // `priority` emits <link rel=preload fetchpriority=high> for the LCP hero image
+  // and lazy-loads the rest, so the first paint arrives sooner.
+  return <Image src={'/landing/' + name + '.webp'} alt={alt} fill priority={priority} loading={priority ? 'eager' : 'lazy'} sizes="(max-width: 700px) 92vw, (max-width: 1100px) 50vw, 640px" className={s.photo}/>
 }

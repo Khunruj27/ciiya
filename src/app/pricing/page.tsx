@@ -10,44 +10,55 @@ export const revalidate = 0
 export default async function PricingPage() {
   const supabase = await createServerSupabaseClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Wave 1: independent reads run together — the session, the locale
+  // dictionary, and the (user-agnostic) active plan list. Previously these ran
+  // one after another, so the page paid a serial round-trip for each.
+  const [
+    {
+      data: { user },
+    },
+    { t },
+    { data: plans, error: plansError },
+  ] = await Promise.all([
+    supabase.auth.getUser(),
+    getServerDictionary(),
+    supabase
+      .from('plans')
+      .select('*')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true }),
+  ])
 
   if (!user) redirect('/login')
-
-  const { t } = await getServerDictionary()
-
-  const { data: plans, error: plansError } = await supabase
-    .from('plans')
-    .select('*')
-    .eq('is_active', true)
-    .order('sort_order', { ascending: true })
-
   if (plansError) throw new Error(plansError.message)
 
-  const { data: storageUsage, error: storageUsageError } = await supabase
-    .from('user_storage_usage')
-    .select('current_plan, storage_limit_bytes, storage_used_bytes, used_bytes')
-    .eq('user_id', user.id)
-    .maybeSingle()
-
-  if (storageUsageError) throw new Error(storageUsageError.message)
-
-  const { data: activeSubscription } = await supabase
-  .from('subscriptions')
-  .select(`
+  // Wave 2: the two user-scoped reads run together once we have the id.
+  const [
+    { data: storageUsage, error: storageUsageError },
+    { data: activeSubscription },
+  ] = await Promise.all([
+    supabase
+      .from('user_storage_usage')
+      .select('current_plan, storage_limit_bytes, storage_used_bytes, used_bytes')
+      .eq('user_id', user.id)
+      .maybeSingle(),
+    supabase
+      .from('subscriptions')
+      .select(`
     plan_id,
     stripe_subscription_id,
     plan:plans (
       storage_limit_bytes
     )
   `)
-  .eq('user_id', user.id)
-  .eq('status', 'active')
-  .order('created_at', { ascending: false })
-  .limit(1)
-  .maybeSingle()
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
+
+  if (storageUsageError) throw new Error(storageUsageError.message)
 
 const activePlan = Array.isArray(activeSubscription?.plan)
   ? activeSubscription?.plan[0]

@@ -624,34 +624,60 @@ useEffect(() => {
     [shareToken, likedIds, likeStorageKey]
   )
 
-  // Triggers one native download per selected photo (each request already
-  // returns a plain .jpg with a Content-Disposition: attachment header via
-  // /api/photos/download), staggered so the browser fires them as distinct
-  // downloads instead of one another.
-  const handleBatchDownload = useCallback(() => {
+  // Downloads the selected photos to the device ONE AT A TIME: fetch each as a
+  // blob, save it with its real filename, then move on. Sequential (not a burst
+  // of link clicks) so the browser reliably writes every file instead of
+  // dropping all but the first — the capped selection (5) keeps this quick.
+  const handleBatchDownload = useCallback(async () => {
     if (!shareToken || selectedIds.size === 0 || batchDownloading) return
 
     setBatchDownloading(true)
 
     const ids = Array.from(selectedIds)
 
-    ids.forEach((photoId, index) => {
-      window.setTimeout(() => {
-        const link = document.createElement('a')
-        link.href = `/api/photos/download?photoId=${encodeURIComponent(
-          photoId
-        )}&token=${encodeURIComponent(shareToken)}`
-        document.body.appendChild(link)
-        link.click()
-        link.remove()
-      }, index * 400)
-    })
+    try {
+      for (const photoId of ids) {
+        try {
+          const res = await fetch(
+            `/api/photos/download?photoId=${encodeURIComponent(
+              photoId
+            )}&token=${encodeURIComponent(shareToken)}`
+          )
 
-    window.setTimeout(() => {
+          if (!res.ok) continue
+
+          const blob = await res.blob()
+
+          // Prefer the filename the server set (Content-Disposition), else a
+          // sensible fallback.
+          const disposition = res.headers.get('content-disposition') || ''
+          const match = disposition.match(
+            /filename\*?=(?:UTF-8''|")?([^";]+)/i
+          )
+          const filename = match
+            ? decodeURIComponent(match[1].replace(/"/g, ''))
+            : `ciiya-${photoId}.jpg`
+
+          const objectUrl = URL.createObjectURL(blob)
+          const link = document.createElement('a')
+          link.href = objectUrl
+          link.download = filename
+          document.body.appendChild(link)
+          link.click()
+          link.remove()
+          URL.revokeObjectURL(objectUrl)
+
+          // Small gap so each save registers as its own download.
+          await new Promise((resolve) => window.setTimeout(resolve, 350))
+        } catch {
+          // Skip a photo that failed and keep going with the rest.
+        }
+      }
+    } finally {
       setBatchDownloading(false)
       setSelectMode(false)
       setSelectedIds(new Set())
-    }, ids.length * 400)
+    }
   }, [shareToken, selectedIds, batchDownloading])
 
   function goPrev() {

@@ -66,29 +66,55 @@ export default function SelfieFaceSearch({
     })
   }
 
-  function handleBatchDownload() {
+  // Sequential, one-file-at-a-time download (fetch as blob, save with its real
+  // filename, then the next) so every selected match reliably lands instead of
+  // the browser dropping all but the first from a burst of link clicks.
+  async function handleBatchDownload() {
     if (selectedIds.size === 0 || batchDownloading) return
 
     setBatchDownloading(true)
 
     const ids = Array.from(selectedIds)
 
-    ids.forEach((photoId, index) => {
-      window.setTimeout(() => {
-        const link = document.createElement('a')
-        link.href = `/api/photos/download?photoId=${encodeURIComponent(
-          photoId
-        )}&token=${encodeURIComponent(token)}`
-        document.body.appendChild(link)
-        link.click()
-        link.remove()
-      }, index * 400)
-    })
+    try {
+      for (const photoId of ids) {
+        try {
+          const res = await fetch(
+            `/api/photos/download?photoId=${encodeURIComponent(
+              photoId
+            )}&token=${encodeURIComponent(token)}`
+          )
 
-    window.setTimeout(() => {
+          if (!res.ok) continue
+
+          const blob = await res.blob()
+
+          const disposition = res.headers.get('content-disposition') || ''
+          const match = disposition.match(
+            /filename\*?=(?:UTF-8''|")?([^";]+)/i
+          )
+          const filename = match
+            ? decodeURIComponent(match[1].replace(/"/g, ''))
+            : `ciiya-${photoId}.jpg`
+
+          const objectUrl = URL.createObjectURL(blob)
+          const link = document.createElement('a')
+          link.href = objectUrl
+          link.download = filename
+          document.body.appendChild(link)
+          link.click()
+          link.remove()
+          URL.revokeObjectURL(objectUrl)
+
+          await new Promise((resolve) => window.setTimeout(resolve, 350))
+        } catch {
+          // Skip a failed photo and continue with the rest.
+        }
+      }
+    } finally {
       setBatchDownloading(false)
       setSelectedIds(new Set())
-    }, ids.length * 400)
+    }
   }
 
   async function handleFile(file: File) {

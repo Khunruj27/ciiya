@@ -24,7 +24,9 @@ type SearchResult = {
   } | null
 }
 
-const MAX_SELECTION = 10
+// Capped at 5 so the staggered per-photo downloads all land on desktop
+// Chrome/Edge and mobile — see the note in public-gallery.tsx.
+const MAX_SELECTION = 5
 
 export default function SelfieFaceSearch({
   albumId,

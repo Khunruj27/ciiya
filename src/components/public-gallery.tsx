@@ -39,7 +39,10 @@ type Props = {
   shareToken?: string
 }
 
-const MAX_SELECTION = 10
+// Capped at 5 so the staggered per-photo downloads actually all land — desktop
+// Chrome/Edge stop prompting for "multiple downloads" and mobile browsers can
+// keep up — rather than the browser silently dropping all but the first.
+const MAX_SELECTION = 5
 
 type TouchPoint = {
   x: number

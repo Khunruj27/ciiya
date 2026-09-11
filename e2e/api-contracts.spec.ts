@@ -37,6 +37,23 @@ test.describe('public and protected API contracts', () => {
     expect(moments.status()).toBe(400)
   })
 
+  test('public share/download endpoints reject malformed requests', async ({
+    request,
+  }) => {
+    const [verifyPassword, faceSearch, download] = await Promise.all([
+      // Password check without a token — can't leak which album exists.
+      request.post('/api/share/verify-password', { data: {} }),
+      // Face search without album/token/descriptor.
+      request.post('/api/faces/search', { data: {} }),
+      // Download without a photo id or token.
+      request.get('/api/photos/download'),
+    ])
+
+    expect(verifyPassword.status()).toBe(400)
+    expect(faceSearch.status()).toBe(400)
+    expect(download.status()).toBe(400)
+  })
+
   test('browser error monitoring accepts same-origin reports and blocks cross-origin posts', async ({ request }) => {
     const accepted = await request.post('/api/monitoring/client-error', {
       headers: { Origin: expectedOrigin },

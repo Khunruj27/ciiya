@@ -38,3 +38,24 @@ test.describe('public share gallery', () => {
     await expect(like).toBeVisible()
   })
 })
+
+/**
+ * Security regression guard: a share link is a secret capability. An unknown or
+ * revoked token must resolve to "not found" and never expose album photos —
+ * this locks in the RLS lock-down + service-role token validation. No seed
+ * token needed, so it always runs.
+ */
+test.describe('share token enforcement', () => {
+  test('an unknown share token shows not-found, never a gallery', async ({ page }) => {
+    await page.goto('/share/thisisnotarealshare000000000000')
+
+    // The not-found copy is shown (Thai default, English tolerated)...
+    await expect(page.getByText(/ไม่พบ|not found/i).first()).toBeVisible()
+
+    // ...and no real gallery photo is served for a bogus token.
+    const storagePhotos = page.locator(
+      'img[src*="supabase.co/storage"], img[src*="/storage/v1/object"]'
+    )
+    await expect(storagePhotos).toHaveCount(0)
+  })
+})

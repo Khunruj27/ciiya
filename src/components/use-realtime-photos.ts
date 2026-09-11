@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { getPublicRealtimeClient } from '@/lib/supabase-browser'
 
 type UseRealtimePhotosOptions = {
   albumId?: string
@@ -23,17 +23,7 @@ export function useRealtimePhotos(
   }, [onUpdate])
 
   useEffect(() => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-    if (!supabaseUrl || !supabaseAnonKey) return
-
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    })
+    const supabase = getPublicRealtimeClient()
 
     const channel = supabase
       .channel(albumId ? `photos-realtime:${albumId}` : 'photos-realtime')

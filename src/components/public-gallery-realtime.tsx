@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { getPublicRealtimeClient } from '@/lib/supabase-browser'
 import { useRouter } from 'next/navigation'
 
 type Photo = {
@@ -71,17 +71,9 @@ function rememberProcessedId(photoId: string) {
   }, [])
 
   useEffect(() => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!albumId) return
 
-    if (!supabaseUrl || !supabaseAnonKey || !albumId) return
-
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    })
+    const supabase = getPublicRealtimeClient()
 
     function clearTimers() {
       if (quietTimerRef.current) {

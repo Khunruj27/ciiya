@@ -34,6 +34,17 @@ export type DownloadPhotoRecord = {
 }
 
 const BUCKET = 'albums'
+// Full-resolution originals live in a separate PRIVATE bucket so a leaked
+// public URL can't expose them forever; only the service role (this module)
+// reads them. Display derivatives (preview/thumbnail/sd/hd/uhd) stay in the
+// public `albums` bucket. Originals are the only tier stored under an
+// `/original/` path segment, so the path alone tells us which bucket to read.
+const ORIGINALS_BUCKET = 'originals'
+
+function bucketForStoragePath(path: string) {
+  return path.includes('/original/') ? ORIGINALS_BUCKET : BUCKET
+}
+
 const generatingMap = new Map<string, Promise<Buffer>>()
 
 export function getSupabaseAdmin(): SupabaseClient {
@@ -245,7 +256,9 @@ async function downloadStorageFile(
   supabase: SupabaseClient,
   path: string
 ) {
-  const { data, error } = await supabase.storage.from(BUCKET).download(path)
+  const { data, error } = await supabase.storage
+    .from(bucketForStoragePath(path))
+    .download(path)
 
   if (error || !data) {
     throw new Error(error?.message || `File not found: ${path}`)

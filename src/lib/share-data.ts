@@ -1,19 +1,19 @@
 import { unstable_cache } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
 
-// Public share-page reads only ever need anon-key/RLS access, never a
-// user's cookie session — that lets these run inside unstable_cache,
-// where request-time APIs like cookies() aren't allowed.
-function getAnonClient() {
+// Public share-page reads run entirely server-side with the service role, and
+// the share token is validated in application code before any read (every
+// caller looks the album up by token first, then reads its photos/faces by the
+// resolved id). The anon key is public — it ships to the browser — so the
+// tables it can reach must never include albums/photos/photo_faces, or anyone
+// could enumerate every public album (and its share_token) without a link.
+// These run inside unstable_cache, so they must not touch request-time APIs
+// like cookies(); the service role needs neither a session nor cookies.
+function getServiceClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    }
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } }
   )
 }
 
@@ -21,7 +21,7 @@ const SHARE_CACHE_TTL_SECONDS = 20
 
 export const getSharedAlbumByToken = unstable_cache(
   async (token: string) => {
-    const supabase = getAnonClient()
+    const supabase = getServiceClient()
 
     const { data, error } = await supabase
       .from('albums')
@@ -57,16 +57,9 @@ export const getSharedAlbumByToken = unstable_cache(
 // client can reach them. It comes from the portfolio contact fields the
 // photographer already fills in, and honours the same show-toggles — a
 // channel switched off there stays hidden here too. Read with the service
-// role so it works whether or not the portfolio itself is published; only
-// the two channels the owner chose to expose are ever returned.
-function getServiceClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } }
-  )
-}
-
+// role (see getServiceClient above) so it works whether or not the portfolio
+// itself is published; only the two channels the owner chose to expose are
+// ever returned.
 export type PhotographerContact = {
   facebook: string | null
   phone: string | null
@@ -106,7 +99,7 @@ export const getPhotographerContact = unstable_cache(
 // Summed from the per-photo like_count so it stays a single quick read.
 export const getAlbumLikeTotal = unstable_cache(
   async (albumId: string): Promise<number> => {
-    const supabase = getAnonClient()
+    const supabase = getServiceClient()
     const { data } = await supabase
       .from('photos')
       .select('like_count')
@@ -146,7 +139,7 @@ const SHARE_PAGE_SIZE = 50
 
 export const getSharedAlbumPhotos = unstable_cache(
   async (albumId: string) => {
-    const supabase = getAnonClient()
+    const supabase = getServiceClient()
 
     const [{ count: photoCountResult }, { data: photos, error: photosError }] =
       await Promise.all([
@@ -210,7 +203,7 @@ export const getSharedAlbumPhotos = unstable_cache(
 // They render against a real album so a direction is judged on the
 // photographer's own work rather than stock placeholders.
 export async function getPreviewSample() {
-  const supabase = getAnonClient()
+  const supabase = getServiceClient()
 
   const { data: album, error } = await supabase
     .from('albums')
@@ -252,7 +245,7 @@ export async function getPreviewSample() {
 // round trip per page instead of one each.
 export const getSharedAlbumPhotosPage = unstable_cache(
   async (albumId: string, cursor: string | null, limit: number) => {
-    const supabase = getAnonClient()
+    const supabase = getServiceClient()
 
     let query = supabase
       .from('photos')

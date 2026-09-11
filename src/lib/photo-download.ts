@@ -127,6 +127,17 @@ function getOriginalPath(photo: DownloadPhotoRecord) {
   )
 }
 
+// The master to resize smaller download sizes FROM. It must be the
+// preset-baked, selected-size image (preview_path / storage_path both hold it),
+// never the raw original — resizing from the raw produced downloads without the
+// photographer's preset while the gallery/lightbox (which use preview_url)
+// showed it. withoutEnlargement in the resizer caps upscaling to the master.
+function getResizeSourcePath(photo: DownloadPhotoRecord) {
+  return (
+    photo.preview_path || photo.storage_path || photo.original_path || null
+  )
+}
+
 function makeOutputPath(
   originalPath: string,
   size: Exclude<DownloadSize, 'original'>
@@ -441,21 +452,21 @@ export async function resolvePhotoDownload(params: {
     }
   }
 
-  const originalPath = getOriginalPath(photo)
+  const sourcePath = getResizeSourcePath(photo)
 
-  if (!originalPath || !width) {
+  if (!sourcePath || !width) {
     throw new PhotoDownloadError('Original file path not found', 404)
   }
 
-  const originalBuffer = await downloadStorageFile(supabase, originalPath)
+  const sourceBuffer = await downloadStorageFile(supabase, sourcePath)
 
   const resizedBuffer = await getOrCreateGeneratedBuffer({
     cacheKey: `${photo.id}:${size}`,
-    originalBuffer,
+    originalBuffer: sourceBuffer,
     width,
   })
 
-  const generatedPath = makeOutputPath(originalPath, size)
+  const generatedPath = makeOutputPath(sourcePath, size)
 
   await saveGeneratedSize({
     supabase,

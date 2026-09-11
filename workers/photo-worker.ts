@@ -474,6 +474,16 @@ function makeOutputPath(originalPath: string, folder: OutputSize) {
   return `${parts[0]}/${parts[1]}/${folder}/${name}.jpg`
 }
 
+function contentTypeForStoragePath(path: string) {
+  const ext = path.split('.').pop()?.toLowerCase() || ''
+  if (ext === 'png') return 'image/png'
+  if (ext === 'webp') return 'image/webp'
+  if (ext === 'gif') return 'image/gif'
+  if (ext === 'heic' || ext === 'heif') return 'image/heic'
+  if (ext === 'tif' || ext === 'tiff') return 'image/tiff'
+  return 'image/jpeg'
+}
+
 async function updatePhoto(
   photoId: string,
   payload: Record<string, unknown>
@@ -1178,8 +1188,19 @@ if (
     // Downloading the original and loading the XMP preset are both
     // independent reads — no need to wait on one before starting the
     // other.
+    // A fresh upload's original lands in the public `albums` bucket; once a
+    // photo is processed the original is relocated to the private `originals`
+    // bucket (see below), so a reprocess must look there too. Try albums first,
+    // then fall back to originals.
     const [downloadResult, xmpPreset] = await Promise.all([
-      withRetry(() => supabase.storage.from('albums').download(originalPath)),
+      withRetry(async () => {
+        const primary = await supabase.storage.from('albums').download(originalPath)
+        if (primary.data) return primary
+        const fallback = await supabase.storage
+          .from('originals')
+          .download(originalPath)
+        return fallback.data ? fallback : primary
+      }),
       loadXmpAdjustments(presetPath),
     ])
 
@@ -1274,6 +1295,45 @@ for (const result of uploadResults) {
   }
 }
 
+    // Relocate the full-resolution original into the private `originals`
+    // bucket so a leaked public URL can never expose it. Skip when the
+    // delivered size IS the original — then the original file is also the
+    // client-facing display image and must stay in the public bucket — or if
+    // the preview already points at the original path for any reason. Runs
+    // before the final commit so a failure retries the whole job with the
+    // original still intact in `albums`.
+    const originalWasRelocated =
+      selectedSize !== 'original' && previewPath !== originalPath
+
+    if (originalWasRelocated) {
+      const relocateUpload = await withRetry(() =>
+        supabase.storage.from('originals').upload(originalPath, originalBuffer, {
+          contentType: contentTypeForStoragePath(originalPath),
+          cacheControl: 'no-store',
+          upsert: true,
+        })
+      )
+
+      if (relocateUpload.error) {
+        throw new Error(
+          `Failed to relocate original: ${relocateUpload.error.message}`
+        )
+      }
+
+      // Best-effort: the file is now safely private; if the public copy
+      // lingers, storage cleanup or a later reprocess removes it.
+      const relocateRemove = await supabase.storage
+        .from('albums')
+        .remove([originalPath])
+
+      if (relocateRemove.error) {
+        console.warn(
+          '[PhotoWorker] original public copy not removed:',
+          relocateRemove.error.message
+        )
+      }
+    }
+
     await updatePhoto(String(job.photo_id), {
       processing_progress: 60,
     })
@@ -1329,6 +1389,10 @@ if (!stillOwnsJob) {
 
       hd_path: hdPath,
       hd_url: hdUrl,
+
+      // The original moved to the private bucket, so its old public URL is
+      // gone. Downloads read it server-side by original_path (kept as-is).
+      ...(originalWasRelocated ? { original_url: null } : {}),
 
       blur_data_url: blurDataUrl,
 

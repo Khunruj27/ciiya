@@ -256,9 +256,19 @@ async function downloadStorageFile(
   supabase: SupabaseClient,
   path: string
 ) {
-  const { data, error } = await supabase.storage
-    .from(bucketForStoragePath(path))
+  const primaryBucket = bucketForStoragePath(path)
+
+  let { data, error } = await supabase.storage
+    .from(primaryBucket)
     .download(path)
+
+  // An `/original/` path normally lives in the private originals bucket, but a
+  // just-uploaded (not-yet-relocated) original — or one for an album delivered
+  // at 'original' size, which stays public — still sits in `albums`. Fall back
+  // there before giving up.
+  if ((error || !data) && primaryBucket === ORIGINALS_BUCKET) {
+    ;({ data, error } = await supabase.storage.from(BUCKET).download(path))
+  }
 
   if (error || !data) {
     throw new Error(error?.message || `File not found: ${path}`)

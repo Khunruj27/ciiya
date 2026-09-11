@@ -62,7 +62,7 @@ sharp.cache({
   items: SHARP_CACHE_ITEMS,
 })
 
-type OutputSize = 'sd' | 'hd' | 'uhd' | 'original' | 'thumbnail'
+type OutputSize = 'sd' | 'hd' | 'uhd' | 'original' | 'thumbnail' | 'preview'
 type SelectedSize = 'sd' | 'hd' | 'uhd' | 'original'
 
 type PhotoJob = {
@@ -1225,9 +1225,15 @@ const previewWidth = getWidthBySize(selectedSize)
 const shouldCreateProcessedPreview =
   selectedSize !== 'original' || Boolean(xmpPreset)
 
+// When the delivery size is `original` AND a preset is applied, the processed
+// full-res goes to a DISTINCT `preview/` path — never the raw's `original/`
+// path. Overwriting the raw at the same URL used to leave clients (and the
+// CDN) showing the cached un-preset version in the lightbox while the grid
+// (a separate thumbnail path) showed the preset. A no-preset original keeps
+// serving the raw itself (nothing to process).
 const previewPath =
   selectedSize === 'original' && xmpPreset
-    ? makeOutputPath(originalPath, 'original')
+    ? makeOutputPath(originalPath, 'preview')
     : selectedSize === 'original'
       ? originalPath
       : makeOutputPath(originalPath, selectedSize)
@@ -1305,6 +1311,15 @@ for (const result of uploadResults) {
     const originalWasRelocated =
       selectedSize !== 'original' && previewPath !== originalPath
 
+    // `original`-size delivery with a preset: the baked full-res now lives at a
+    // distinct `preview/` path and is the client-facing deliverable, so the raw
+    // `original/` upload is superseded (it was overwritten before this fix, so
+    // nothing new is lost by removing it) and its public copy can go.
+    const processedOriginalReplacesRaw =
+      selectedSize === 'original' &&
+      Boolean(xmpPreset) &&
+      previewPath !== originalPath
+
     if (originalWasRelocated) {
       const relocateUpload = await withRetry(() =>
         supabase.storage.from('originals').upload(originalPath, originalBuffer, {
@@ -1330,6 +1345,17 @@ for (const result of uploadResults) {
         console.warn(
           '[PhotoWorker] original public copy not removed:',
           relocateRemove.error.message
+        )
+      }
+    } else if (processedOriginalReplacesRaw) {
+      const rawRemove = await supabase.storage
+        .from('albums')
+        .remove([originalPath])
+
+      if (rawRemove.error) {
+        console.warn(
+          '[PhotoWorker] raw original copy not removed:',
+          rawRemove.error.message
         )
       }
     }
@@ -1393,6 +1419,13 @@ if (!stillOwnsJob) {
       // The original moved to the private bucket, so its old public URL is
       // gone. Downloads read it server-side by original_path (kept as-is).
       ...(originalWasRelocated ? { original_url: null } : {}),
+
+      // The raw `original/` file was removed in favour of the baked full-res at
+      // previewPath, so point original_path/url there — that is now the
+      // downloadable "original" deliverable (with the preset baked in).
+      ...(processedOriginalReplacesRaw
+        ? { original_path: previewPath, original_url: previewUrlData.publicUrl }
+        : {}),
 
       blur_data_url: blurDataUrl,
 

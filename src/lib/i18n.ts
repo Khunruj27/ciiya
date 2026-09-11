@@ -651,6 +651,7 @@ const th = {
   cameraStatus: {
     connectFailed: 'เชื่อมต่อกล้องไม่สำเร็จ',
     cameraConnected: 'เชื่อมต่อกล้องแล้ว',
+    noCameraDetected: 'ไม่พบกล้อง เสียบสาย USB-C แล้วลองอีกครั้ง',
     connectError: 'เชื่อมต่อไม่สำเร็จ',
     disconnectFailed: 'ตัดการเชื่อมต่อกล้องไม่สำเร็จ',
     disconnectError: 'ตัดการเชื่อมต่อไม่สำเร็จ',
@@ -1398,6 +1399,7 @@ const en = {
   cameraStatus: {
     connectFailed: 'Connect camera failed',
     cameraConnected: 'Camera connected',
+    noCameraDetected: 'No camera detected. Plug in via USB-C and try again.',
     connectError: 'Connect failed',
     disconnectFailed: 'Disconnect camera failed',
     disconnectError: 'Disconnect failed',

@@ -73,10 +73,10 @@ export async function POST(req: Request) {
     const cameraName = parseCameraName(stdout)
 
     if (!cameraName) {
-      return NextResponse.json(
-        { error: 'No camera detected' },
-        { status: 404 }
-      )
+      // Not an error — the auto-detect poll simply found nothing on the port.
+      // Return 200 so a page left open waiting for a camera doesn't spam the
+      // logs with 404s (and so the client can treat it as a plain poll result).
+      return NextResponse.json({ success: true, connected: false })
     }
 
     const { brand: cameraBrand, model: cameraModel } =

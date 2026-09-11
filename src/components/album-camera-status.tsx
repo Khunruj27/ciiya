@@ -4,6 +4,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '@/components/i18n-provider'
 
 const AUTO_DETECT_POLL_MS = 3000
+// After this many consecutive "no camera" polls, back off from the fast 3s
+// cadence to a quiet idle cadence so an album page left open (or a production
+// server with no gphoto2/USB at all) stops hammering the endpoint. Returning to
+// the tab resets it to fast so plugging a camera in is still picked up quickly.
+const AUTO_DETECT_BACKOFF_AFTER = 10
+const AUTO_DETECT_IDLE_MS = 20000
 const AUTO_START_FAILURE_LIMIT = 3
 
 type Props = {
@@ -180,6 +186,14 @@ useEffect(() => {
 
       if (!res.ok) {
         throw new Error(json.error || t.cameraStatus.connectFailed)
+      }
+
+      // No camera on the port is a normal poll outcome, not an error — the
+      // route now reports it as 200 { connected: false }. Surface a hint only
+      // when the user asked explicitly; the auto poll just keeps waiting.
+      if (!json.connected) {
+        if (!auto) setErrorMsg(t.cameraStatus.noCameraDetected)
+        return 'no-camera'
       }
 
       setCameraState({
@@ -387,43 +401,80 @@ useEffect(() => {
   if (autoConnectDisabledRef.current) return
 
   let cancelled = false
+  let timer: number | undefined
+  // Consecutive "no camera" polls, used to slow the cadence once it's clear
+  // nothing is plugged in (or can be — e.g. a server with no gphoto2/USB).
+  let noCameraStreak = 0
 
-  async function tryAutoConnect() {
-    if (cancelled || autoDetectingRef.current) return
-    if (autoConnectDisabledRef.current) return
+  function schedule(ms: number) {
+    if (cancelled) return
+    timer = window.setTimeout(tick, ms)
+  }
 
-    autoDetectingRef.current = true
+  async function tick() {
+    if (cancelled || autoConnectDisabledRef.current) return
 
-    try {
-      const result = await connectCamera(true)
+    // Don't poll a hidden tab — the photographer isn't watching, and the USB
+    // device (if any) will still be there when they come back.
+    if (typeof document !== 'undefined' && document.hidden) {
+      schedule(AUTO_DETECT_IDLE_MS)
+      return
+    }
 
-      if (result === 'started') {
-        autoStartFailureCountRef.current = 0
-        return
-      }
+    if (!autoDetectingRef.current) {
+      autoDetectingRef.current = true
 
-      if (result === 'start-failed') {
-        autoStartFailureCountRef.current += 1
+      try {
+        const result = await connectCamera(true)
 
-        if (autoStartFailureCountRef.current >= AUTO_START_FAILURE_LIMIT) {
-          autoConnectDisabledRef.current = true
-          setErrorMsg(
-            t.cameraStatus.autoCaptureFailed
-          )
+        if (result === 'started') {
+          autoStartFailureCountRef.current = 0
+          return // a session is now active; the effect will tear down
         }
+
+        if (result === 'start-failed') {
+          autoStartFailureCountRef.current += 1
+          noCameraStreak = 0
+
+          if (autoStartFailureCountRef.current >= AUTO_START_FAILURE_LIMIT) {
+            autoConnectDisabledRef.current = true
+            setErrorMsg(t.cameraStatus.autoCaptureFailed)
+            return
+          }
+        } else if (result === 'no-camera') {
+          // Nothing plugged in yet — keep waiting, just less often over time.
+          noCameraStreak += 1
+        } else {
+          noCameraStreak = 0
+        }
+      } finally {
+        autoDetectingRef.current = false
       }
-      // 'no-camera' just means nothing is plugged in yet — keep waiting.
-    } finally {
-      autoDetectingRef.current = false
+    }
+
+    schedule(
+      noCameraStreak >= AUTO_DETECT_BACKOFF_AFTER
+        ? AUTO_DETECT_IDLE_MS
+        : AUTO_DETECT_POLL_MS
+    )
+  }
+
+  function handleVisibility() {
+    if (typeof document !== 'undefined' && !document.hidden) {
+      // Back to fast detection the moment the photographer returns.
+      noCameraStreak = 0
+      if (timer) window.clearTimeout(timer)
+      schedule(0)
     }
   }
 
-  tryAutoConnect()
-  const interval = window.setInterval(tryAutoConnect, AUTO_DETECT_POLL_MS)
+  document.addEventListener('visibilitychange', handleVisibility)
+  schedule(0)
 
   return () => {
     cancelled = true
-    window.clearInterval(interval)
+    if (timer) window.clearTimeout(timer)
+    document.removeEventListener('visibilitychange', handleVisibility)
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [albumId, autoUploadActive, pendingConnect, showSettings])

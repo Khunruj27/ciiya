@@ -5,6 +5,7 @@ import {
   isAlbumPubliclyVisible,
 } from '@/lib/share-access'
 import { getSharedAlbumByToken, getSharedAlbumPhotosPage } from '@/lib/share-data'
+import { rateLimit, tooManyRequests } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -14,6 +15,18 @@ const MAX_LIMIT = 100
 
 export async function GET(req: NextRequest) {
   try {
+    // Each call returns up to 100 photos; a generous per-IP cap covers normal
+    // "load more" scrolling while stopping a scraper paging the whole album.
+    const rate = await rateLimit(req, {
+      bucket: 'share-photos',
+      limit: 60,
+      windowSeconds: 60,
+    })
+
+    if (!rate.allowed) {
+      return tooManyRequests(rate)
+    }
+
     const token = String(req.nextUrl.searchParams.get('token') || '').trim()
     const cursor = req.nextUrl.searchParams.get('cursor')
     const rawLimit = Number(req.nextUrl.searchParams.get('limit') || DEFAULT_LIMIT)

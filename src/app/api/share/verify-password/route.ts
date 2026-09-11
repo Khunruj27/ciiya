@@ -6,6 +6,7 @@ import {
   isAlbumPubliclyVisible,
   signShareAuthToken,
 } from '@/lib/share-access'
+import { getClientIp, rateLimit, tooManyRequests } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -33,6 +34,22 @@ export async function POST(req: NextRequest) {
 
     if (!token) {
       return NextResponse.json({ error: 'token is required' }, { status: 400 })
+    }
+
+    // Throttle password guesses per IP + album so a share link's password
+    // can't be brute-forced. 10 attempts / 5 min.
+    const rate = await rateLimit(req, {
+      bucket: 'verify-password',
+      limit: 10,
+      windowSeconds: 300,
+      identifier: `${getClientIp(req)}:${token}`,
+    })
+
+    if (!rate.allowed) {
+      return tooManyRequests(
+        rate,
+        'Too many attempts. Please wait a few minutes before trying again.'
+      )
     }
 
     const supabase = getSupabaseAdmin()

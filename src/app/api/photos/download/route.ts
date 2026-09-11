@@ -14,12 +14,25 @@ import {
   type DownloadPhotoRecord,
 } from '@/lib/photo-download'
 import { recordShareEvent } from '@/lib/share-events'
+import { rateLimit, tooManyRequests } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
+    // Generous per-IP cap — legit use is a handful of downloads (batch is 5) —
+    // but enough to stop a script scraping a whole gallery's originals.
+    const rate = await rateLimit(req, {
+      bucket: 'photo-download',
+      limit: 60,
+      windowSeconds: 60,
+    })
+
+    if (!rate.allowed) {
+      return tooManyRequests(rate, 'Too many downloads. Please wait a minute and try again.')
+    }
+
     const photoId = String(req.nextUrl.searchParams.get('photoId') || '').trim()
     const token = String(req.nextUrl.searchParams.get('token') || '').trim()
 

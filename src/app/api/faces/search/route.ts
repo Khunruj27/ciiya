@@ -6,6 +6,7 @@ import {
   isAlbumPubliclyVisible,
 } from '@/lib/share-access'
 import { recordShareEvent } from '@/lib/share-events'
+import { rateLimit, type RateLimitResult } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,16 +16,11 @@ const DEFAULT_RESULT_LIMIT = 80
 const MAX_RESULT_LIMIT = 200
 const MATCH_THRESHOLD = Number(process.env.FACE_SEARCH_THRESHOLD || 0.55)
 
-const RATE_LIMIT_WINDOW_MS = 60 * 1000
+const RATE_LIMIT_WINDOW_SECONDS = 60
 const RATE_LIMIT_MAX_REQUESTS = 20
 
 const NO_STORE_HEADERS = {
   'Cache-Control': 'no-store, max-age=0',
-}
-
-type RateLimitEntry = {
-  count: number
-  resetAt: number
 }
 
 type PhotoRecord = {
@@ -50,78 +46,12 @@ type FaceRecord = {
   photos?: PhotoRecord | PhotoRecord[] | null
 }
 
-const rateLimitStore = new Map<string, RateLimitEntry>()
-
-function getClientIp(req: NextRequest) {
-  const forwardedFor = req.headers.get('x-forwarded-for')
-  const realIp = req.headers.get('x-real-ip')
-  const cfIp = req.headers.get('cf-connecting-ip')
-
-  if (cfIp) return cfIp
-  if (realIp) return realIp
-
-  if (forwardedFor) {
-    return forwardedFor.split(',')[0]?.trim() || 'unknown'
-  }
-
-  return 'unknown'
-}
-
-function checkRateLimit(req: NextRequest) {
-  const ip = getClientIp(req)
-  const now = Date.now()
-  const current = rateLimitStore.get(ip)
-
-  if (!current || current.resetAt <= now) {
-    rateLimitStore.set(ip, {
-      count: 1,
-      resetAt: now + RATE_LIMIT_WINDOW_MS,
-    })
-
-    return {
-      allowed: true,
-      ip,
-      remaining: RATE_LIMIT_MAX_REQUESTS - 1,
-      resetAt: now + RATE_LIMIT_WINDOW_MS,
-    }
-  }
-
-  if (current.count >= RATE_LIMIT_MAX_REQUESTS) {
-    return {
-      allowed: false,
-      ip,
-      remaining: 0,
-      resetAt: current.resetAt,
-    }
-  }
-
-  current.count += 1
-  rateLimitStore.set(ip, current)
-
-  return {
-    allowed: true,
-    ip,
-    remaining: Math.max(0, RATE_LIMIT_MAX_REQUESTS - current.count),
-    resetAt: current.resetAt,
-  }
-}
-
-function rateLimitHeaders(rate: ReturnType<typeof checkRateLimit>) {
+function rateLimitHeaders(rate: RateLimitResult) {
   return {
     ...NO_STORE_HEADERS,
-    'X-RateLimit-Limit': String(RATE_LIMIT_MAX_REQUESTS),
-    'X-RateLimit-Remaining': String(rate.remaining),
+    'X-RateLimit-Limit': String(rate.limit),
+    'X-RateLimit-Remaining': String(Math.max(rate.remaining, 0)),
     'X-RateLimit-Reset': String(Math.ceil(rate.resetAt / 1000)),
-  }
-}
-
-function cleanupRateLimitStore() {
-  const now = Date.now()
-
-  for (const [ip, value] of rateLimitStore.entries()) {
-    if (value.resetAt <= now) {
-      rateLimitStore.delete(ip)
-    }
   }
 }
 
@@ -169,7 +99,11 @@ function getSupabaseAdmin() {
 }
 
 export async function POST(req: NextRequest) {
-  const rate = checkRateLimit(req)
+  const rate = await rateLimit(req, {
+    bucket: 'faces-search',
+    limit: RATE_LIMIT_MAX_REQUESTS,
+    windowSeconds: RATE_LIMIT_WINDOW_SECONDS,
+  })
 
   if (!rate.allowed) {
     return NextResponse.json(
@@ -182,8 +116,6 @@ export async function POST(req: NextRequest) {
       }
     )
   }
-
-  cleanupRateLimitStore()
 
   try {
     const body = await req.json()

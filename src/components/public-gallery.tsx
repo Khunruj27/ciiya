@@ -624,55 +624,37 @@ useEffect(() => {
     [shareToken, likedIds, likeStorageKey]
   )
 
-  // Downloads the selected photos to the device ONE AT A TIME: fetch each as a
-  // blob, save it with its real filename, then move on. Sequential (not a burst
-  // of link clicks) so the browser reliably writes every file instead of
-  // dropping all but the first — the capped selection (5) keeps this quick.
+  // Downloads the selected photos as a SINGLE .zip — one save, so it works on
+  // every platform (iOS Safari included) without the browser blocking multiple
+  // downloads. The server builds the archive at the album's download size.
   const handleBatchDownload = useCallback(async () => {
     if (!shareToken || selectedIds.size === 0 || batchDownloading) return
 
     setBatchDownloading(true)
 
-    const ids = Array.from(selectedIds)
-
     try {
-      for (const photoId of ids) {
-        try {
-          const res = await fetch(
-            `/api/photos/download?photoId=${encodeURIComponent(
-              photoId
-            )}&token=${encodeURIComponent(shareToken)}`
-          )
+      const res = await fetch('/api/share/download-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: shareToken,
+          photoIds: Array.from(selectedIds),
+        }),
+      })
 
-          if (!res.ok) continue
+      if (!res.ok) throw new Error('zip download failed')
 
-          const blob = await res.blob()
-
-          // Prefer the filename the server set (Content-Disposition), else a
-          // sensible fallback.
-          const disposition = res.headers.get('content-disposition') || ''
-          const match = disposition.match(
-            /filename\*?=(?:UTF-8''|")?([^";]+)/i
-          )
-          const filename = match
-            ? decodeURIComponent(match[1].replace(/"/g, ''))
-            : `ciiya-${photoId}.jpg`
-
-          const objectUrl = URL.createObjectURL(blob)
-          const link = document.createElement('a')
-          link.href = objectUrl
-          link.download = filename
-          document.body.appendChild(link)
-          link.click()
-          link.remove()
-          URL.revokeObjectURL(objectUrl)
-
-          // Small gap so each save registers as its own download.
-          await new Promise((resolve) => window.setTimeout(resolve, 350))
-        } catch {
-          // Skip a photo that failed and keep going with the rest.
-        }
-      }
+      const blob = await res.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = 'ciiya-photos.zip'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(objectUrl)
+    } catch {
+      // Swallow — the selection bar simply resets; the guest can retry.
     } finally {
       setBatchDownloading(false)
       setSelectMode(false)

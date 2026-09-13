@@ -66,51 +66,33 @@ export default function SelfieFaceSearch({
     })
   }
 
-  // Sequential, one-file-at-a-time download (fetch as blob, save with its real
-  // filename, then the next) so every selected match reliably lands instead of
-  // the browser dropping all but the first from a burst of link clicks.
+  // Downloads the selected matches as a SINGLE .zip — one save that works on
+  // every platform (iOS included) without the browser blocking multiple files.
   async function handleBatchDownload() {
     if (selectedIds.size === 0 || batchDownloading) return
 
     setBatchDownloading(true)
 
-    const ids = Array.from(selectedIds)
-
     try {
-      for (const photoId of ids) {
-        try {
-          const res = await fetch(
-            `/api/photos/download?photoId=${encodeURIComponent(
-              photoId
-            )}&token=${encodeURIComponent(token)}`
-          )
+      const res = await fetch('/api/share/download-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, photoIds: Array.from(selectedIds) }),
+      })
 
-          if (!res.ok) continue
+      if (!res.ok) throw new Error('zip download failed')
 
-          const blob = await res.blob()
-
-          const disposition = res.headers.get('content-disposition') || ''
-          const match = disposition.match(
-            /filename\*?=(?:UTF-8''|")?([^";]+)/i
-          )
-          const filename = match
-            ? decodeURIComponent(match[1].replace(/"/g, ''))
-            : `ciiya-${photoId}.jpg`
-
-          const objectUrl = URL.createObjectURL(blob)
-          const link = document.createElement('a')
-          link.href = objectUrl
-          link.download = filename
-          document.body.appendChild(link)
-          link.click()
-          link.remove()
-          URL.revokeObjectURL(objectUrl)
-
-          await new Promise((resolve) => window.setTimeout(resolve, 350))
-        } catch {
-          // Skip a failed photo and continue with the rest.
-        }
-      }
+      const blob = await res.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = 'ciiya-photos.zip'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(objectUrl)
+    } catch {
+      // Swallow — selection resets and the guest can retry.
     } finally {
       setBatchDownloading(false)
       setSelectedIds(new Set())

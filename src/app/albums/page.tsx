@@ -11,6 +11,7 @@ import Image from 'next/image'
 import AlbumsListClient from '@/components/albums-list-client'
 import NotificationBell from '@/components/notification-bell'
 import styles from './albums.module.css'
+import { resolveAlbumCoverDeliveries } from '@/lib/storage/album-covers'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -36,6 +37,7 @@ export default async function AlbumsPage() {
     title,
     description,
     cover_url,
+    cover_photo_id,
     share_token,
     photo_count,
     view_count,
@@ -48,7 +50,7 @@ export default async function AlbumsPage() {
   .eq('owner_id', user.id)
   .order('created_at', { ascending: false })
 
-  const albums = albumsData ?? []
+  const albums = await resolveAlbumCoverDeliveries(supabase, albumsData ?? [])
 
   const unreadNotificationCount = await getUnreadNotificationCount(supabase, user.id)
 

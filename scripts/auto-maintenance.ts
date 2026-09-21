@@ -19,6 +19,11 @@ const steps: Step[] = [
     args: ['run', 'retry:failed'],
   },
   {
+    name: 'Retry Storage Deletions',
+    command: 'npm',
+    args: ['run', 'storage:retry-deletions'],
+  },
+  {
     name: 'Storage Cleanup Dry Run',
     command: 'npm',
     args: ['run', 'storage:cleanup'],

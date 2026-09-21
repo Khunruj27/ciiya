@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { resolvePhotoDelivery } from '@/lib/storage/delivery'
 
 export async function PATCH(req: NextRequest) {
   const supabase = await createServerSupabaseClient()
@@ -36,7 +37,9 @@ export async function PATCH(req: NextRequest) {
 
   const { data: photo, error: photoError } = await supabase
     .from('photos')
-    .select('id, album_id, owner_id')
+    .select(
+      'id, album_id, owner_id, user_id, storage_provider, storage_bucket, preview_url, thumbnail_url, preview_path, thumbnail_path, public_url, image_url'
+    )
     .eq('id', photoId)
     .eq('album_id', albumId)
     .eq('owner_id', user.id)
@@ -46,9 +49,23 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Photo not found' }, { status: 404 })
   }
 
+  const deliveryPhoto = resolvePhotoDelivery(photo)
+  const coverUrl =
+    deliveryPhoto.preview_url ||
+    deliveryPhoto.thumbnail_url ||
+    deliveryPhoto.public_url ||
+    deliveryPhoto.image_url
+
+  if (!coverUrl) {
+    return NextResponse.json(
+      { error: 'Photo preview is not ready yet' },
+      { status: 409 }
+    )
+  }
+
   const { error: updateError } = await supabase
     .from('albums')
-    .update({ cover_photo_id: photoId })
+    .update({ cover_photo_id: photoId, cover_url: coverUrl })
     .eq('id', albumId)
     .eq('owner_id', user.id)
 

@@ -30,12 +30,18 @@ async function main() {
 
   const dryRun = getBooleanEnv('STORAGE_CLEANUP_DRY_RUN', true)
   const limit = getNumberEnv('STORAGE_CLEANUP_LIMIT', 20)
+  const scanLimit = getNumberEnv('STORAGE_CLEANUP_SCAN_LIMIT', 10_000)
+  const provider =
+    process.env.STORAGE_CLEANUP_PROVIDER === 'r2' ? 'r2' : 'supabase'
+  const bucket = process.env.STORAGE_CLEANUP_BUCKET || 'albums'
+  const prefix = process.env.STORAGE_CLEANUP_PREFIX || ''
 
   const url = `${siteUrl}/api/storage/cleanup-orphan`
 
   console.log('[storage-cleanup-cron] calling:', url)
   console.log('[storage-cleanup-cron] dryRun:', dryRun)
   console.log('[storage-cleanup-cron] limit:', limit)
+  console.log('[storage-cleanup-cron] provider:', provider)
 
   const res = await fetch(url, {
     method: 'POST',
@@ -46,6 +52,10 @@ async function main() {
     body: JSON.stringify({
       dryRun,
       limit,
+      scanLimit,
+      provider,
+      bucket,
+      prefix,
     }),
   })
 

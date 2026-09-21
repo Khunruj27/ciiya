@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { getUserStoragePlan } from '@/lib/get-user-storage-plan'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
+import { resolvePhotoDelivery } from '@/lib/storage/delivery'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -336,10 +337,14 @@ async function findDuplicatePhoto(params: {
     .from('photos')
     .select(`
       id,
+      storage_provider,
+      storage_bucket,
       public_url,
       original_url,
       preview_url,
       thumbnail_url,
+      preview_path,
+      thumbnail_path,
       processing_status
     `)
     .eq('album_id', albumId)
@@ -356,7 +361,7 @@ async function findDuplicatePhoto(params: {
   throw new Error('Duplicate lookup failed')
 }
 
-  return data
+  return data ? resolvePhotoDelivery(data) : data
 }
 
 export async function POST(req: NextRequest) {

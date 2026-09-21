@@ -7,6 +7,18 @@ import { promisify } from 'node:util'
 
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import {
+  createStorageRef,
+  getR2Config,
+  getStorageAdapter,
+  isR2PhotoUploadEnabledForOwner,
+  type StorageProvider,
+} from '../src/lib/storage'
+import {
+  createCameraUploadPlan,
+  ensureCameraUploadObject,
+  hashCameraPhoto,
+} from '../src/lib/storage/camera-upload'
 
 dotenv.config({
   path: '.env.local',
@@ -54,6 +66,23 @@ type CameraUploadSession = {
   auto_publish: boolean | null
   status: string
   last_activity_at?: string | null
+}
+
+type CameraImportRow = {
+  id: string
+  local_path: string | null
+  file_size_bytes: number | string | null
+  status: string
+  storage_path: string | null
+  storage_provider: StorageProvider | null
+  storage_bucket: string | null
+  photo_upload_session_id: string | null
+}
+
+type CameraReservationRow = {
+  session_id: string
+  reserved_object_key: string
+  reserved_storage_bucket: string
 }
 
 type DetectedCamera = {
@@ -556,8 +585,10 @@ function getUploadSafeFileName(filename: string) {
   return `${Date.now()}-${crypto.randomUUID()}-${safeBaseName || 'photo'}.${ext}`
 }
 
-function getQuickFileHash(filename: string, size: number) {
-  return `${filename}-${size}`
+function firstRow<T>(value: unknown): T | null {
+  if (Array.isArray(value)) return (value[0] as T | undefined) || null
+  if (value && typeof value === 'object') return value as T
+  return null
 }
 
 function isStorageLimitError(error: unknown) {
@@ -571,20 +602,102 @@ function isStorageLimitError(error: unknown) {
   )
 }
 
+class CameraFinalizeError extends Error {
+  readonly cleanupSafe: boolean
+
+  constructor(message: string, cleanupSafe = false) {
+    super(message)
+    this.name = 'CameraFinalizeError'
+    this.cleanupSafe = cleanupSafe
+  }
+}
+
+async function reserveCameraR2Upload(params: {
+  session: CameraUploadSession
+  importId: string
+  storageBucket: string
+  storagePath: string
+  file: CameraFile
+  fileSizeBytes: number
+  fileHash: string
+}) {
+  const { data, error } = await supabase.rpc('reserve_camera_photo_upload', {
+    p_camera_import_id: params.importId,
+    p_storage_bucket: params.storageBucket,
+    p_object_key: params.storagePath,
+    p_original_file_name: params.file.filename,
+    p_content_type: 'image/jpeg',
+    p_expected_size_bytes: params.fileSizeBytes,
+    p_file_hash: params.fileHash,
+    p_requested_size: params.session.resize_mode || 'original',
+    p_preset_path: params.session.preset_path,
+    p_auto_face_scan: params.session.auto_face_scan ?? true,
+    p_auto_publish: params.session.auto_publish ?? false,
+  })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  const reservation = firstRow<CameraReservationRow>(data)
+
+  if (
+    !reservation?.session_id ||
+    reservation.reserved_storage_bucket !== params.storageBucket ||
+    reservation.reserved_object_key !== params.storagePath
+  ) {
+    throw new Error('Camera upload reservation does not match the object')
+  }
+
+  return reservation
+}
+
+async function cancelCameraR2Upload(
+  uploadSessionId: string,
+  cameraImportId: string
+) {
+  const { error } = await supabase.rpc('cancel_camera_photo_upload', {
+    p_session_id: uploadSessionId,
+    p_camera_import_id: cameraImportId,
+  })
+
+  if (error) {
+    console.error(
+      `[camera-live-import-worker] cancel reservation failed session=${uploadSessionId}:`,
+      error.message
+    )
+  }
+}
+
 async function finalizeCameraUpload(params: {
   session: CameraUploadSession
   file: CameraFile
   storagePath: string
   fileSizeBytes: number
+  fileHash: string
+  storageProvider: StorageProvider
+  storageBucket: string
+  cameraImportId: string
+  uploadSessionId: string | null
 }) {
-  const { session, file, storagePath, fileSizeBytes } = params
+  const {
+    session,
+    file,
+    storagePath,
+    fileSizeBytes,
+    fileHash,
+    storageProvider,
+    storageBucket,
+    cameraImportId,
+    uploadSessionId,
+  } = params
 
-    const siteUrl =
+  const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
 
   console.log('[camera-worker] finalize siteUrl=', siteUrl)
-  
-    const res = await fetch(`${siteUrl}/api/photos/finalize-upload`, {
+
+  const res = await fetch(`${siteUrl}/api/photos/finalize-upload`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -594,8 +707,12 @@ async function finalizeCameraUpload(params: {
       albumId: session.album_id,
       storagePath,
       fileName: file.filename,
-      fileHash: getQuickFileHash(file.filename, fileSizeBytes),
+      fileHash,
       fileSizeBytes,
+      storageProvider,
+      storageBucket,
+      uploadSessionId,
+      cameraImportId,
       size: session.resize_mode || 'original',
       categoryId: null,
       presetPath: session.preset_path,
@@ -607,7 +724,10 @@ async function finalizeCameraUpload(params: {
   const json = await res.json().catch(() => null)
 
   if (!res.ok || !json?.success) {
-    throw new Error(json?.error || json?.jobError || 'Finalize upload failed')
+    throw new CameraFinalizeError(
+      json?.error || json?.jobError || 'Finalize upload failed',
+      json?.cleanupSafe === true
+    )
   }
 
   return json
@@ -617,17 +737,43 @@ async function uploadLocalCameraFile(
   session: CameraUploadSession,
   file: CameraFile
 ) {
-
-  
-  let uploadedStoragePath: string | null = null
+  let uploadedRef: ReturnType<typeof createStorageRef> | null = null
+  let uploadSessionId: string | null = null
+  let finalized = false
   let fileBuffer: Buffer | null = null
 
-  const { data: importRow, error: importError } = await supabase
+  let { data: importRow, error: importError } = await supabase
     .from('camera_live_imports')
-    .select('id, local_path, file_size_bytes, status')
+    .select(
+      'id, local_path, file_size_bytes, status, storage_path, storage_provider, storage_bucket, photo_upload_session_id'
+    )
     .eq('album_id', session.album_id)
     .eq('filename', file.filename)
-    .maybeSingle()
+    .maybeSingle<CameraImportRow>()
+
+  if (
+    importError &&
+    /storage_provider|storage_bucket|photo_upload_session_id/i.test(
+      importError.message
+    )
+  ) {
+    const legacyResult = await supabase
+      .from('camera_live_imports')
+      .select('id, local_path, file_size_bytes, status, storage_path')
+      .eq('album_id', session.album_id)
+      .eq('filename', file.filename)
+      .maybeSingle()
+
+    importError = legacyResult.error
+    importRow = legacyResult.data
+      ? {
+          ...legacyResult.data,
+          storage_provider: null,
+          storage_bucket: null,
+          photo_upload_session_id: null,
+        }
+      : null
+  }
 
   if (importError || !importRow?.local_path) {
     console.error(
@@ -637,122 +783,175 @@ async function uploadLocalCameraFile(
     return
   }
 
-  if (
-  importRow.status === 'uploading' ||
-  importRow.status === 'finalizing' ||
-  importRow.status === 'uploaded' ||
-  importRow.status === 'done'
-) {
-  return
-}
+  if (importRow.status === 'done') return
 
   try {
-    const { error: markUploadingError } =
-  await supabase
-    .from('camera_live_imports')
-    .update({
-      status: 'uploading',
-      progress: 70,
-      error: null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', importRow.id)
-
-if (markUploadingError) {
-  throw new Error(
-    `Unable to mark camera import as uploading: ${markUploadingError.message}`
-  )
-}
-
-    fileBuffer = await fs.readFile(
-  importRow.local_path
-)
-    const fileSizeBytes = Number(importRow.file_size_bytes || fileBuffer.length)
-
-    const safeFileName = getUploadSafeFileName(file.filename)
-    const storagePath = `${session.owner_id}/${session.album_id}/original/${safeFileName}`
-
-    const { error: uploadError } = await supabase.storage
-      .from('albums')
-      .upload(storagePath, fileBuffer, {
-        contentType: 'image/jpeg',
-        upsert: false,
+    const { error: markUploadingError } = await supabase
+      .from('camera_live_imports')
+      .update({
+        status: 'uploading',
+        progress: 70,
+        error: null,
+        updated_at: new Date().toISOString(),
       })
+      .eq('id', importRow.id)
 
-    if (uploadError) {
-      throw new Error(uploadError.message)
+    if (markUploadingError) {
+      throw new Error(
+        `Unable to mark camera import as uploading: ${markUploadingError.message}`
+      )
     }
 
-    uploadedStoragePath = storagePath
+    fileBuffer = await fs.readFile(importRow.local_path)
+    const fileSizeBytes = fileBuffer.length
+    const fileHash = hashCameraPhoto(fileBuffer)
+    const useR2 = isR2PhotoUploadEnabledForOwner(session.owner_id)
+    const r2Bucket =
+      useR2 || importRow.storage_provider === 'r2'
+        ? getR2Config().bucketName
+        : null
 
-    const { error: markFinalizingError } =
-  await supabase
-    .from('camera_live_imports')
-    .update({
-      storage_path: storagePath,
+    const safeFileName = getUploadSafeFileName(file.filename)
+    const plan = createCameraUploadPlan({
+      ownerId: session.owner_id,
+      albumId: session.album_id,
+      importId: importRow.id,
+      useR2,
+      r2Bucket,
+      existingProvider: importRow.storage_provider,
+      existingBucket: importRow.storage_bucket,
+      existingKey: importRow.storage_path,
+      existingUploadSessionId: importRow.photo_upload_session_id,
+      legacySupabaseKey:
+        `${session.owner_id}/${session.album_id}/original/${safeFileName}`,
+    })
+
+    if (plan.provider === 'r2') {
+      const reservation = await reserveCameraR2Upload({
+        session,
+        importId: importRow.id,
+        storageBucket: plan.bucket,
+        storagePath: plan.key,
+        file,
+        fileSizeBytes,
+        fileHash,
+      })
+      uploadSessionId = reservation.session_id
+    }
+
+    const ref = createStorageRef({
+      provider: plan.provider,
+      bucket: plan.bucket,
+      key: plan.key,
+    })
+    const adapter = getStorageAdapter(plan.provider, {
+      supabase: plan.provider === 'supabase' ? supabase : undefined,
+    })
+
+    await ensureCameraUploadObject({ adapter, ref, body: fileBuffer })
+    uploadedRef = ref
+
+    const finalizingState = {
+      storage_path: plan.key,
+      ...(plan.provider === 'r2'
+        ? {
+            storage_provider: plan.provider,
+            storage_bucket: plan.bucket,
+            photo_upload_session_id: uploadSessionId,
+          }
+        : {}),
       status: 'finalizing',
       progress: 85,
       updated_at: new Date().toISOString(),
-    })
-    .eq('id', importRow.id)
+    }
+    const { error: markFinalizingError } = await supabase
+      .from('camera_live_imports')
+      .update(finalizingState)
+      .eq('id', importRow.id)
 
-if (markFinalizingError) {
-  throw new Error(
-    `Unable to save uploaded camera file state: ${markFinalizingError.message}`
-  )
-}
+    if (markFinalizingError) {
+      throw new Error(
+        `Unable to save uploaded camera file state: ${markFinalizingError.message}`
+      )
+    }
 
-    await finalizeCameraUpload({
+    const finalizeResult = await finalizeCameraUpload({
       session,
       file,
-      storagePath,
+      storagePath: plan.key,
       fileSizeBytes,
+      fileHash,
+      storageProvider: plan.provider,
+      storageBucket: plan.bucket,
+      cameraImportId: importRow.id,
+      uploadSessionId,
     })
+
+    if (
+      finalizeResult.duplicate === true &&
+      finalizeResult.idempotent !== true
+    ) {
+      await adapter.deleteObject(ref)
+      if (uploadSessionId) {
+        await cancelCameraR2Upload(uploadSessionId, importRow.id)
+      }
+      uploadedRef = null
+    }
+
+    finalized = true
+
+    const { error: markDoneError } = await supabase
+      .from('camera_live_imports')
+      .update({
+        status: 'done',
+        progress: 100,
+        error: null,
+        uploaded_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', importRow.id)
+
+    if (markDoneError) {
+      throw new Error(
+        `Unable to complete camera import: ${markDoneError.message}`
+      )
+    }
 
     await fs.unlink(importRow.local_path).catch(() => {})
-
-    const { error: markDoneError } =
-  await supabase
-    .from('camera_live_imports')
-    .update({
-      status: 'done',
-      progress: 100,
-      error: null,
-      uploaded_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', importRow.id)
-
-if (markDoneError) {
-  throw new Error(
-    `Unable to complete camera import: ${markDoneError.message}`
-  )
-}
-
-uploadedStoragePath = null
+    uploadedRef = null
 
     console.log(
-  `[camera-live-import-worker] DONE album=${session.album_id} file=${file.filename}`
-)
-    } catch (error) {
+      `[camera-live-import-worker] DONE album=${session.album_id} file=${file.filename}`
+    )
+  } catch (error) {
     const message =
       error instanceof Error ? error.message : 'Upload/finalize failed'
 
-    if (uploadedStoragePath) {
-  const { error: removeError } =
-    await supabase.storage
-      .from('albums')
-      .remove([uploadedStoragePath])
+    const canCleanup =
+      !finalized &&
+      uploadedRef &&
+      error instanceof CameraFinalizeError &&
+      error.cleanupSafe
 
-  if (removeError) {
-    console.error(
-      `[camera-live-import-worker] cleanup uploaded file failed path=${uploadedStoragePath}:`,
-      removeError.message
-    )
-  } else {
-    uploadedStoragePath = null
-  }
-}
+    if (canCleanup && uploadedRef) {
+      const cleanupRef = uploadedRef
+
+      try {
+        const adapter = getStorageAdapter(cleanupRef.provider, {
+          supabase: cleanupRef.provider === 'supabase' ? supabase : undefined,
+        })
+        await adapter.deleteObject(cleanupRef)
+        if (uploadSessionId) {
+          await cancelCameraR2Upload(uploadSessionId, importRow.id)
+        }
+        uploadedRef = null
+      } catch (cleanupError) {
+        console.error(
+          `[camera-live-import-worker] cleanup uploaded file failed path=${cleanupRef.key}:`,
+          cleanupError instanceof Error ? cleanupError.message : cleanupError
+        )
+      }
+    }
 
     await supabase
       .from('camera_live_imports')
@@ -770,11 +969,10 @@ uploadedStoragePath = null
       `[camera-live-import-worker] upload/finalize failed album=${session.album_id} filename=${file.filename}:`,
       message
     )
-
-    } finally {
-  fileBuffer?.fill(0)
-  fileBuffer = null
-}
+  } finally {
+    fileBuffer?.fill(0)
+    fileBuffer = null
+  }
 }
 
 const STUCK_IMPORT_AGE_MS = 60 * 1000
@@ -786,7 +984,7 @@ async function resumeStuckImports(session: CameraUploadSession) {
     .from('camera_live_imports')
     .select('camera_file_id, filename, status')
     .eq('album_id', session.album_id)
-    .in('status', ['pending', 'imported'])
+    .in('status', ['pending', 'imported', 'uploading', 'finalizing', 'uploaded'])
     .lt('updated_at', staleBefore)
 
   if (error) {

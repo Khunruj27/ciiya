@@ -6,6 +6,18 @@ import { createClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
 import type { Sharp } from 'sharp'
 import WebSocket from 'ws'
+import {
+  createStorageRef,
+  getStorageAdapter,
+  resolvePublicStorageUrl,
+  resolvePresetStorageRef,
+  type StorageAdapter,
+  type StorageProvider,
+} from '../src/lib/storage'
+import {
+  buildPhotoWorkerObjectPlan,
+  type PhotoWorkerSelectedSize,
+} from '../src/lib/storage/photo-worker-plan'
 
 function getSafeIntegerEnv(
   value: string | undefined,
@@ -62,8 +74,7 @@ sharp.cache({
   items: SHARP_CACHE_ITEMS,
 })
 
-type OutputSize = 'sd' | 'hd' | 'uhd' | 'original' | 'thumbnail' | 'preview'
-type SelectedSize = 'sd' | 'hd' | 'uhd' | 'original'
+type SelectedSize = PhotoWorkerSelectedSize
 
 type PhotoJob = {
   id: string
@@ -78,6 +89,25 @@ type PhotoJob = {
 
   retry_count?: number | null
   retries?: number | null
+}
+
+type PhotoStorageRecord = {
+  id: string
+  album_id?: string | null
+  owner_id?: string | null
+  user_id?: string | null
+  original_path?: string | null
+  storage_path?: string | null
+  storage_provider?: string | null
+  storage_bucket?: string | null
+  preset_path?: string | null
+}
+
+type PhotoStorageContext = {
+  provider: StorageProvider
+  bucket: string | null
+  originalPath: string
+  presetPath: string | null
 }
 
 type XmpAdjustments = {
@@ -159,6 +189,22 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
     transport: WebSocket as unknown as typeof globalThis.WebSocket,
   },
 })
+
+const storageAdapters = new Map<StorageProvider, StorageAdapter>()
+
+function getWorkerStorageAdapter(provider: StorageProvider) {
+  const existing = storageAdapters.get(provider)
+
+  if (existing) return existing
+
+  const adapter = getStorageAdapter(
+    provider,
+    provider === 'supabase' ? { supabase } : {}
+  )
+
+  storageAdapters.set(provider, adapter)
+  return adapter
+}
 
 const presetCache = new Map<string, XmpAdjustments | null>()
 
@@ -317,38 +363,36 @@ function getXmpNumber(xmp: string, key: string) {
 }
 
 async function loadXmpAdjustments(
-  presetPath?: string | null
+  presetPath: string | null | undefined,
+  ownerId: string,
+  albumId: string
 ): Promise<XmpAdjustments | null> {
   if (!presetPath) return null
 
-  if (presetCache.has(presetPath)) {
-    return presetCache.get(presetPath) || null
+  const cacheKey = `${ownerId}:${presetPath}`
+
+  if (presetCache.has(cacheKey)) {
+    return presetCache.get(cacheKey) || null
   }
 
   try {
-let result
+    const ref = await resolvePresetStorageRef({
+      supabase,
+      ownerId,
+      albumId,
+      presetPath,
+    })
 
-try {
-  result = await withRetry(() =>
-    supabase.storage
-      .from('albums')
-      .download(presetPath)
-  )
-} catch {
-  result = await withRetry(() =>
-    supabase.storage
-      .from('presets')
-      .download(presetPath)
-  )
-}
+    if (!ref) {
+      console.warn('[PhotoWorker] preset storage reference not found')
+      setPresetCache(cacheKey, null)
+      return null
+    }
 
-if (!result.data) {
-  console.warn('[PhotoWorker] preset download returned no data')
-  setPresetCache(presetPath, null)
-  return null
-}
-
-    const xmp = Buffer.from(await result.data.arrayBuffer()).toString('utf-8')
+    const buffer = await withRetry(() =>
+      getWorkerStorageAdapter(ref.provider).downloadObject(ref)
+    )
+    const xmp = buffer.toString('utf-8')
 
 const preset: XmpAdjustments = {
   exposure: getXmpNumber(xmp, 'Exposure2012'),
@@ -366,12 +410,12 @@ const preset: XmpAdjustments = {
 
     console.log('[PhotoWorker] loaded xmp:', preset)
 
-    setPresetCache(presetPath, preset)
+    setPresetCache(cacheKey, preset)
 
     return preset
   } catch (error) {
     console.error('[PhotoWorker] xmp parse failed:', error)
-    setPresetCache(presetPath, null)
+    setPresetCache(cacheKey, null)
     return null
   }
 }
@@ -467,13 +511,6 @@ function getWidthBySize(size: SelectedSize) {
   return 3000
 }
 
-function makeOutputPath(originalPath: string, folder: OutputSize) {
-  const parts = originalPath.split('/')
-  const name = parts[parts.length - 1]?.replace(/\.[^/.]+$/, '') || 'photo'
-
-  return `${parts[0]}/${parts[1]}/${folder}/${name}.jpg`
-}
-
 function contentTypeForStoragePath(path: string) {
   const ext = path.split('.').pop()?.toLowerCase() || ''
   if (ext === 'png') return 'image/png'
@@ -482,6 +519,119 @@ function contentTypeForStoragePath(path: string) {
   if (ext === 'heic' || ext === 'heif') return 'image/heic'
   if (ext === 'tif' || ext === 'tiff') return 'image/tiff'
   return 'image/jpeg'
+}
+
+function normalizeStorageProvider(value: unknown): StorageProvider {
+  if (value == null || value === '') return 'supabase'
+  if (value === 'supabase' || value === 'r2') return value
+
+  throw new Error(`Unsupported photo storage provider: ${String(value)}`)
+}
+
+async function getPhotoStorageContext(
+  job: PhotoJob
+): Promise<PhotoStorageContext> {
+  const result = await withRetry(() =>
+    supabase
+      .from('photos')
+      .select('*')
+      .eq('id', String(job.photo_id))
+      .maybeSingle()
+  )
+  const photo = result.data as PhotoStorageRecord | null
+
+  if (!photo) {
+    throw new Error('Photo record not found')
+  }
+
+  const ownerId = String(photo.owner_id || photo.user_id || '')
+  const albumId = String(photo.album_id || '')
+
+  if (ownerId !== String(job.owner_id) || albumId !== String(job.album_id)) {
+    throw new Error('Photo job owner or album does not match the photo record')
+  }
+
+  const provider = normalizeStorageProvider(photo.storage_provider)
+  const bucket = photo.storage_bucket?.trim() || null
+
+  if (provider === 'r2' && !bucket) {
+    throw new Error('R2 photo is missing storage_bucket')
+  }
+
+  return {
+    provider,
+    bucket,
+    originalPath: String(photo.original_path || job.original_path || ''),
+    presetPath:
+      photo.preset_path != null
+        ? String(photo.preset_path)
+        : job.preset_path != null
+          ? String(job.preset_path)
+          : null,
+  }
+}
+
+async function downloadPhotoOriginal(context: PhotoStorageContext) {
+  const adapter = getWorkerStorageAdapter(context.provider)
+  const buckets =
+    context.provider === 'r2'
+      ? [context.bucket!]
+      : context.bucket
+        ? [context.bucket]
+        : ['albums', 'originals']
+
+  for (const bucket of buckets) {
+    const ref = createStorageRef({
+      provider: context.provider,
+      bucket,
+      key: context.originalPath,
+    })
+    const head = await withRetry(() => adapter.objectExists(ref))
+
+    if (head.exists) {
+      return withRetry(() => adapter.downloadObject(ref))
+    }
+  }
+
+  throw new Error(`Cannot find original object: ${context.originalPath}`)
+}
+
+async function uploadPhotoObject(params: {
+  provider: StorageProvider
+  bucket: string
+  key: string
+  body: Buffer
+}) {
+  const adapter = getWorkerStorageAdapter(params.provider)
+  const ref = createStorageRef({
+    provider: params.provider,
+    bucket: params.bucket,
+    key: params.key,
+  })
+
+  return withRetry(() =>
+    adapter.uploadObject(ref, params.body, {
+      contentType: contentTypeForStoragePath(params.key),
+      cacheControl: 'no-store',
+      upsert: true,
+    })
+  )
+}
+
+function getPhotoPublicUrl(params: {
+  provider: StorageProvider
+  bucket: string
+  key: string
+}) {
+  const url = resolvePublicStorageUrl(params)
+
+  if (!url) {
+    throw new Error(
+      `${params.provider} public preview delivery is not configured`
+    )
+  }
+
+  return url
 }
 
 async function updatePhoto(
@@ -769,11 +919,15 @@ async function queueFaceJob(params: {
   job: PhotoJob
   imagePath: string
   imageUrl: string
+  storageProvider: StorageProvider
+  storageBucket: string
 }) {
   const {
     job,
     imagePath,
     imageUrl,
+    storageProvider,
+    storageBucket,
   } = params
 
   const photoId = String(job.photo_id)
@@ -839,6 +993,8 @@ async function queueFaceJob(params: {
                 source: 'photo-worker',
                 photoId,
                 albumId,
+                storageProvider,
+                storageBucket,
               },
               updated_at:
                 new Date().toISOString(),
@@ -927,6 +1083,8 @@ async function queueFaceJob(params: {
               source: 'photo-worker',
               photoId,
               albumId,
+              storageProvider,
+              storageBucket,
             },
             updated_at:
               new Date().toISOString(),
@@ -1139,167 +1297,150 @@ async function processPhotoJob(job: PhotoJob) {
     const startedAt = Date.now()
 
     if (!job.photo_id) throw new Error('Missing photo_id')
-    if (!job.original_path) throw new Error('Missing original_path')
 
-const originalPath = String(job.original_path)
+    const storageContext = await getPhotoStorageContext(job)
+    const originalPath = storageContext.originalPath
+    const presetPath = storageContext.presetPath
+    const allowedPrefix = `${job.owner_id}/${job.album_id}/`
 
-const presetPath =
-  job.preset_path != null
-    ? String(job.preset_path)
-    : null
+    if (
+      !originalPath ||
+      hasUnsafeStoragePath(originalPath) ||
+      !originalPath.startsWith(`${allowedPrefix}original/`)
+    ) {
+      throw new Error('Invalid original_path')
+    }
 
-const allowedPrefix = `${job.owner_id}/${job.album_id}/`
+    const allowedAlbumPresetPrefix = `${allowedPrefix}presets/`
+    const allowedUserPresetPrefix = `${job.owner_id}/presets/`
 
-if (
-  hasUnsafeStoragePath(originalPath) ||
-  !originalPath.startsWith(`${allowedPrefix}original/`)
-) {
-  throw new Error('Invalid original_path')
-}
-
-const allowedAlbumPresetPrefix =
-  `${allowedPrefix}presets/`
-
-const allowedUserPresetPrefix =
-  `${job.owner_id}/presets/`
-
-if (
-  presetPath &&
-  (
-    hasUnsafeStoragePath(presetPath) ||
-    (
-      !presetPath.startsWith(
-        allowedAlbumPresetPrefix
-      ) &&
-      !presetPath.startsWith(
-        allowedUserPresetPrefix
-      )
-    )
-  )
-) {
-  throw new Error('Invalid preset_path')
-}
+    if (
+      presetPath &&
+      (hasUnsafeStoragePath(presetPath) ||
+        (!presetPath.startsWith(allowedAlbumPresetPrefix) &&
+          !presetPath.startsWith(allowedUserPresetPrefix)))
+    ) {
+      throw new Error('Invalid preset_path')
+    }
 
     await updatePhoto(String(job.photo_id), {
       processing_status: 'processing',
       processing_progress: 10,
     })
 
-    // Downloading the original and loading the XMP preset are both
-    // independent reads — no need to wait on one before starting the
-    // other.
-    // A fresh upload's original lands in the public `albums` bucket; once a
-    // photo is processed the original is relocated to the private `originals`
-    // bucket (see below), so a reprocess must look there too. Try albums first,
-    // then fall back to originals.
-    const [downloadResult, xmpPreset] = await Promise.all([
-      withRetry(async () => {
-        const primary = await supabase.storage.from('albums').download(originalPath)
-        if (primary.data) return primary
-        const fallback = await supabase.storage
-          .from('originals')
-          .download(originalPath)
-        return fallback.data ? fallback : primary
-      }),
-      loadXmpAdjustments(presetPath),
+    // The photo row is canonical for provider, bucket, and path. This prevents
+    // stale or forged queue payloads from redirecting a worker to another
+    // owner's object. Preset metadata resolves its provider independently so
+    // legacy Supabase and new R2 jobs can share the same queue.
+    const [originalBuffer, xmpPreset] = await Promise.all([
+      downloadPhotoOriginal(storageContext),
+      loadXmpAdjustments(presetPath, String(job.owner_id), String(job.album_id)),
     ])
 
-    if (downloadResult.error || !downloadResult.data) {
-      throw new Error(downloadResult.error?.message || 'Cannot download original file')
-    }
+    jobBuffers.add(originalBuffer)
 
-    const originalBuffer = Buffer.from(
-  await downloadResult.data.arrayBuffer()
-)
-
-jobBuffers.add(originalBuffer)
-
-    console.log('[PhotoWorker] preset path:', job.preset_path || null)
+    console.log('[PhotoWorker] preset path:', presetPath)
+    console.log('[PhotoWorker] storage provider:', storageContext.provider)
 
     const selectedSize = normalizeSelectedSize(
-  String(job.size || 'hd').toLowerCase()
-)
-
-const previewWidth = getWidthBySize(selectedSize)
-
-const shouldCreateProcessedPreview =
-  selectedSize !== 'original' || Boolean(xmpPreset)
-
-// When the delivery size is `original` AND a preset is applied, the processed
-// full-res goes to a DISTINCT `preview/` path — never the raw's `original/`
-// path. Overwriting the raw at the same URL used to leave clients (and the
-// CDN) showing the cached un-preset version in the lightbox while the grid
-// (a separate thumbnail path) showed the preset. A no-preset original keeps
-// serving the raw itself (nothing to process).
-const previewPath =
-  selectedSize === 'original' && xmpPreset
-    ? makeOutputPath(originalPath, 'preview')
-    : selectedSize === 'original'
-      ? originalPath
-      : makeOutputPath(originalPath, selectedSize)
-
-const thumbnailPath = makeOutputPath(originalPath, 'thumbnail')
-
-// Preview and thumbnail are independent Sharp passes over the same
-// source buffer — run them concurrently instead of one after another.
-const [previewBuffer, thumbnailBuffer] = await Promise.all([
-  selectedSize === 'original' && xmpPreset
-    ? generateOriginalProcessedBuffer(originalBuffer, 90, xmpPreset)
-    : selectedSize === 'original'
-      ? Promise.resolve(originalBuffer)
-      : generateResizeBuffer(originalBuffer, previewWidth, 86, xmpPreset),
-  applyXmpAdjustments(sharp(originalBuffer).rotate(), xmpPreset)
-    .resize(480, 480, {
-      fit: 'cover',
+      String(job.size || 'hd').toLowerCase()
+    )
+    const objectPlan = buildPhotoWorkerObjectPlan({
+      provider: storageContext.provider,
+      originalKey: originalPath,
+      selectedSize,
+      hasPreset: Boolean(xmpPreset),
     })
-    .jpeg({
-      quality: 76,
-      mozjpeg: true,
-    })
-    .toBuffer(),
-])
+    const previewPath = objectPlan.previewKey
+    const thumbnailPath = objectPlan.thumbnailKey
+    const outputBucket =
+      storageContext.provider === 'r2' ? storageContext.bucket! : 'albums'
+    const previewWidth =
+      storageContext.provider === 'r2'
+        ? getWidthBySize('hd')
+        : getWidthBySize(selectedSize)
 
-jobBuffers.add(previewBuffer)
-jobBuffers.add(thumbnailBuffer)
-
-// Same for the blur placeholder — it only needs originalBuffer/
-// previewBuffer, so kick it off now rather than waiting on the
-// uploads below.
-const blurSourceBufferPromise =
-  selectedSize === 'original'
-    ? applyXmpAdjustments(sharp(originalBuffer).rotate(), xmpPreset)
+    // R2 keeps a dedicated, CDN-deliverable preview even when customers may
+    // download the private original. Supabase retains its legacy behavior.
+    const [previewBuffer, thumbnailBuffer] = await Promise.all([
+      storageContext.provider === 'r2'
+        ? generateResizeBuffer(originalBuffer, previewWidth, 86, xmpPreset)
+        : selectedSize === 'original' && xmpPreset
+          ? generateOriginalProcessedBuffer(originalBuffer, 90, xmpPreset)
+          : selectedSize === 'original'
+            ? Promise.resolve(originalBuffer)
+            : generateResizeBuffer(originalBuffer, previewWidth, 86, xmpPreset),
+      applyXmpAdjustments(sharp(originalBuffer).rotate(), xmpPreset)
+        .resize(480, 480, {
+          fit: 'cover',
+        })
         .jpeg({
-          quality: 60,
+          quality: 76,
           mozjpeg: true,
         })
-        .toBuffer()
-    : Promise.resolve(previewBuffer)
+        .toBuffer(),
+    ])
 
-// Preview and thumbnail uploads are independent network calls too.
-const uploadResults = await Promise.all([
-  withRetry(() =>
-    supabase.storage.from('albums').upload(thumbnailPath, thumbnailBuffer, {
-      contentType: 'image/jpeg',
-      cacheControl: 'no-store',
-      upsert: true,
-    })
-  ),
-  shouldCreateProcessedPreview
-    ? withRetry(() =>
-        supabase.storage.from('albums').upload(previewPath, previewBuffer, {
-          contentType: 'image/jpeg',
-          cacheControl: 'no-store',
-          upsert: true,
+    jobBuffers.add(previewBuffer)
+    jobBuffers.add(thumbnailBuffer)
+
+    let selectedDerivativeBuffer: Buffer | null = null
+
+    if (objectPlan.selectedDerivativeKey) {
+      selectedDerivativeBuffer =
+        selectedSize === 'hd'
+          ? previewBuffer
+          : await generateResizeBuffer(
+              originalBuffer,
+              getWidthBySize(selectedSize),
+              86,
+              xmpPreset
+            )
+      jobBuffers.add(selectedDerivativeBuffer)
+    }
+
+    const blurSourceBufferPromise =
+      storageContext.provider === 'r2' || selectedSize !== 'original'
+        ? Promise.resolve(previewBuffer)
+        : applyXmpAdjustments(sharp(originalBuffer).rotate(), xmpPreset)
+            .jpeg({
+              quality: 60,
+              mozjpeg: true,
+            })
+            .toBuffer()
+
+    const uploadTasks = [
+      uploadPhotoObject({
+        provider: storageContext.provider,
+        bucket: outputBucket,
+        key: thumbnailPath,
+        body: thumbnailBuffer,
+      }),
+    ]
+
+    if (objectPlan.shouldUploadPreview) {
+      uploadTasks.push(
+        uploadPhotoObject({
+          provider: storageContext.provider,
+          bucket: outputBucket,
+          key: previewPath,
+          body: previewBuffer,
         })
       )
-    : null,
-])
+    }
 
-for (const result of uploadResults) {
-  if (result?.error) {
-    throw new Error(result.error.message)
-  }
-}
+    if (objectPlan.selectedDerivativeKey && selectedDerivativeBuffer) {
+      uploadTasks.push(
+        uploadPhotoObject({
+          provider: storageContext.provider,
+          bucket: outputBucket,
+          key: objectPlan.selectedDerivativeKey,
+          body: selectedDerivativeBuffer,
+        })
+      )
+    }
+
+    await Promise.all(uploadTasks)
 
     // Relocate the full-resolution original into the private `originals`
     // bucket so a leaked public URL can never expose it. Skip when the
@@ -1309,53 +1450,52 @@ for (const result of uploadResults) {
     // before the final commit so a failure retries the whole job with the
     // original still intact in `albums`.
     const originalWasRelocated =
-      selectedSize !== 'original' && previewPath !== originalPath
+      objectPlan.shouldRelocateSupabaseOriginal
 
     // `original`-size delivery with a preset: the baked full-res now lives at a
     // distinct `preview/` path and is the client-facing deliverable, so the raw
     // `original/` upload is superseded (it was overwritten before this fix, so
     // nothing new is lost by removing it) and its public copy can go.
     const processedOriginalReplacesRaw =
-      selectedSize === 'original' &&
-      Boolean(xmpPreset) &&
-      previewPath !== originalPath
+      objectPlan.shouldReplaceSupabaseRawOriginal
 
     if (originalWasRelocated) {
-      const relocateUpload = await withRetry(() =>
-        supabase.storage.from('originals').upload(originalPath, originalBuffer, {
-          contentType: contentTypeForStoragePath(originalPath),
-          cacheControl: 'no-store',
-          upsert: true,
-        })
-      )
-
-      if (relocateUpload.error) {
-        throw new Error(
-          `Failed to relocate original: ${relocateUpload.error.message}`
-        )
-      }
+      await uploadPhotoObject({
+        provider: 'supabase',
+        bucket: 'originals',
+        key: originalPath,
+        body: originalBuffer,
+      })
 
       // Best-effort: the file is now safely private; if the public copy
       // lingers, storage cleanup or a later reprocess removes it.
-      const relocateRemove = await supabase.storage
-        .from('albums')
-        .remove([originalPath])
-
-      if (relocateRemove.error) {
+      try {
+        await getWorkerStorageAdapter('supabase').deleteObject(
+          createStorageRef({
+            provider: 'supabase',
+            bucket: 'albums',
+            key: originalPath,
+          })
+        )
+      } catch (error) {
         console.warn(
           '[PhotoWorker] original public copy not removed:',
-          relocateRemove.error.message
+          error instanceof Error ? error.message : error
         )
       }
     } else if (processedOriginalReplacesRaw) {
-      const rawRemove = await supabase.storage
-        .from('albums')
-        .remove([originalPath])
-
-      if (rawRemove.error) {
+      try {
+        await getWorkerStorageAdapter('supabase').deleteObject(
+          createStorageRef({
+            provider: 'supabase',
+            bucket: 'albums',
+            key: originalPath,
+          })
+        )
+      } catch (error) {
         console.warn(
           '[PhotoWorker] raw original copy not removed:',
-          rawRemove.error.message
+          error instanceof Error ? error.message : error
         )
       }
     }
@@ -1364,20 +1504,22 @@ for (const result of uploadResults) {
       processing_progress: 60,
     })
 
-    const { data: previewUrlData } = supabase.storage
-      .from('albums')
-      .getPublicUrl(previewPath)
+    const previewUrl = getPhotoPublicUrl({
+      provider: storageContext.provider,
+      bucket: outputBucket,
+      key: previewPath,
+    })
+    const thumbnailUrl = getPhotoPublicUrl({
+      provider: storageContext.provider,
+      bucket: outputBucket,
+      key: thumbnailPath,
+    })
 
-    const { data: thumbUrlData } = supabase.storage
-      .from('albums')
-      .getPublicUrl(thumbnailPath)
+    const blurSourceBuffer = await blurSourceBufferPromise
 
-const blurSourceBuffer = await blurSourceBufferPromise
+    jobBuffers.add(blurSourceBuffer)
 
-jobBuffers.add(blurSourceBuffer)
-
-const blurDataUrl =
-  await generateBlurDataUrl(blurSourceBuffer)
+    const blurDataUrl = await generateBlurDataUrl(blurSourceBuffer)
 
     // Only the size the user actually picked gets generated up front —
     // an sd/uhd selection no longer also forces a full extra 3000px
@@ -1386,10 +1528,18 @@ const blurDataUrl =
     // lazily on request instead of eagerly for every photo.
     let hdPath: string | null = null
     let hdUrl: string | null = null
+    let sdPath: string | null = null
+    const sdUrl: string | null = null
+    let uhdPath: string | null = null
+    const uhdUrl: string | null = null
 
-    if (selectedSize === 'hd') {
+    if (storageContext.provider === 'r2') {
+      if (selectedSize === 'sd') sdPath = objectPlan.selectedDerivativeKey
+      if (selectedSize === 'hd') hdPath = objectPlan.selectedDerivativeKey
+      if (selectedSize === 'uhd') uhdPath = objectPlan.selectedDerivativeKey
+    } else if (selectedSize === 'hd') {
       hdPath = previewPath
-      hdUrl = previewUrlData.publicUrl
+      hdUrl = previewUrl
     }
 
     const stillOwnsJob = await isJobStillOwned(job)
@@ -1404,27 +1554,38 @@ if (!stillOwnsJob) {
 }
 
     const finalPayload = {
-      public_url: previewUrlData.publicUrl,
+      public_url: previewUrl,
+      image_url: previewUrl,
       storage_path: previewPath,
 
       preview_path: previewPath,
-      preview_url: previewUrlData.publicUrl,
+      preview_url: previewUrl,
+      preview_size_bytes: objectPlan.shouldUploadPreview
+        ? previewBuffer.byteLength
+        : 0,
 
       thumbnail_path: thumbnailPath,
-      thumbnail_url: thumbUrlData.publicUrl,
+      thumbnail_url: thumbnailUrl,
+      thumbnail_size_bytes: thumbnailBuffer.byteLength,
 
+      sd_path: sdPath,
+      sd_url: sdUrl,
       hd_path: hdPath,
       hd_url: hdUrl,
+      uhd_path: uhdPath,
+      uhd_url: uhdUrl,
 
       // The original moved to the private bucket, so its old public URL is
       // gone. Downloads read it server-side by original_path (kept as-is).
-      ...(originalWasRelocated ? { original_url: null } : {}),
+      ...(storageContext.provider === 'r2' || originalWasRelocated
+        ? { original_url: null }
+        : {}),
 
       // The raw `original/` file was removed in favour of the baked full-res at
       // previewPath, so point original_path/url there — that is now the
       // downloadable "original" deliverable (with the preset baked in).
       ...(processedOriginalReplacesRaw
-        ? { original_path: previewPath, original_url: previewUrlData.publicUrl }
+        ? { original_path: previewPath, original_url: previewUrl }
         : {}),
 
       blur_data_url: blurDataUrl,
@@ -1450,8 +1611,11 @@ if (!stillOwnsJob) {
 
     await queueFaceJob({
       job,
-      imagePath: hdPath || previewPath,
-      imageUrl: hdUrl || previewUrlData.publicUrl,
+      imagePath:
+        storageContext.provider === 'r2' ? previewPath : hdPath || previewPath,
+      imageUrl: previewUrl,
+      storageProvider: storageContext.provider,
+      storageBucket: outputBucket,
     })
 
     const jobMarkedDone = await markJobDone(job)

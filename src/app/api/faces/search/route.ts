@@ -7,6 +7,7 @@ import {
 } from '@/lib/share-access'
 import { recordShareEvent } from '@/lib/share-events'
 import { rateLimit, type RateLimitResult } from '@/lib/rate-limit'
+import { resolvePhotoDelivery } from '@/lib/storage/delivery'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,9 +26,13 @@ const NO_STORE_HEADERS = {
 
 type PhotoRecord = {
   id?: string | null
+  storage_provider?: string | null
+  storage_bucket?: string | null
   public_url?: string | null
   preview_url?: string | null
   thumbnail_url?: string | null
+  preview_path?: string | null
+  thumbnail_path?: string | null
   image_url?: string | null
   filename?: string | null
   file_name?: string | null
@@ -217,9 +222,13 @@ export async function POST(req: NextRequest) {
         box_height,
         photos:photo_id (
           id,
+          storage_provider,
+          storage_bucket,
           public_url,
           preview_url,
           thumbnail_url,
+          preview_path,
+          thumbnail_path,
           image_url,
           filename,
           file_name
@@ -249,9 +258,10 @@ export async function POST(req: NextRequest) {
         const targetDescriptor = normalizeDescriptor(face.descriptor)
         const score = distance(descriptor, targetDescriptor)
 
-        const photo = Array.isArray(face.photos)
+        const rawPhoto = Array.isArray(face.photos)
           ? face.photos[0]
           : face.photos
+        const photo = rawPhoto ? resolvePhotoDelivery(rawPhoto) : null
 
         const imageUrl =
           photo?.preview_url ||

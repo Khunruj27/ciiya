@@ -7,6 +7,7 @@ export type Portfolio = {
   location: string | null
   hero_photo_url: string | null
   gallery_urls: string[]
+  storage_asset_ids: string[]
   gallery_layout:
     | 'carousel'
     | 'grid'

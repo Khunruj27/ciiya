@@ -1,5 +1,33 @@
 import type { NextConfig } from 'next'
 
+const r2RemotePatterns: Array<{
+  protocol: 'http' | 'https'
+  hostname: string
+  port?: string
+  pathname: string
+}> = []
+
+try {
+  const configuredPublicUrl = process.env.R2_PUBLIC_BASE_URL?.trim()
+
+  if (configuredPublicUrl) {
+    const url = new URL(configuredPublicUrl)
+    const pathname = url.pathname.replace(/\/+$/, '')
+
+    if (url.protocol === 'https:' || url.hostname === 'localhost') {
+      r2RemotePatterns.push({
+        protocol: url.protocol === 'http:' ? 'http' : 'https',
+        hostname: url.hostname,
+        port: url.port || undefined,
+        pathname: pathname ? `${pathname}/**` : '/**',
+      })
+    }
+  }
+} catch {
+  // Runtime storage validation reports malformed R2 URLs. Keep the build
+  // usable so a bad optional CDN value cannot hide the actionable error.
+}
+
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
@@ -20,6 +48,7 @@ const nextConfig: NextConfig = {
         hostname: 'lh3.googleusercontent.com',
         pathname: '/**',
       },
+      ...r2RemotePatterns,
     ],
   },
 
@@ -89,6 +118,15 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/api/photos/finalize-upload',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, max-age=0',
+          },
+        ],
+      },
+      {
+        source: '/api/photos/upload-url',
         headers: [
           {
             key: 'Cache-Control',

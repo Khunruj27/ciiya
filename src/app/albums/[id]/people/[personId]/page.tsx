@@ -3,6 +3,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { resolvePhotoDeliveries } from '@/lib/storage/delivery'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,9 +17,13 @@ type PageProps = {
 type PhotoRow = {
   id: string
   filename: string | null
+  storage_provider: string | null
+  storage_bucket: string | null
   public_url: string | null
   preview_url: string | null
   thumbnail_url: string | null
+  preview_path: string | null
+  thumbnail_path: string | null
   blur_data_url: string | null
   created_at: string | null
 }
@@ -99,9 +104,13 @@ export default async function PersonPhotosPage({ params }: PageProps) {
             `
             id,
             filename,
+            storage_provider,
+            storage_bucket,
             public_url,
             preview_url,
             thumbnail_url,
+            preview_path,
+            thumbnail_path,
             blur_data_url,
             created_at
             `
@@ -115,7 +124,9 @@ export default async function PersonPhotosPage({ params }: PageProps) {
     throw new Error(photosError.message)
   }
 
-  const photos = (photosData || []) as PhotoRow[]
+  const photos = resolvePhotoDeliveries(
+    (photosData || []) as PhotoRow[]
+  )
 
   return (
     <main className="min-h-screen bg-ground px-5 pt-[max(32px,env(safe-area-inset-top))] pb-[max(120px,calc(env(safe-area-inset-bottom)+40px))] text-ink sm:px-8 lg:px-12">

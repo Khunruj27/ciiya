@@ -25,6 +25,7 @@ import { useI18n } from '@/components/i18n-provider'
 import { refreshPortfolioCache } from '@/app/portfolio/actions'
 import { resizeImageToJpeg } from '@/lib/resize-image'
 import type { Portfolio } from '@/lib/portfolio-types'
+import type { PortfolioStorageAsset } from '@/lib/storage'
 import {
   getPortfolioTemplate,
   PORTFOLIO_TEMPLATES,
@@ -34,11 +35,10 @@ import PortfolioGalleryLayout, { UPDATED_GALLERY_LAYOUTS } from '@/components/po
 
 type Props = {
   initial: Portfolio
-  userId: string
+  initialAssets: PortfolioStorageAsset[]
   origin: string
 }
 
-const STORAGE_BUCKET = 'albums'
 const MAX_GALLERY = 24
 const MAX_SOURCE_FILE_BYTES = 30 * 1024 * 1024
 
@@ -87,14 +87,25 @@ const GALLERY_LAYOUTS: {
 
 export default function PortfolioEditor({
   initial,
-  userId,
+  initialAssets,
   origin,
 }: Props) {
   const { t } = useI18n()
   const supabase = useMemo(() => createClient(), [])
 
-  const [form, setForm] = useState<Portfolio>(initial)
-  const [saved, setSaved] = useState<Portfolio>(initial)
+  const normalizedInitial = useMemo(
+    () => ({
+      ...initial,
+      gallery_urls: initial.gallery_urls || [],
+      storage_asset_ids: initial.storage_asset_ids || [],
+    }),
+    [initial]
+  )
+  const [form, setForm] = useState<Portfolio>(normalizedInitial)
+  const [saved, setSaved] = useState<Portfolio>(normalizedInitial)
+  const [storageAssets, setStorageAssets] = useState<PortfolioStorageAsset[]>(
+    initialAssets
+  )
   const [status, setStatus] = useState<'idle' | 'saving' | 'done'>('idle')
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
@@ -148,34 +159,92 @@ export default function PortfolioEditor({
     setError('')
   }
 
-  /*
-   * Uploads go straight from the browser to storage. The bucket's policy
-   * only lets an authenticated user write under a folder named by their own
-   * id, so the path leads with userId; anything else is rejected server-side
-   * no matter what the client sends.
-   */
+  // The server signs one owner-scoped key; the browser sends the resized JPEG
+  // directly to storage, then asks the server to HEAD-verify it.
+  async function putSignedObject(
+    upload: {
+      url: string
+      method: 'PUT'
+      headers: Record<string, string>
+    },
+    blob: Blob,
+    onProgress: (value: number) => void
+  ) {
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open(upload.method, upload.url)
+
+      for (const [name, value] of Object.entries(upload.headers || {})) {
+        xhr.setRequestHeader(name, value)
+      }
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable && event.total > 0) {
+          onProgress(Math.round((event.loaded / event.total) * 100))
+        }
+      }
+      xhr.onerror = () => reject(new Error('Portfolio upload failed'))
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve()
+        else reject(new Error(`Portfolio upload failed (${xhr.status})`))
+      }
+      xhr.send(blob)
+    })
+  }
+
   async function uploadImage(
     file: File,
     onProgress: (value: number) => void
-  ): Promise<string> {
+  ): Promise<PortfolioStorageAsset> {
     if (!file.type.startsWith('image/')) throw new Error('unsupported image')
     if (file.size > MAX_SOURCE_FILE_BYTES) throw new Error('image too large')
 
     onProgress(8)
     const blob = await resizeImageToJpeg(file)
     onProgress(35)
-    const path = `${userId}/portfolio/${crypto.randomUUID()}.jpg`
-
     onProgress(48)
-    const { error: uploadError } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .upload(path, blob, { contentType: 'image/jpeg', upsert: false })
+    const signResponse = await fetch('/api/portfolio/assets/upload-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: file.name,
+        fileSizeBytes: blob.size,
+        contentType: 'image/jpeg',
+      }),
+    })
+    const signed = await signResponse.json().catch(() => null)
 
-    if (uploadError) throw uploadError
-    onProgress(100)
+    if (!signResponse.ok || !signed?.assetId || !signed?.upload?.url) {
+      throw new Error(signed?.error || 'Unable to prepare Portfolio upload')
+    }
 
-    return supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path).data
-      .publicUrl
+    try {
+      await putSignedObject(signed.upload, blob, (value) => {
+        onProgress(48 + Math.round(value * 0.44))
+      })
+      onProgress(94)
+
+      const finalizeResponse = await fetch('/api/portfolio/assets/finalize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assetId: signed.assetId }),
+      })
+      const finalized = await finalizeResponse.json().catch(() => null)
+
+      if (!finalizeResponse.ok || !finalized?.asset?.url) {
+        throw new Error(finalized?.error || 'Unable to finalize Portfolio upload')
+      }
+
+      onProgress(100)
+      return finalized.asset as PortfolioStorageAsset
+    } catch (error) {
+      await fetch('/api/portfolio/assets/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assetIds: [signed.assetId] }),
+      }).catch(() => {})
+      throw error
+    }
   }
 
   async function handleHeroFile(event: React.ChangeEvent<HTMLInputElement>) {
@@ -193,11 +262,22 @@ export default function PortfolioEditor({
     setUploadLabel(t.pe.preparingCover)
     setError('')
     try {
-      const url = await uploadImage(file, (value) => {
+      const asset = await uploadImage(file, (value) => {
         setUploadProgress(value)
         setUploadLabel(value < 40 ? t.pe.resizingImage : value < 100 ? t.pe.uploadingCover : t.pe.coverUploaded)
       })
-      set('hero_photo_url', url)
+      setStorageAssets((current) => [
+        ...current.filter((item) => item.id !== asset.id),
+        asset,
+      ])
+      setForm((current) => ({
+        ...current,
+        hero_photo_url: asset.url,
+        storage_asset_ids: [
+          ...new Set([...(current.storage_asset_ids || []), asset.id]),
+        ],
+      }))
+      setStatus('idle')
     } catch {
       setError(t.pe.uploadFailed)
     } finally {
@@ -236,7 +316,7 @@ export default function PortfolioEditor({
     setUploadProgress(0)
     setUploadLabel(t.pe.preparingPhotos)
     setError('')
-    const uploaded: string[] = []
+    const uploaded: PortfolioStorageAsset[] = []
     try {
       const selectedFiles = files.slice(0, room)
       for (const [index, file] of selectedFiles.entries()) {
@@ -256,15 +336,45 @@ export default function PortfolioEditor({
       }
       setForm((current) => ({
         ...current,
-        gallery_urls: [...current.gallery_urls, ...uploaded].slice(0, MAX_GALLERY),
+        gallery_urls: [
+          ...current.gallery_urls,
+          ...uploaded.map((asset) => asset.url),
+        ].slice(0, MAX_GALLERY),
+        storage_asset_ids: [
+          ...new Set([
+            ...(current.storage_asset_ids || []),
+            ...uploaded.map((asset) => asset.id),
+          ]),
+        ],
       }))
+      setStorageAssets((current) => [
+        ...current,
+        ...uploaded.filter(
+          (asset) => !current.some((item) => item.id === asset.id)
+        ),
+      ])
       setStatus('idle')
     } catch {
       if (uploaded.length > 0) {
         setForm((current) => ({
           ...current,
-          gallery_urls: [...current.gallery_urls, ...uploaded].slice(0, MAX_GALLERY),
+          gallery_urls: [
+            ...current.gallery_urls,
+            ...uploaded.map((asset) => asset.url),
+          ].slice(0, MAX_GALLERY),
+          storage_asset_ids: [
+            ...new Set([
+              ...(current.storage_asset_ids || []),
+              ...uploaded.map((asset) => asset.id),
+            ]),
+          ],
         }))
+        setStorageAssets((current) => [
+          ...current,
+          ...uploaded.filter(
+            (asset) => !current.some((item) => item.id === asset.id)
+          ),
+        ])
         setStatus('idle')
       }
       setError(
@@ -303,27 +413,17 @@ export default function PortfolioEditor({
     set('gallery_urls', arrayMove(form.gallery_urls, oldIndex, newIndex))
   }
 
-  async function removeOwnedPortfolioFiles(urls: string[]) {
-    const marker = `/storage/v1/object/public/${STORAGE_BUCKET}/`
-    const paths = urls
-      .map((url) => {
-        try {
-          const pathname = new URL(url).pathname
-          const index = pathname.indexOf(marker)
-          if (index < 0) return null
-          return decodeURIComponent(pathname.slice(index + marker.length))
-        } catch {
-          return null
-        }
-      })
-      .filter(
-        (path): path is string =>
-          path !== null && path.startsWith(`${userId}/portfolio/`)
-      )
+  async function removeOwnedPortfolioFiles(params: {
+    assetIds: string[]
+    legacyUrls: string[]
+  }) {
+    if (params.assetIds.length === 0 && params.legacyUrls.length === 0) return
 
-    if (paths.length > 0) {
-      await supabase.storage.from(STORAGE_BUCKET).remove(paths)
-    }
+    await fetch('/api/portfolio/assets/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    })
   }
 
   /*
@@ -356,6 +456,22 @@ export default function PortfolioEditor({
     setError('')
 
     try {
+      const referencedUrls = new Set(
+        [form.hero_photo_url, ...form.gallery_urls].filter(Boolean)
+      )
+      const nextAssets = storageAssets.filter((asset) =>
+        referencedUrls.has(asset.url)
+      )
+      const knownAssetIds = new Set(storageAssets.map((asset) => asset.id))
+      const unresolvedAssetIds = (form.storage_asset_ids || []).filter(
+        (id) => !knownAssetIds.has(id)
+      )
+      const nextAssetIds = [
+        ...new Set([
+          ...unresolvedAssetIds,
+          ...nextAssets.map((asset) => asset.id),
+        ]),
+      ]
       const next = await persist({
         slug: form.slug,
         display_name: form.display_name || null,
@@ -364,6 +480,7 @@ export default function PortfolioEditor({
         location: form.location || null,
         hero_photo_url: form.hero_photo_url || null,
         gallery_urls: form.gallery_urls,
+        storage_asset_ids: nextAssetIds,
         gallery_layout: form.gallery_layout || 'carousel',
         contact_line: form.contact_line || null,
         contact_phone: form.contact_phone || null,
@@ -395,10 +512,25 @@ export default function PortfolioEditor({
       const filesNoLongerUsed = [...new Set(previouslyReferenced)].filter(
         (url) => !stillReferenced.has(url)
       )
-      await removeOwnedPortfolioFiles(filesNoLongerUsed).catch(() => {})
+      const staleAssets = storageAssets.filter(
+        (asset) => !stillReferenced.has(asset.url)
+      )
+      const knownAssetUrls = new Set(storageAssets.map((asset) => asset.url))
+      const legacyUrls = filesNoLongerUsed.filter(
+        (url) => !knownAssetUrls.has(url)
+      )
+      await removeOwnedPortfolioFiles({
+        assetIds: staleAssets.map((asset) => asset.id),
+        legacyUrls,
+      }).catch(() => {})
 
-      setSaved(next)
-      setForm(next)
+      const normalizedNext = {
+        ...next,
+        storage_asset_ids: nextAssetIds,
+      }
+      setStorageAssets(nextAssets)
+      setSaved(normalizedNext)
+      setForm(normalizedNext)
       setStatus('done')
     } catch (caught) {
       const code = (caught as { code?: string })?.code

@@ -8,11 +8,18 @@ import {
   isAlbumPubliclyVisible,
 } from '@/lib/share-access'
 import { recordShareEvent, removeShareEvent } from '@/lib/share-events'
+import { getUserStoragePlan } from '@/lib/get-user-storage-plan'
+import {
+  createStorageRef,
+  getStorageAdapter,
+  getStorageAssetTarget,
+  guestMomentImageKey,
+  type StorageObjectRef,
+} from '@/lib/storage'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const STORAGE_BUCKET = 'guest-moments'
 const MAX_FILES = 4
 const MAX_FILE_BYTES = 12 * 1024 * 1024
 const MAX_TOTAL_BYTES = 32 * 1024 * 1024
@@ -121,7 +128,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const uploadedPaths: string[] = []
+  const uploadedAssets: Array<{ id: string; ref: StorageObjectRef }> = []
+  let momentCommitted = false
 
   try {
     const contentLength = Number(req.headers.get('content-length') || 0)
@@ -190,29 +198,84 @@ export async function POST(req: NextRequest) {
       sources.push(source)
     }
 
-    const imageUrls: string[] = []
-
-    for (const source of sources) {
-      const optimized = await sharp(source, { limitInputPixels: 40_000_000 })
+    const optimizedImages = await Promise.all(
+      sources.map((source) =>
+        sharp(source, { limitInputPixels: 40_000_000 })
         .rotate()
         .resize({ width: 2200, height: 2200, fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 86, progressive: true, mozjpeg: true })
         .toBuffer()
+      )
+    )
+    const optimizedTotalBytes = optimizedImages.reduce(
+      (sum, image) => sum + image.length,
+      0
+    )
+    const ownerId = String(access.album.owner_id || access.album.user_id || '')
 
-      const path = `${access.album.id}/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.jpg`
-      const { error: uploadError } = await access.supabase.storage
-        .from(STORAGE_BUCKET)
-        .upload(path, optimized, {
-          contentType: 'image/jpeg',
-          cacheControl: '31536000',
-          upsert: false,
+    if (!ownerId) throw new Error('Album owner is missing')
+
+    const plan = await getUserStoragePlan(ownerId, access.supabase)
+
+    if (optimizedTotalBytes > plan.remainingBytes) {
+      return NextResponse.json(
+        { error: 'This gallery has reached its storage limit.' },
+        { status: 403 }
+      )
+    }
+
+    const target = getStorageAssetTarget('guest_moment', ownerId)
+    const adapter = getStorageAdapter(target.provider, {
+      supabase: target.provider === 'supabase' ? access.supabase : undefined,
+    })
+    const imageUrls: string[] = []
+    const uploadedPaths: string[] = []
+
+    for (const optimized of optimizedImages) {
+      const path = guestMomentImageKey({
+        ownerId,
+        albumId: access.album.id,
+        objectId: crypto.randomUUID(),
+      })
+      const ref = createStorageRef({ ...target, key: path })
+
+      await adapter.uploadObject(ref, optimized, {
+        contentType: 'image/jpeg',
+        cacheControl: 'public, max-age=31536000, immutable',
+        upsert: false,
+      })
+
+      const publicUrl = adapter.getPublicUrl(ref)
+      if (!publicUrl) {
+        await adapter.deleteObject(ref).catch(() => {})
+        throw new Error('Public delivery is not configured for Guest Moments')
+      }
+
+      const { data: asset, error: assetError } = await access.supabase
+        .from('storage_assets')
+        .insert({
+          owner_id: ownerId,
+          album_id: access.album.id,
+          asset_kind: 'guest_moment',
+          storage_provider: ref.provider,
+          storage_bucket: ref.bucket,
+          object_key: ref.key,
+          public_url: publicUrl,
+          content_type: 'image/jpeg',
+          size_bytes: optimized.length,
+          status: 'active',
         })
+        .select('id')
+        .single()
 
-      if (uploadError) throw new Error(uploadError.message)
+      if (assetError || !asset) {
+        await adapter.deleteObject(ref).catch(() => {})
+        throw new Error(assetError?.message || 'Unable to save storage metadata')
+      }
+
+      uploadedAssets.push({ id: asset.id, ref })
       uploadedPaths.push(path)
-
-      const { data: publicUrl } = access.supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path)
-      imageUrls.push(publicUrl.publicUrl)
+      imageUrls.push(publicUrl)
     }
 
     const { data: moment, error: insertError } = await access.supabase
@@ -223,6 +286,7 @@ export async function POST(req: NextRequest) {
         message: message || null,
         image_urls: imageUrls,
         storage_paths: uploadedPaths,
+        storage_asset_ids: uploadedAssets.map((asset) => asset.id),
         guest_key_hash: guestKeyHash,
         status: 'published',
       })
@@ -230,6 +294,7 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (insertError) throw new Error(insertError.message)
+    momentCommitted = true
 
     await recordShareEvent(access.supabase, {
       albumId: access.album.id,
@@ -241,15 +306,28 @@ export async function POST(req: NextRequest) {
         photo_count: imageUrls.length,
         moment_id: moment.id,
       },
+    }).catch((eventError) => {
+      console.error('[share/moments] event recording failed:', eventError)
     })
 
     return NextResponse.json({ success: true, moment }, { status: 201 })
   } catch (error) {
     console.error('[share/moments] upload failed:', error)
 
-    if (uploadedPaths.length > 0) {
+    if (!momentCommitted && uploadedAssets.length > 0) {
       try {
-        await getSupabaseAdmin().storage.from(STORAGE_BUCKET).remove(uploadedPaths)
+        for (const asset of uploadedAssets) {
+          await getStorageAdapter(asset.ref.provider)
+            .deleteObject(asset.ref)
+            .catch(() => {})
+        }
+        await getSupabaseAdmin()
+          .from('storage_assets')
+          .delete()
+          .in(
+            'id',
+            uploadedAssets.map((asset) => asset.id)
+          )
       } catch {}
     }
 

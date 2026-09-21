@@ -3,6 +3,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { resolvePhotoDeliveries } from '@/lib/storage/delivery'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,13 +66,13 @@ export default async function AlbumPeoplePage({ params }: PageProps) {
       ? await supabaseAdmin
           .from('photos')
           .select(
-            'id, filename, public_url, preview_url, thumbnail_url, blur_data_url'
+            'id, filename, storage_provider, storage_bucket, public_url, preview_url, thumbnail_url, preview_path, thumbnail_path, blur_data_url'
           )
           .in('id', previewIds)
       : { data: [] }
 
   const photoMap = new Map(
-    (previewPhotos || []).map((photo) => [photo.id, photo])
+    resolvePhotoDeliveries(previewPhotos || []).map((photo) => [photo.id, photo])
   )
 
   const people = (clusters || []).map((cluster) => ({

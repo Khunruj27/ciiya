@@ -12,6 +12,12 @@ import AlbumCameraStatus from '@/components/album-camera-status'
 import UploadPhotoModal from '@/components/upload-photo-modal'
 import AlbumPhotoGridPreview from '@/components/album-photo-grid-preview'
 import { getServerDictionary } from '@/lib/i18n-server'
+import {
+  isR2PhotoUploadEnabledForOwner,
+  resolveAlbumCoverDeliveries,
+  resolvePhotoDeliveries,
+  resolvePublicStorageUrl,
+} from '@/lib/storage'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -57,16 +63,20 @@ export default async function AlbumDetailPage({ params }: PageProps) {
 
   if (!user) redirect('/login')
 
-  const { data: album, error: albumError } = await supabase
+  const r2UploadsEnabled = isR2PhotoUploadEnabledForOwner(user.id)
+
+  const { data: albumData, error: albumError } = await supabase
     .from('albums')
     .select('*')
     .eq('id', id)
     .eq('owner_id', user.id)
     .single()
 
-  if (albumError || !album) {
+  if (albumError || !albumData) {
     redirect('/albums')
   }
+
+  const [album] = await resolveAlbumCoverDeliveries(supabase, [albumData])
 
   let shareToken = album.share_token
 
@@ -95,9 +105,13 @@ export default async function AlbumDetailPage({ params }: PageProps) {
         id,
         album_id,
         owner_id,
+        storage_provider,
+        storage_bucket,
         filename,
         file_name,
         original_path,
+        preview_path,
+        thumbnail_path,
         public_url,
         preview_url,
         thumbnail_url,
@@ -126,7 +140,7 @@ export default async function AlbumDetailPage({ params }: PageProps) {
       .order('created_at', { ascending: true }),
     supabase
       .from('camera_live_imports')
-      .select('id, filename, status, progress, storage_path, created_at')
+      .select('id, filename, status, progress, storage_provider, storage_bucket, storage_path, created_at')
       .eq('album_id', id)
       .in('status', ['imported', 'uploading', 'finalizing'])
       .order('created_at', { ascending: false })
@@ -137,7 +151,7 @@ export default async function AlbumDetailPage({ params }: PageProps) {
 
   if (photosError) throw new Error(photosError.message)
 
-  const photos = photosData ?? []
+  const photos = resolvePhotoDeliveries(photosData ?? [])
   const photoCount = photos.length
 
   const { count: peopleCount } = peopleCountResult
@@ -186,10 +200,11 @@ const cameraProcessingGridItems = (cameraImportsData || [])
     status: String(item.status || 'imported'),
     progress: Number(item.progress || 0),
     created_at: String(item.created_at || new Date().toISOString()),
-    previewUrl: item.storage_path
-      ? supabase.storage.from('albums').getPublicUrl(item.storage_path).data
-          .publicUrl
-      : null,
+    previewUrl: resolvePublicStorageUrl({
+      provider: item.storage_provider === 'r2' ? 'r2' : 'supabase',
+      bucket: item.storage_bucket || 'albums',
+      key: item.storage_path,
+    }),
   }))
 
   return (
@@ -254,7 +269,7 @@ const cameraProcessingGridItems = (cameraImportsData || [])
              {album.description || t.albums.noDescription}
           </p>
           <div className={styles.primaryActions}>
-            <UploadPhotoModal albumId={album.id} categories={categories} initialAutoFaceScan={album.auto_face_scan} initialAutoPublish={album.auto_publish} showLabel />
+            <UploadPhotoModal albumId={album.id} categories={categories} initialAutoFaceScan={album.auto_face_scan} initialAutoPublish={album.auto_publish} r2UploadsEnabled={r2UploadsEnabled} showLabel />
           </div>
           </div>
           </section>
@@ -346,6 +361,7 @@ const cameraProcessingGridItems = (cameraImportsData || [])
     categories={categories}
     initialAutoFaceScan={album.auto_face_scan}
     initialAutoPublish={album.auto_publish}
+    r2UploadsEnabled={r2UploadsEnabled}
   />
 </div>
 

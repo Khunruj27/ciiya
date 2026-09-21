@@ -8,6 +8,7 @@ import NotificationsList, {
   type AnnouncementNotification,
   type NotificationItem,
 } from '@/components/notifications-list'
+import { resolvePhotoDelivery } from '@/lib/storage/delivery'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -28,7 +29,7 @@ export default async function NotificationsPage() {
       read_at,
       created_at,
       albums:album_id(title, cover_url),
-      photos:photo_id(thumbnail_url, preview_url)
+      photos:photo_id(storage_provider, storage_bucket, thumbnail_url, preview_url, thumbnail_path, preview_path)
     `).eq('owner_id', user.id).order('created_at', { ascending: false }).limit(100),
     supabase.from('announcements').select(`
       id,
@@ -47,7 +48,8 @@ export default async function NotificationsPage() {
 
   const items: NotificationItem[] = (data || []).map((row) => {
     const album = Array.isArray(row.albums) ? row.albums[0] : row.albums
-    const photo = Array.isArray(row.photos) ? row.photos[0] : row.photos
+    const rawPhoto = Array.isArray(row.photos) ? row.photos[0] : row.photos
+    const photo = rawPhoto ? resolvePhotoDelivery(rawPhoto) : null
     return {
       id: row.id,
       albumId: row.album_id,

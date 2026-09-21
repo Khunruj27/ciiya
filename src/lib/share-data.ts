@@ -1,5 +1,7 @@
 import { unstable_cache } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
+import { resolvePhotoDeliveries } from '@/lib/storage/delivery'
+import { resolveAlbumCoverDeliveries } from '@/lib/storage/album-covers'
 
 // Public share-page reads run entirely server-side with the service role, and
 // the share token is validated in application code before any read (every
@@ -33,6 +35,7 @@ export const getSharedAlbumByToken = unstable_cache(
         title,
         description,
         cover_url,
+        cover_photo_id,
         share_token,
         view_count,
         created_at,
@@ -47,7 +50,10 @@ export const getSharedAlbumByToken = unstable_cache(
 
     if (error) throw new Error(error.message)
 
-    return data
+    if (!data) return null
+
+    const [album] = await resolveAlbumCoverDeliveries(supabase, [data])
+    return album
   },
   ['shared-album-by-token'],
   { revalidate: SHARE_CACHE_TTL_SECONDS }
@@ -147,9 +153,7 @@ export const getSharedAlbumPhotos = unstable_cache(
           .from('photos')
           .select('id', { count: 'exact', head: true })
           .eq('album_id', albumId)
-          .eq('processing_status', 'done')
-          .not('preview_url', 'is', null)
-          .not('thumbnail_url', 'is', null),
+          .eq('processing_status', 'done'),
 
         supabase
           .from('photos')
@@ -158,6 +162,8 @@ export const getSharedAlbumPhotos = unstable_cache(
             id,
             album_id,
             filename,
+            storage_provider,
+            storage_bucket,
             public_url,
             original_url,
             preview_url,
@@ -182,8 +188,6 @@ export const getSharedAlbumPhotos = unstable_cache(
           )
           .eq('album_id', albumId)
           .eq('processing_status', 'done')
-          .not('preview_url', 'is', null)
-          .not('thumbnail_url', 'is', null)
           .order('created_at', { ascending: false })
           .limit(SHARE_PAGE_SIZE),
       ])
@@ -191,7 +195,9 @@ export const getSharedAlbumPhotos = unstable_cache(
     if (photosError) throw new Error(photosError.message)
 
     return {
-      photos: photos ?? [],
+      photos: resolvePhotoDeliveries(photos ?? []).filter(
+        (photo) => photo.preview_url && photo.thumbnail_url
+      ),
       photoCount: photoCountResult || 0,
     }
   },
@@ -254,9 +260,13 @@ export const getSharedAlbumPhotosPage = unstable_cache(
         id,
         album_id,
         filename,
+        storage_provider,
+        storage_bucket,
         public_url,
         preview_url,
         thumbnail_url,
+        preview_path,
+        thumbnail_path,
         blur_data_url,
         created_at,
         view_count,
@@ -265,8 +275,6 @@ export const getSharedAlbumPhotosPage = unstable_cache(
       )
       .eq('album_id', albumId)
       .eq('processing_status', 'done')
-      .not('preview_url', 'is', null)
-      .not('thumbnail_url', 'is', null)
       .order('created_at', { ascending: false })
       .limit(limit + 1)
 
@@ -278,7 +286,7 @@ export const getSharedAlbumPhotosPage = unstable_cache(
 
     if (error) throw new Error(error.message)
 
-    const rows = data ?? []
+    const rows = resolvePhotoDeliveries(data ?? [])
     const hasMore = rows.length > limit
 
     return {

@@ -136,6 +136,161 @@ before update on public.albums
 for each row execute procedure public.set_updated_at();
 
 -- =========================================================
+-- PROVIDER-NEUTRAL NON-PHOTO STORAGE ASSETS
+-- Portfolio images, Guest Moments, and private XMP presets.
+-- =========================================================
+
+create table if not exists public.storage_assets (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  album_id uuid references public.albums(id) on delete cascade,
+  asset_kind text not null,
+  storage_provider text not null default 'supabase',
+  storage_bucket text not null,
+  object_key text not null,
+  public_url text,
+  original_name text,
+  content_type text not null,
+  size_bytes bigint not null,
+  status text not null default 'uploading',
+  expires_at timestamptz,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint storage_assets_kind_check
+    check (asset_kind in ('portfolio', 'guest_moment', 'preset')),
+  constraint storage_assets_provider_check
+    check (storage_provider in ('supabase', 'r2')),
+  constraint storage_assets_status_check
+    check (status in ('uploading', 'active', 'failed', 'deleting')),
+  constraint storage_assets_size_check check (size_bytes > 0),
+  constraint storage_assets_object_unique
+    unique (storage_provider, storage_bucket, object_key)
+);
+
+create index if not exists idx_storage_assets_owner_kind_created
+on public.storage_assets(owner_id, asset_kind, created_at desc);
+
+create index if not exists idx_storage_assets_album_kind_created
+on public.storage_assets(album_id, asset_kind, created_at desc)
+where album_id is not null;
+
+create index if not exists idx_storage_assets_expiry
+on public.storage_assets(expires_at)
+where status = 'uploading';
+
+drop trigger if exists trg_storage_assets_updated_at on public.storage_assets;
+create trigger trg_storage_assets_updated_at
+before update on public.storage_assets
+for each row execute procedure public.set_updated_at();
+
+alter table public.storage_assets enable row level security;
+
+drop policy if exists "storage_assets_select_own" on public.storage_assets;
+create policy "storage_assets_select_own"
+on public.storage_assets for select to authenticated
+using (auth.uid() = owner_id);
+
+revoke insert, update, delete on table public.storage_assets
+from anon, authenticated;
+grant select on table public.storage_assets to authenticated;
+
+-- Portfolios are defined by the dedicated Portfolio migration in existing
+-- deployments. Keep this canonical schema additive when that feature table
+-- is present without making storage bootstrap depend on Portfolio rollout.
+alter table if exists public.portfolios
+  add column if not exists storage_asset_ids uuid[] not null default '{}';
+
+alter table if exists public.portfolios
+  drop constraint if exists portfolios_storage_asset_count;
+alter table if exists public.portfolios
+  add constraint portfolios_storage_asset_count
+  check (
+    array_length(storage_asset_ids, 1) is null
+    or array_length(storage_asset_ids, 1) <= 25
+  );
+
+create or replace function public.update_storage_after_asset_change()
+returns trigger
+language plpgsql
+as $$
+declare
+  old_owner uuid;
+  new_owner uuid;
+  old_charge bigint := 0;
+  new_charge bigint := 0;
+begin
+  if tg_op <> 'INSERT' then
+    old_owner := old.owner_id;
+    if old.status in ('uploading', 'active', 'deleting') then
+      old_charge := old.size_bytes;
+    end if;
+  end if;
+
+  if tg_op <> 'DELETE' then
+    new_owner := new.owner_id;
+    if new.status in ('uploading', 'active', 'deleting') then
+      new_charge := new.size_bytes;
+    end if;
+  end if;
+
+  if old_owner is not null and (new_owner is null or old_owner <> new_owner) then
+    update public.user_storage_usage
+    set
+      used_bytes = greatest(0, used_bytes - old_charge),
+      storage_used_bytes = greatest(0, storage_used_bytes - old_charge),
+      updated_at = now()
+    where user_id = old_owner;
+    old_charge := 0;
+  end if;
+
+  if new_owner is not null and (old_owner is null or old_owner <> new_owner) then
+    insert into public.user_storage_usage (
+      user_id,
+      used_bytes,
+      storage_used_bytes,
+      updated_at
+    )
+    values (new_owner, new_charge, new_charge, now())
+    on conflict (user_id)
+    do update set
+      used_bytes = public.user_storage_usage.used_bytes + new_charge,
+      storage_used_bytes = public.user_storage_usage.storage_used_bytes + new_charge,
+      updated_at = now();
+  elsif new_owner is not null and new_charge <> old_charge then
+    update public.user_storage_usage
+    set
+      used_bytes = greatest(0, used_bytes + new_charge - old_charge),
+      storage_used_bytes = greatest(
+        0,
+        storage_used_bytes + new_charge - old_charge
+      ),
+      updated_at = now()
+    where user_id = new_owner;
+  elsif tg_op = 'DELETE' and old_owner is not null and old_charge > 0 then
+    update public.user_storage_usage
+    set
+      used_bytes = greatest(0, used_bytes - old_charge),
+      storage_used_bytes = greatest(0, storage_used_bytes - old_charge),
+      updated_at = now()
+    where user_id = old_owner;
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_storage_asset_usage on public.storage_assets;
+create trigger trg_storage_asset_usage
+after insert or update of owner_id, size_bytes, status or delete
+on public.storage_assets
+for each row execute procedure public.update_storage_after_asset_change();
+
+-- =========================================================
 -- CATEGORIES
 -- =========================================================
 
@@ -166,6 +321,20 @@ create table if not exists public.photos (
 
   storage_path text,
   original_path text,
+  storage_provider text not null default 'supabase',
+  storage_bucket text,
+  storage_version integer not null default 1,
+  migration_status text not null default 'pending',
+  migration_attempts integer not null default 0,
+  migration_error text,
+  migration_started_at timestamptz,
+  migration_completed_at timestamptz,
+  source_cleanup_status text not null default 'not_applicable',
+  source_cleanup_after timestamptz,
+  source_cleanup_attempts integer not null default 0,
+  source_cleanup_error text,
+  source_cleanup_started_at timestamptz,
+  source_cleanup_completed_at timestamptz,
 
   public_url text,
   image_url text,
@@ -233,6 +402,20 @@ alter table public.photos
   add column if not exists file_hash text,
   add column if not exists storage_path text,
   add column if not exists original_path text,
+  add column if not exists storage_provider text not null default 'supabase',
+  add column if not exists storage_bucket text,
+  add column if not exists storage_version integer not null default 1,
+  add column if not exists migration_status text not null default 'pending',
+  add column if not exists migration_attempts integer not null default 0,
+  add column if not exists migration_error text,
+  add column if not exists migration_started_at timestamptz,
+  add column if not exists migration_completed_at timestamptz,
+  add column if not exists source_cleanup_status text not null default 'not_applicable',
+  add column if not exists source_cleanup_after timestamptz,
+  add column if not exists source_cleanup_attempts integer not null default 0,
+  add column if not exists source_cleanup_error text,
+  add column if not exists source_cleanup_started_at timestamptz,
+  add column if not exists source_cleanup_completed_at timestamptz,
   add column if not exists public_url text,
   add column if not exists image_url text,
   add column if not exists original_url text,
@@ -264,12 +447,74 @@ alter table public.photos
   add column if not exists face_scan_error text,
   add column if not exists faces_count integer default 0;
 
+alter table public.photos
+  drop constraint if exists photos_storage_provider_check,
+  drop constraint if exists photos_storage_version_check,
+  drop constraint if exists photos_migration_status_check,
+  drop constraint if exists photos_migration_attempts_check,
+  drop constraint if exists photos_source_cleanup_status_check,
+  drop constraint if exists photos_source_cleanup_attempts_check,
+  drop constraint if exists photos_r2_storage_bucket_check,
+  add constraint photos_storage_provider_check
+    check (storage_provider in ('supabase', 'r2')),
+  add constraint photos_storage_version_check
+    check (storage_version >= 1),
+  add constraint photos_migration_status_check
+    check (
+      migration_status in (
+        'pending',
+        'copying',
+        'verifying',
+        'completed',
+        'failed'
+      )
+    ),
+  add constraint photos_migration_attempts_check
+    check (migration_attempts >= 0),
+  add constraint photos_source_cleanup_status_check
+    check (
+      source_cleanup_status in (
+        'not_applicable',
+        'retained',
+        'deleting',
+        'completed',
+        'failed'
+      )
+    ),
+  add constraint photos_source_cleanup_attempts_check
+    check (source_cleanup_attempts >= 0),
+  add constraint photos_r2_storage_bucket_check
+    check (
+      storage_provider <> 'r2'
+      or (
+        storage_bucket is not null
+        and length(storage_bucket) between 3 and 63
+        and storage_bucket ~ '^[a-z0-9][a-z0-9.-]*[a-z0-9]$'
+        and storage_bucket not like '%..%'
+      )
+    );
+
 create index if not exists idx_photos_album on public.photos(album_id);
 create index if not exists idx_photos_user on public.photos(user_id);
 create index if not exists idx_photos_owner on public.photos(owner_id);
 create index if not exists idx_photos_hash on public.photos(file_hash);
 create index if not exists idx_photos_album_created on public.photos(album_id, created_at desc);
 create index if not exists idx_photos_album_done on public.photos(album_id, processing_status, created_at desc);
+create index if not exists idx_photos_storage_migration_queue
+on public.photos(migration_status, created_at, id)
+where storage_provider = 'supabase'
+and migration_status in ('pending', 'copying', 'verifying', 'failed');
+
+create index if not exists idx_photos_storage_migration_recovery
+on public.photos(migration_status, migration_started_at, created_at, id)
+where storage_provider = 'supabase'
+and migration_status in ('copying', 'verifying', 'failed');
+
+create index if not exists idx_photos_source_cleanup_claim
+on public.photos(source_cleanup_status, source_cleanup_after, id)
+where storage_provider = 'r2'
+and migration_status = 'completed'
+and source_cleanup_status in ('retained', 'deleting', 'failed');
 
 create index if not exists idx_photos_public_gallery
 on public.photos(album_id, processing_status, created_at desc)
@@ -285,6 +530,539 @@ drop trigger if exists trg_photos_updated_at on public.photos;
 create trigger trg_photos_updated_at
 before update on public.photos
 for each row execute procedure public.set_updated_at();
+
+create or replace function public.schedule_photo_source_cleanup()
+returns trigger
+language plpgsql
+set search_path = public
+as $function$
+begin
+  if new.storage_provider = 'r2'
+     and new.migration_status = 'completed'
+     and coalesce(new.migration_attempts, 0) > 0
+     and coalesce(new.source_cleanup_status, 'not_applicable') = 'not_applicable'
+  then
+    new.source_cleanup_status := 'retained';
+    new.source_cleanup_after :=
+      coalesce(new.migration_completed_at, now()) + interval '30 days';
+    new.source_cleanup_error := null;
+    new.source_cleanup_started_at := null;
+    new.source_cleanup_completed_at := null;
+  end if;
+
+  return new;
+end;
+$function$;
+
+drop trigger if exists trg_schedule_photo_source_cleanup on public.photos;
+create trigger trg_schedule_photo_source_cleanup
+before insert or update of storage_provider, migration_status, migration_completed_at
+on public.photos
+for each row execute procedure public.schedule_photo_source_cleanup();
+
+update public.photos
+set
+  source_cleanup_status = 'retained',
+  source_cleanup_after =
+    coalesce(migration_completed_at, updated_at, created_at) + interval '30 days',
+  source_cleanup_error = null,
+  source_cleanup_started_at = null,
+  source_cleanup_completed_at = null
+where storage_provider = 'r2'
+  and migration_status = 'completed'
+  and coalesce(migration_attempts, 0) > 0
+  and source_cleanup_status = 'not_applicable';
+
+-- =========================================================
+-- PHOTO UPLOAD SESSIONS (R2 DIRECT UPLOAD RESERVATIONS)
+-- =========================================================
+
+create table if not exists public.photo_upload_sessions (
+  id uuid primary key default gen_random_uuid(),
+  client_upload_id uuid not null,
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  album_id uuid not null references public.albums(id) on delete cascade,
+  category_id uuid references public.categories(id) on delete set null,
+  photo_id uuid references public.photos(id) on delete set null,
+  storage_provider text not null default 'r2',
+  storage_bucket text not null,
+  object_key text not null,
+  original_file_name text not null,
+  content_type text not null,
+  expected_size_bytes bigint not null,
+  reserved_bytes bigint not null,
+  file_hash text not null,
+  requested_size text not null default 'original',
+  preset_path text,
+  auto_face_scan boolean not null default true,
+  auto_publish boolean not null default false,
+  status text not null default 'issued',
+  error text,
+  expires_at timestamptz not null default (now() + interval '15 minutes'),
+  completed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint photo_upload_sessions_provider_check check (storage_provider = 'r2'),
+  constraint photo_upload_sessions_status_check check (
+    status in ('issued', 'uploading', 'finalizing', 'completed', 'failed', 'cancelled', 'expired')
+  ),
+  constraint photo_upload_sessions_content_type_check check (
+    content_type in ('image/jpeg', 'image/png', 'image/webp')
+  ),
+  constraint photo_upload_sessions_size_check check (
+    expected_size_bytes between 1 and 209715200
+  ),
+  constraint photo_upload_sessions_reserved_size_check check (
+    reserved_bytes >= expected_size_bytes
+  ),
+  constraint photo_upload_sessions_requested_size_check check (
+    requested_size in ('sd', 'hd', 'uhd', 'original')
+  ),
+  constraint photo_upload_sessions_hash_check check (file_hash ~ '^[a-f0-9]{64}$'),
+  constraint photo_upload_sessions_bucket_check check (
+    length(storage_bucket) between 3 and 63
+    and storage_bucket ~ '^[a-z0-9][a-z0-9.-]*[a-z0-9]$'
+    and storage_bucket not like '%..%'
+  ),
+  constraint photo_upload_sessions_owner_client_unique unique (owner_id, client_upload_id),
+  constraint photo_upload_sessions_object_unique unique (storage_provider, storage_bucket, object_key)
+);
+
+create index if not exists idx_photo_upload_sessions_owner_active
+  on public.photo_upload_sessions(owner_id, status, expires_at);
+create index if not exists idx_photo_upload_sessions_album_created
+  on public.photo_upload_sessions(album_id, created_at desc);
+create index if not exists idx_photo_upload_sessions_expiry
+  on public.photo_upload_sessions(expires_at)
+  where status in ('issued', 'uploading', 'finalizing');
+
+drop trigger if exists trg_photo_upload_sessions_updated_at on public.photo_upload_sessions;
+create trigger trg_photo_upload_sessions_updated_at
+before update on public.photo_upload_sessions
+for each row execute procedure public.set_updated_at();
+
+alter table public.photo_upload_sessions enable row level security;
+drop policy if exists "photo_upload_sessions_select_own" on public.photo_upload_sessions;
+create policy "photo_upload_sessions_select_own"
+on public.photo_upload_sessions for select to authenticated
+using (auth.uid() = owner_id);
+
+revoke insert, update, delete on table public.photo_upload_sessions from anon, authenticated;
+grant select on table public.photo_upload_sessions to authenticated;
+
+create or replace function public.reserve_photo_upload(
+  p_album_id uuid,
+  p_client_upload_id uuid,
+  p_storage_bucket text,
+  p_object_key text,
+  p_original_file_name text,
+  p_content_type text,
+  p_expected_size_bytes bigint,
+  p_file_hash text,
+  p_requested_size text,
+  p_category_id uuid default null,
+  p_preset_path text default null,
+  p_auto_face_scan boolean default true,
+  p_auto_publish boolean default false
+)
+returns table (
+  session_id uuid,
+  reserved_object_key text,
+  reserved_storage_bucket text,
+  reserved_size_bytes bigint,
+  remaining_bytes bigint,
+  session_expires_at timestamptz,
+  reused boolean
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_existing public.photo_upload_sessions%rowtype;
+  v_session public.photo_upload_sessions%rowtype;
+  v_used_bytes bigint := 0;
+  v_limit_bytes bigint := 5368709120;
+  v_active_reserved bigint := 0;
+  v_reserved_bytes bigint;
+  v_expected_prefix text;
+  v_expected_album_preset_prefix text;
+  v_expected_user_preset_prefix text;
+  v_object_name text;
+begin
+  if v_user_id is null then
+    raise exception using errcode = '42501', message = 'UNAUTHORIZED';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(v_user_id::text, 0));
+
+  if not exists (
+    select 1 from public.albums a
+    where a.id = p_album_id
+      and (a.owner_id = v_user_id or a.user_id = v_user_id)
+  ) then
+    raise exception using errcode = 'P0001', message = 'ALBUM_NOT_FOUND';
+  end if;
+
+  if p_category_id is not null and not exists (
+    select 1 from public.categories c
+    where c.id = p_category_id and c.album_id = p_album_id
+  ) then
+    raise exception using errcode = 'P0001', message = 'CATEGORY_NOT_FOUND';
+  end if;
+
+  if p_expected_size_bytes < 1 or p_expected_size_bytes > 209715200 then
+    raise exception using errcode = 'P0001', message = 'INVALID_UPLOAD_SIZE';
+  end if;
+  if p_content_type not in ('image/jpeg', 'image/png', 'image/webp') then
+    raise exception using errcode = 'P0001', message = 'INVALID_CONTENT_TYPE';
+  end if;
+  if p_requested_size not in ('sd', 'hd', 'uhd', 'original') then
+    raise exception using errcode = 'P0001', message = 'INVALID_REQUESTED_SIZE';
+  end if;
+  if p_file_hash !~ '^[a-f0-9]{64}$' then
+    raise exception using errcode = 'P0001', message = 'INVALID_FILE_HASH';
+  end if;
+  if p_original_file_name = '' or length(p_original_file_name) > 255 then
+    raise exception using errcode = 'P0001', message = 'INVALID_FILE_NAME';
+  end if;
+  if length(p_storage_bucket) not between 3 and 63
+    or p_storage_bucket !~ '^[a-z0-9][a-z0-9.-]*[a-z0-9]$'
+    or p_storage_bucket like '%..%'
+  then
+    raise exception using errcode = 'P0001', message = 'INVALID_STORAGE_BUCKET';
+  end if;
+
+  v_expected_prefix := v_user_id::text || '/' || p_album_id::text || '/original/';
+  v_expected_album_preset_prefix :=
+    v_user_id::text || '/' || p_album_id::text || '/presets/';
+  v_expected_user_preset_prefix := v_user_id::text || '/presets/';
+  v_object_name := substring(p_object_key from length(v_expected_prefix) + 1);
+  if p_object_key not like v_expected_prefix || '%'
+    or p_object_key like '%..%'
+    or position(chr(92) in p_object_key) > 0
+    or p_object_key like '%//%'
+    or length(p_object_key) > 1024
+  then
+    raise exception using errcode = 'P0001', message = 'INVALID_OBJECT_KEY';
+  end if;
+
+  if v_object_name !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|webp)$'
+    or (p_content_type = 'image/jpeg' and v_object_name !~ '\.jpg$')
+    or (p_content_type = 'image/png' and v_object_name !~ '\.png$')
+    or (p_content_type = 'image/webp' and v_object_name !~ '\.webp$')
+  then
+    raise exception using errcode = 'P0001', message = 'INVALID_OBJECT_KEY';
+  end if;
+
+  if p_preset_path is not null and (
+    (
+      p_preset_path not like v_expected_album_preset_prefix || '%'
+      and p_preset_path not like v_expected_user_preset_prefix || '%'
+    )
+    or p_preset_path not like '%.xmp'
+    or p_preset_path like '%..%'
+    or position(chr(92) in p_preset_path) > 0
+    or p_preset_path like '%//%'
+    or lower(p_preset_path) like '%2e%'
+    or lower(p_preset_path) like '%2f%'
+    or lower(p_preset_path) like '%5c%'
+    or length(p_preset_path) > 500
+  ) then
+    raise exception using errcode = 'P0001', message = 'INVALID_PRESET_PATH';
+  end if;
+
+  update public.photo_upload_sessions s
+  set status = 'expired', error = coalesce(s.error, 'Signed upload session expired')
+  where s.owner_id = v_user_id
+    and s.status in ('issued', 'uploading', 'finalizing')
+    and s.expires_at <= now();
+
+  select s.* into v_existing
+  from public.photo_upload_sessions s
+  where s.owner_id = v_user_id and s.client_upload_id = p_client_upload_id
+  for update;
+
+  if found
+    and v_existing.status in ('issued', 'uploading', 'finalizing')
+    and v_existing.expires_at > now()
+  then
+    if v_existing.album_id <> p_album_id
+      or v_existing.original_file_name <> p_original_file_name
+      or v_existing.content_type <> p_content_type
+      or v_existing.expected_size_bytes <> p_expected_size_bytes
+      or v_existing.file_hash <> p_file_hash
+    then
+      raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_CONFLICT';
+    end if;
+
+    return query select
+      v_existing.id,
+      v_existing.object_key,
+      v_existing.storage_bucket,
+      v_existing.reserved_bytes,
+      greatest(0, coalesce((
+        select u.storage_limit_bytes - coalesce(u.storage_used_bytes, u.used_bytes, 0)
+        from public.user_storage_usage u where u.user_id = v_user_id
+      ), 5368709120)),
+      v_existing.expires_at,
+      true;
+    return;
+  end if;
+
+  select coalesce(u.storage_used_bytes, u.used_bytes, 0), u.storage_limit_bytes
+  into v_used_bytes, v_limit_bytes
+  from public.user_storage_usage u where u.user_id = v_user_id;
+  if not found then
+    v_used_bytes := 0;
+    v_limit_bytes := 5368709120;
+  end if;
+
+  select coalesce(sum(s.reserved_bytes), 0) into v_active_reserved
+  from public.photo_upload_sessions s
+  where s.owner_id = v_user_id
+    and s.status in ('issued', 'uploading', 'finalizing')
+    and s.expires_at > now();
+
+  v_reserved_bytes := p_expected_size_bytes
+    + round(p_expected_size_bytes::numeric * 0.35)::bigint
+    + round(p_expected_size_bytes::numeric * 0.05)::bigint;
+
+  if v_used_bytes + v_active_reserved + v_reserved_bytes > v_limit_bytes then
+    raise exception using errcode = 'P0001', message = 'STORAGE_LIMIT_EXCEEDED';
+  end if;
+
+  if v_existing.id is null then
+    insert into public.photo_upload_sessions (
+      client_upload_id, owner_id, album_id, category_id, storage_provider,
+      storage_bucket, object_key, original_file_name, content_type,
+      expected_size_bytes, reserved_bytes, file_hash, requested_size,
+      preset_path, auto_face_scan, auto_publish, status, error, expires_at
+    ) values (
+      p_client_upload_id, v_user_id, p_album_id, p_category_id, 'r2',
+      p_storage_bucket, p_object_key, p_original_file_name, p_content_type,
+      p_expected_size_bytes, v_reserved_bytes, p_file_hash, p_requested_size,
+      p_preset_path, p_auto_face_scan, p_auto_publish, 'issued', null,
+      now() + interval '15 minutes'
+    ) returning * into v_session;
+  else
+    update public.photo_upload_sessions s set
+      album_id = p_album_id,
+      category_id = p_category_id,
+      photo_id = null,
+      storage_provider = 'r2',
+      storage_bucket = p_storage_bucket,
+      object_key = p_object_key,
+      original_file_name = p_original_file_name,
+      content_type = p_content_type,
+      expected_size_bytes = p_expected_size_bytes,
+      reserved_bytes = v_reserved_bytes,
+      file_hash = p_file_hash,
+      requested_size = p_requested_size,
+      preset_path = p_preset_path,
+      auto_face_scan = p_auto_face_scan,
+      auto_publish = p_auto_publish,
+      status = 'issued',
+      error = null,
+      expires_at = now() + interval '15 minutes',
+      completed_at = null
+    where s.id = v_existing.id returning s.* into v_session;
+  end if;
+
+  return query select
+    v_session.id,
+    v_session.object_key,
+    v_session.storage_bucket,
+    v_session.reserved_bytes,
+    greatest(0, v_limit_bytes - v_used_bytes - v_active_reserved - v_reserved_bytes),
+    v_session.expires_at,
+    false;
+end;
+$$;
+
+create or replace function public.cancel_photo_upload_session(p_session_id uuid)
+returns table (storage_provider text, storage_bucket text, object_key text)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_session public.photo_upload_sessions%rowtype;
+begin
+  if v_user_id is null then
+    raise exception using errcode = '42501', message = 'UNAUTHORIZED';
+  end if;
+  select s.* into v_session from public.photo_upload_sessions s
+  where s.id = p_session_id and s.owner_id = v_user_id for update;
+  if not found then
+    raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_NOT_FOUND';
+  end if;
+  if v_session.status = 'completed' then
+    raise exception using errcode = 'P0001', message = 'UPLOAD_ALREADY_COMPLETED';
+  end if;
+  update public.photo_upload_sessions s
+  set status = 'cancelled', error = coalesce(s.error, 'Cancelled by uploader')
+  where s.id = v_session.id;
+  return query select
+    v_session.storage_provider, v_session.storage_bucket, v_session.object_key;
+end;
+$$;
+
+revoke all on function public.reserve_photo_upload(
+  uuid, uuid, text, text, text, text, bigint, text, text, uuid, text, boolean, boolean
+) from public, anon;
+grant execute on function public.reserve_photo_upload(
+  uuid, uuid, text, text, text, text, bigint, text, text, uuid, text, boolean, boolean
+) to authenticated, service_role;
+revoke all on function public.cancel_photo_upload_session(uuid) from public, anon;
+grant execute on function public.cancel_photo_upload_session(uuid) to authenticated, service_role;
+
+create or replace function public.begin_photo_upload_finalization(p_session_id uuid)
+returns table (
+  session_id uuid,
+  session_owner_id uuid,
+  session_album_id uuid,
+  session_category_id uuid,
+  completed_photo_id uuid,
+  session_storage_provider text,
+  session_storage_bucket text,
+  session_object_key text,
+  session_original_file_name text,
+  session_content_type text,
+  session_expected_size_bytes bigint,
+  session_file_hash text,
+  session_requested_size text,
+  session_preset_path text,
+  session_auto_face_scan boolean,
+  session_auto_publish boolean,
+  session_status text,
+  session_expires_at timestamptz,
+  already_completed boolean
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_session public.photo_upload_sessions%rowtype;
+begin
+  if v_user_id is null then
+    raise exception using errcode = '42501', message = 'UNAUTHORIZED';
+  end if;
+  select s.* into v_session from public.photo_upload_sessions s
+  where s.id = p_session_id and s.owner_id = v_user_id for update;
+  if not found then
+    raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_NOT_FOUND';
+  end if;
+
+  if v_session.status = 'completed' then
+    return query select
+      v_session.id, v_session.owner_id, v_session.album_id,
+      v_session.category_id, v_session.photo_id, v_session.storage_provider,
+      v_session.storage_bucket, v_session.object_key,
+      v_session.original_file_name, v_session.content_type,
+      v_session.expected_size_bytes, v_session.file_hash,
+      v_session.requested_size, v_session.preset_path,
+      v_session.auto_face_scan, v_session.auto_publish,
+      v_session.status, v_session.expires_at, true;
+    return;
+  end if;
+
+  if v_session.status not in ('issued', 'uploading', 'finalizing') then
+    raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_NOT_FINALIZABLE';
+  end if;
+  if v_session.expires_at <= now() then
+    raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_EXPIRED';
+  end if;
+
+  update public.photo_upload_sessions s
+  set status = 'finalizing',
+      error = null,
+      expires_at = greatest(s.expires_at, now() + interval '5 minutes')
+  where s.id = v_session.id
+  returning s.* into v_session;
+
+  return query select
+    v_session.id, v_session.owner_id, v_session.album_id,
+    v_session.category_id, v_session.photo_id, v_session.storage_provider,
+    v_session.storage_bucket, v_session.object_key,
+    v_session.original_file_name, v_session.content_type,
+    v_session.expected_size_bytes, v_session.file_hash,
+    v_session.requested_size, v_session.preset_path,
+    v_session.auto_face_scan, v_session.auto_publish,
+    v_session.status, v_session.expires_at, false;
+end;
+$$;
+
+create or replace function public.complete_photo_upload_finalization(
+  p_session_id uuid,
+  p_photo_id uuid
+)
+returns table (
+  session_id uuid,
+  completed_photo_id uuid,
+  completed_at timestamptz,
+  already_completed boolean
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_session public.photo_upload_sessions%rowtype;
+begin
+  if v_user_id is null then
+    raise exception using errcode = '42501', message = 'UNAUTHORIZED';
+  end if;
+  select s.* into v_session from public.photo_upload_sessions s
+  where s.id = p_session_id and s.owner_id = v_user_id for update;
+  if not found then
+    raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_NOT_FOUND';
+  end if;
+
+  if v_session.status = 'completed' then
+    if v_session.photo_id is distinct from p_photo_id then
+      raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_PHOTO_CONFLICT';
+    end if;
+    return query select v_session.id, v_session.photo_id, v_session.completed_at, true;
+    return;
+  end if;
+  if v_session.status <> 'finalizing' then
+    raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_NOT_FINALIZING';
+  end if;
+
+  if not exists (
+    select 1 from public.photos p
+    where p.id = p_photo_id
+      and p.owner_id = v_user_id
+      and p.album_id = v_session.album_id
+      and p.storage_provider = 'r2'
+      and p.storage_bucket = v_session.storage_bucket
+      and p.storage_path = v_session.object_key
+      and p.original_path = v_session.object_key
+      and p.file_hash = v_session.file_hash
+      and p.original_size_bytes = v_session.expected_size_bytes
+  ) then
+    raise exception using errcode = 'P0001', message = 'PHOTO_UPLOAD_BINDING_MISMATCH';
+  end if;
+
+  update public.photo_upload_sessions s
+  set status = 'completed', photo_id = p_photo_id,
+      completed_at = now(), error = null
+  where s.id = v_session.id
+  returning s.* into v_session;
+  return query select v_session.id, v_session.photo_id, v_session.completed_at, false;
+end;
+$$;
+
+revoke all on function public.begin_photo_upload_finalization(uuid) from public, anon;
+grant execute on function public.begin_photo_upload_finalization(uuid) to authenticated, service_role;
+revoke all on function public.complete_photo_upload_finalization(uuid, uuid) from public, anon;
+grant execute on function public.complete_photo_upload_finalization(uuid, uuid) to authenticated, service_role;
 
 -- =========================================================
 -- PHOTO JOBS
@@ -347,6 +1125,221 @@ drop trigger if exists trg_photo_jobs_updated_at on public.photo_jobs;
 create trigger trg_photo_jobs_updated_at
 before update on public.photo_jobs
 for each row execute procedure public.set_updated_at();
+
+create or replace function public.claim_photo_storage_migrations(
+  p_limit integer default 5,
+  p_include_failed boolean default false,
+  p_recover_stale boolean default false,
+  p_stale_after_seconds integer default 3600,
+  p_photo_id uuid default null
+)
+returns table (
+  photo_id uuid,
+  photo_owner_id uuid,
+  photo_user_id uuid,
+  photo_album_id uuid,
+  photo_storage_version integer,
+  photo_migration_status text,
+  photo_storage_path text,
+  photo_original_path text,
+  photo_preview_path text,
+  photo_thumbnail_path text,
+  photo_sd_path text,
+  photo_hd_path text,
+  photo_uhd_path text,
+  photo_file_size_bytes bigint,
+  photo_original_size_bytes bigint,
+  photo_preview_size_bytes bigint,
+  photo_thumbnail_size_bytes bigint,
+  photo_mime_type text
+)
+language plpgsql
+security definer
+set search_path = public
+as $function$
+begin
+  if p_limit < 1 or p_limit > 50 then
+    raise exception 'p_limit must be between 1 and 50';
+  end if;
+
+  if p_stale_after_seconds < 300 or p_stale_after_seconds > 604800 then
+    raise exception 'p_stale_after_seconds must be between 300 and 604800';
+  end if;
+
+  return query
+  with candidates as (
+    select p.id
+    from public.photos p
+    where p.storage_provider = 'supabase'
+      and (p_photo_id is null or p.id = p_photo_id)
+      and coalesce(p.processing_status, '') not in (
+        'pending', 'processing', 'uploading', 'finalizing'
+      )
+      and not exists (
+        select 1
+        from public.photo_jobs pj
+        where pj.photo_id = p.id
+          and pj.status in ('pending', 'processing')
+      )
+      and (
+        p.migration_status = 'pending'
+        or (p_include_failed and p.migration_status = 'failed')
+        or (
+          p_recover_stale
+          and p.migration_status in ('copying', 'verifying')
+          and coalesce(p.migration_started_at, p.updated_at, p.created_at)
+            < now() - make_interval(secs => p_stale_after_seconds)
+        )
+      )
+    order by p.created_at asc, p.id asc
+    limit p_limit
+    for update skip locked
+  ), claimed as (
+    update public.photos p
+    set
+      migration_status = 'copying',
+      migration_attempts = coalesce(p.migration_attempts, 0) + 1,
+      migration_error = null,
+      migration_started_at = now(),
+      migration_completed_at = null,
+      updated_at = now()
+    from candidates c
+    where p.id = c.id
+    returning p.*
+  )
+  select
+    c.id, c.owner_id, c.user_id, c.album_id, c.storage_version,
+    c.migration_status, c.storage_path, c.original_path, c.preview_path,
+    c.thumbnail_path, c.sd_path, c.hd_path, c.uhd_path,
+    c.file_size_bytes, c.original_size_bytes, c.preview_size_bytes,
+    c.thumbnail_size_bytes, c.mime_type
+  from claimed c;
+end;
+$function$;
+
+revoke all on function public.claim_photo_storage_migrations(
+  integer, boolean, boolean, integer, uuid
+) from public, anon, authenticated;
+grant execute on function public.claim_photo_storage_migrations(
+  integer, boolean, boolean, integer, uuid
+) to service_role;
+
+create or replace function public.claim_photo_source_cleanups(
+  p_limit integer default 5,
+  p_include_failed boolean default false,
+  p_recover_stale boolean default false,
+  p_stale_after_seconds integer default 3600,
+  p_minimum_age_days integer default 30,
+  p_photo_id uuid default null
+)
+returns table (
+  photo_id uuid,
+  photo_owner_id uuid,
+  photo_user_id uuid,
+  photo_album_id uuid,
+  photo_storage_bucket text,
+  photo_storage_version integer,
+  photo_migration_status text,
+  photo_migration_attempts integer,
+  photo_migration_completed_at timestamptz,
+  photo_source_cleanup_status text,
+  photo_source_cleanup_after timestamptz,
+  photo_source_cleanup_attempts integer,
+  photo_storage_path text,
+  photo_original_path text,
+  photo_preview_path text,
+  photo_thumbnail_path text,
+  photo_sd_path text,
+  photo_hd_path text,
+  photo_uhd_path text,
+  photo_file_size_bytes bigint,
+  photo_original_size_bytes bigint,
+  photo_preview_size_bytes bigint,
+  photo_thumbnail_size_bytes bigint,
+  photo_mime_type text
+)
+language plpgsql
+security definer
+set search_path = public
+as $function$
+begin
+  if p_limit < 1 or p_limit > 20 then
+    raise exception 'p_limit must be between 1 and 20';
+  end if;
+
+  if p_stale_after_seconds < 900 or p_stale_after_seconds > 604800 then
+    raise exception 'p_stale_after_seconds must be between 900 and 604800';
+  end if;
+
+  if p_minimum_age_days < 7 or p_minimum_age_days > 365 then
+    raise exception 'p_minimum_age_days must be between 7 and 365';
+  end if;
+
+  return query
+  with candidates as (
+    select p.id
+    from public.photos p
+    where p.storage_provider = 'r2'
+      and p.migration_status = 'completed'
+      and coalesce(p.migration_attempts, 0) > 0
+      and p.source_cleanup_after is not null
+      and p.source_cleanup_after <= now()
+      and coalesce(p.migration_completed_at, p.updated_at, p.created_at)
+        <= now() - make_interval(days => p_minimum_age_days)
+      and (p_photo_id is null or p.id = p_photo_id)
+      and coalesce(p.processing_status, '') not in (
+        'pending', 'processing', 'uploading', 'finalizing'
+      )
+      and not exists (
+        select 1
+        from public.photo_jobs pj
+        where pj.photo_id = p.id
+          and pj.status in ('pending', 'processing')
+      )
+      and (
+        p.source_cleanup_status = 'retained'
+        or (p_include_failed and p.source_cleanup_status = 'failed')
+        or (
+          p_recover_stale
+          and p.source_cleanup_status = 'deleting'
+          and coalesce(p.source_cleanup_started_at, p.updated_at, p.created_at)
+            < now() - make_interval(secs => p_stale_after_seconds)
+        )
+      )
+    order by p.source_cleanup_after asc, p.id asc
+    limit p_limit
+    for update skip locked
+  ), claimed as (
+    update public.photos p
+    set
+      source_cleanup_status = 'deleting',
+      source_cleanup_attempts = coalesce(p.source_cleanup_attempts, 0) + 1,
+      source_cleanup_error = null,
+      source_cleanup_started_at = now(),
+      source_cleanup_completed_at = null,
+      updated_at = now()
+    from candidates c
+    where p.id = c.id
+    returning p.*
+  )
+  select
+    c.id, c.owner_id, c.user_id, c.album_id, c.storage_bucket,
+    c.storage_version, c.migration_status, c.migration_attempts,
+    c.migration_completed_at, c.source_cleanup_status,
+    c.source_cleanup_after, c.source_cleanup_attempts, c.storage_path,
+    c.original_path, c.preview_path, c.thumbnail_path, c.sd_path, c.hd_path,
+    c.uhd_path, c.file_size_bytes, c.original_size_bytes,
+    c.preview_size_bytes, c.thumbnail_size_bytes, c.mime_type
+  from claimed c;
+end;
+$function$;
+
+revoke all on function public.claim_photo_source_cleanups(
+  integer, boolean, boolean, integer, integer, uuid
+) from public, anon, authenticated;
+grant execute on function public.claim_photo_source_cleanups(
+  integer, boolean, boolean, integer, integer, uuid
+) to service_role;
 
 -- =========================================================
 -- FACE JOBS
@@ -848,10 +1841,18 @@ declare
   total_photos integer;
   total_albums integer;
 begin
-  select coalesce(sum(file_size_bytes), 0), count(*)
+  select
+    coalesce(sum(p.file_size_bytes), 0)
+      + coalesce((
+          select sum(sa.size_bytes)
+          from public.storage_assets sa
+          where sa.owner_id = user_uuid
+            and sa.status in ('uploading', 'active', 'deleting')
+        ), 0),
+    count(*)
   into total_used, total_photos
-  from public.photos
-  where coalesce(owner_id, user_id) = user_uuid;
+  from public.photos p
+  where coalesce(p.owner_id, p.user_id) = user_uuid;
 
   select count(*)
   into total_albums
@@ -1243,6 +2244,11 @@ create table if not exists public.camera_live_imports (
   filename text not null,
   local_path text,
   storage_path text,
+  storage_provider text not null default 'supabase'
+    check (storage_provider in ('supabase', 'r2')),
+  storage_bucket text not null default 'albums',
+  photo_upload_session_id uuid
+    references public.photo_upload_sessions(id) on delete set null,
   file_size_bytes bigint default 0,
   status text not null default 'pending',
   progress integer not null default 0,
@@ -1272,6 +2278,363 @@ on public.camera_live_imports(status);
 
 create unique index if not exists idx_camera_live_imports_unique_filename
 on public.camera_live_imports(album_id, filename);
+
+create index if not exists idx_camera_live_imports_upload_session
+on public.camera_live_imports(photo_upload_session_id)
+where photo_upload_session_id is not null;
+
+-- Service-role-only camera upload reservation. Browser reservations continue
+-- to use reserve_photo_upload(), which remains bound to auth.uid().
+create or replace function public.reserve_camera_photo_upload(
+  p_camera_import_id uuid,
+  p_storage_bucket text,
+  p_object_key text,
+  p_original_file_name text,
+  p_content_type text,
+  p_expected_size_bytes bigint,
+  p_file_hash text,
+  p_requested_size text,
+  p_preset_path text default null,
+  p_auto_face_scan boolean default true,
+  p_auto_publish boolean default false
+)
+returns table (
+  session_id uuid,
+  reserved_object_key text,
+  reserved_storage_bucket text,
+  reserved_size_bytes bigint,
+  remaining_bytes bigint,
+  session_expires_at timestamptz,
+  reused boolean
+)
+language plpgsql security definer set search_path = public
+as $function$
+declare
+  v_import public.camera_live_imports%rowtype;
+  v_existing public.photo_upload_sessions%rowtype;
+  v_session public.photo_upload_sessions%rowtype;
+  v_used bigint := 0;
+  v_limit bigint := 5368709120;
+  v_active bigint := 0;
+  v_reserved bigint;
+  v_prefix text;
+  v_name text;
+begin
+  select i.* into v_import from public.camera_live_imports i
+  where i.id = p_camera_import_id for update;
+  if not found then
+    raise exception using errcode = 'P0001', message = 'CAMERA_IMPORT_NOT_FOUND';
+  end if;
+
+  if not exists (
+    select 1 from public.camera_upload_sessions cs
+    join public.albums a on a.id = cs.album_id
+    where cs.id = v_import.session_id
+      and cs.album_id = v_import.album_id
+      and cs.owner_id = v_import.owner_id
+      and cs.status = 'active'
+      and (a.owner_id = v_import.owner_id or a.user_id = v_import.owner_id)
+  ) then
+    raise exception using errcode = 'P0001', message = 'CAMERA_SESSION_NOT_ACTIVE';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(v_import.owner_id::text, 0));
+  v_prefix := v_import.owner_id::text || '/' || v_import.album_id::text || '/original/';
+  v_name := substring(p_object_key from length(v_prefix) + 1);
+
+  if p_expected_size_bytes < 1 or p_expected_size_bytes > 209715200 then
+    raise exception using errcode = 'P0001', message = 'INVALID_UPLOAD_SIZE';
+  end if;
+  if p_content_type <> 'image/jpeg' then
+    raise exception using errcode = 'P0001', message = 'INVALID_CONTENT_TYPE';
+  end if;
+  if p_requested_size not in ('sd', 'hd', 'uhd', 'original') then
+    raise exception using errcode = 'P0001', message = 'INVALID_REQUESTED_SIZE';
+  end if;
+  if p_file_hash !~ '^[a-f0-9]{64}$' then
+    raise exception using errcode = 'P0001', message = 'INVALID_FILE_HASH';
+  end if;
+  if p_original_file_name = '' or length(p_original_file_name) > 255 then
+    raise exception using errcode = 'P0001', message = 'INVALID_FILE_NAME';
+  end if;
+  if length(p_storage_bucket) not between 3 and 63
+    or p_storage_bucket !~ '^[a-z0-9][a-z0-9.-]*[a-z0-9]$'
+    or p_storage_bucket like '%..%'
+  then
+    raise exception using errcode = 'P0001', message = 'INVALID_STORAGE_BUCKET';
+  end if;
+  if p_object_key not like v_prefix || '%'
+    or p_object_key like '%..%'
+    or position(chr(92) in p_object_key) > 0
+    or p_object_key like '%//%'
+    or length(p_object_key) > 1024
+    or v_name !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.jpg$'
+  then
+    raise exception using errcode = 'P0001', message = 'INVALID_OBJECT_KEY';
+  end if;
+  if p_preset_path is not null and (
+    (p_preset_path not like (v_import.owner_id::text || '/' || v_import.album_id::text || '/presets/%')
+      and p_preset_path not like (v_import.owner_id::text || '/presets/%'))
+    or p_preset_path not like '%.xmp'
+    or p_preset_path like '%..%'
+    or position(chr(92) in p_preset_path) > 0
+    or p_preset_path like '%//%'
+    or lower(p_preset_path) like '%2e%'
+    or lower(p_preset_path) like '%2f%'
+    or lower(p_preset_path) like '%5c%'
+    or length(p_preset_path) > 500
+  ) then
+    raise exception using errcode = 'P0001', message = 'INVALID_PRESET_PATH';
+  end if;
+
+  update public.photo_upload_sessions s
+  set status = 'expired', error = coalesce(s.error, 'Signed upload session expired')
+  where s.owner_id = v_import.owner_id
+    and s.status in ('issued', 'uploading', 'finalizing')
+    and s.expires_at <= now();
+
+  select s.* into v_existing from public.photo_upload_sessions s
+  where s.owner_id = v_import.owner_id and s.client_upload_id = v_import.id
+  for update;
+
+  if found and v_existing.status in ('issued', 'uploading', 'finalizing', 'completed') then
+    if v_existing.album_id <> v_import.album_id
+      or v_existing.storage_bucket <> p_storage_bucket
+      or v_existing.object_key <> p_object_key
+      or v_existing.original_file_name <> p_original_file_name
+      or v_existing.content_type <> p_content_type
+      or v_existing.expected_size_bytes <> p_expected_size_bytes
+      or v_existing.file_hash <> p_file_hash
+    then
+      raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_CONFLICT';
+    end if;
+    update public.camera_live_imports i set
+      storage_provider = 'r2', storage_bucket = v_existing.storage_bucket,
+      storage_path = v_existing.object_key,
+      photo_upload_session_id = v_existing.id, updated_at = now()
+    where i.id = v_import.id;
+    return query select v_existing.id, v_existing.object_key,
+      v_existing.storage_bucket, v_existing.reserved_bytes,
+      greatest(0, coalesce((select u.storage_limit_bytes -
+        coalesce(u.storage_used_bytes, u.used_bytes, 0)
+        from public.user_storage_usage u where u.user_id = v_import.owner_id),
+        5368709120)), v_existing.expires_at, true;
+    return;
+  end if;
+
+  select coalesce(u.storage_used_bytes, u.used_bytes, 0), u.storage_limit_bytes
+  into v_used, v_limit from public.user_storage_usage u
+  where u.user_id = v_import.owner_id;
+  if not found then v_used := 0; v_limit := 5368709120; end if;
+
+  select coalesce(sum(s.reserved_bytes), 0) into v_active
+  from public.photo_upload_sessions s
+  where s.owner_id = v_import.owner_id
+    and s.status in ('issued', 'uploading', 'finalizing')
+    and s.expires_at > now() and s.id is distinct from v_existing.id;
+
+  v_reserved := p_expected_size_bytes +
+    round(p_expected_size_bytes::numeric * 0.35)::bigint +
+    round(p_expected_size_bytes::numeric * 0.05)::bigint;
+  if v_used + v_active + v_reserved > v_limit then
+    raise exception using errcode = 'P0001', message = 'STORAGE_LIMIT_EXCEEDED';
+  end if;
+
+  if v_existing.id is null then
+    insert into public.photo_upload_sessions (
+      client_upload_id, owner_id, album_id, storage_provider, storage_bucket,
+      object_key, original_file_name, content_type, expected_size_bytes,
+      reserved_bytes, file_hash, requested_size, preset_path, auto_face_scan,
+      auto_publish, status, expires_at
+    ) values (
+      v_import.id, v_import.owner_id, v_import.album_id, 'r2', p_storage_bucket,
+      p_object_key, p_original_file_name, p_content_type, p_expected_size_bytes,
+      v_reserved, p_file_hash, p_requested_size, p_preset_path,
+      p_auto_face_scan, p_auto_publish, 'issued', now() + interval '15 minutes'
+    ) returning * into v_session;
+  else
+    update public.photo_upload_sessions s set
+      album_id = v_import.album_id, category_id = null, photo_id = null,
+      storage_provider = 'r2', storage_bucket = p_storage_bucket,
+      object_key = p_object_key, original_file_name = p_original_file_name,
+      content_type = p_content_type, expected_size_bytes = p_expected_size_bytes,
+      reserved_bytes = v_reserved, file_hash = p_file_hash,
+      requested_size = p_requested_size, preset_path = p_preset_path,
+      auto_face_scan = p_auto_face_scan, auto_publish = p_auto_publish,
+      status = 'issued', error = null, expires_at = now() + interval '15 minutes',
+      completed_at = null
+    where s.id = v_existing.id returning s.* into v_session;
+  end if;
+
+  update public.camera_live_imports i set
+    storage_provider = 'r2', storage_bucket = v_session.storage_bucket,
+    storage_path = v_session.object_key,
+    photo_upload_session_id = v_session.id, updated_at = now()
+  where i.id = v_import.id;
+  return query select v_session.id, v_session.object_key,
+    v_session.storage_bucket, v_session.reserved_bytes,
+    greatest(0, v_limit - v_used - v_active - v_reserved),
+    v_session.expires_at, false;
+end;
+$function$;
+
+create or replace function public.begin_camera_photo_upload_finalization(
+  p_session_id uuid, p_camera_import_id uuid
+)
+returns table (
+  session_id uuid, session_owner_id uuid, session_album_id uuid,
+  session_category_id uuid, completed_photo_id uuid,
+  session_storage_provider text, session_storage_bucket text,
+  session_object_key text, session_original_file_name text,
+  session_content_type text, session_expected_size_bytes bigint,
+  session_file_hash text, session_requested_size text,
+  session_preset_path text, session_auto_face_scan boolean,
+  session_auto_publish boolean, session_status text,
+  session_expires_at timestamptz, already_completed boolean
+)
+language plpgsql security definer set search_path = public
+as $function$
+declare
+  v_import public.camera_live_imports%rowtype;
+  v_session public.photo_upload_sessions%rowtype;
+begin
+  select i.* into v_import from public.camera_live_imports i
+  where i.id = p_camera_import_id and i.photo_upload_session_id = p_session_id
+  for update;
+  if not found then
+    raise exception using errcode = 'P0001', message = 'CAMERA_UPLOAD_BINDING_MISMATCH';
+  end if;
+  select s.* into v_session from public.photo_upload_sessions s
+  where s.id = p_session_id and s.owner_id = v_import.owner_id
+    and s.album_id = v_import.album_id and s.storage_provider = 'r2'
+    and s.storage_bucket = v_import.storage_bucket
+    and s.object_key = v_import.storage_path for update;
+  if not found then
+    raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_NOT_FOUND';
+  end if;
+  if v_session.status = 'completed' then
+    return query select v_session.id, v_session.owner_id, v_session.album_id,
+      v_session.category_id, v_session.photo_id, v_session.storage_provider,
+      v_session.storage_bucket, v_session.object_key,
+      v_session.original_file_name, v_session.content_type,
+      v_session.expected_size_bytes, v_session.file_hash,
+      v_session.requested_size, v_session.preset_path,
+      v_session.auto_face_scan, v_session.auto_publish, v_session.status,
+      v_session.expires_at, true;
+    return;
+  end if;
+  if v_session.status not in ('issued', 'uploading', 'finalizing') then
+    raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_NOT_FINALIZABLE';
+  end if;
+  if v_session.expires_at <= now() then
+    raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_EXPIRED';
+  end if;
+  update public.photo_upload_sessions s set status = 'finalizing', error = null,
+    expires_at = greatest(s.expires_at, now() + interval '5 minutes')
+  where s.id = v_session.id returning s.* into v_session;
+  return query select v_session.id, v_session.owner_id, v_session.album_id,
+    v_session.category_id, v_session.photo_id, v_session.storage_provider,
+    v_session.storage_bucket, v_session.object_key,
+    v_session.original_file_name, v_session.content_type,
+    v_session.expected_size_bytes, v_session.file_hash,
+    v_session.requested_size, v_session.preset_path,
+    v_session.auto_face_scan, v_session.auto_publish, v_session.status,
+    v_session.expires_at, false;
+end;
+$function$;
+
+create or replace function public.complete_camera_photo_upload_finalization(
+  p_session_id uuid, p_camera_import_id uuid, p_photo_id uuid
+)
+returns table (
+  session_id uuid, completed_photo_id uuid,
+  completed_at timestamptz, already_completed boolean
+)
+language plpgsql security definer set search_path = public
+as $function$
+declare
+  v_import public.camera_live_imports%rowtype;
+  v_session public.photo_upload_sessions%rowtype;
+begin
+  select i.* into v_import from public.camera_live_imports i
+  where i.id = p_camera_import_id and i.photo_upload_session_id = p_session_id
+  for update;
+  if not found then
+    raise exception using errcode = 'P0001', message = 'CAMERA_UPLOAD_BINDING_MISMATCH';
+  end if;
+  select s.* into v_session from public.photo_upload_sessions s
+  where s.id = p_session_id and s.owner_id = v_import.owner_id
+    and s.album_id = v_import.album_id for update;
+  if not found then
+    raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_NOT_FOUND';
+  end if;
+  if v_session.status = 'completed' then
+    if v_session.photo_id is distinct from p_photo_id then
+      raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_PHOTO_CONFLICT';
+    end if;
+    return query select v_session.id, v_session.photo_id,
+      v_session.completed_at, true;
+    return;
+  end if;
+  if v_session.status <> 'finalizing' then
+    raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_NOT_FINALIZING';
+  end if;
+  if not exists (
+    select 1 from public.photos p where p.id = p_photo_id
+      and p.owner_id = v_import.owner_id and p.album_id = v_import.album_id
+      and p.storage_provider = 'r2'
+      and p.storage_bucket = v_session.storage_bucket
+      and p.storage_path = v_session.object_key
+      and p.original_path = v_session.object_key
+      and p.file_hash = v_session.file_hash
+      and p.original_size_bytes = v_session.expected_size_bytes
+  ) then
+    raise exception using errcode = 'P0001', message = 'PHOTO_UPLOAD_BINDING_MISMATCH';
+  end if;
+  update public.photo_upload_sessions s set status = 'completed',
+    photo_id = p_photo_id, completed_at = now(), error = null
+  where s.id = v_session.id returning s.* into v_session;
+  return query select v_session.id, v_session.photo_id,
+    v_session.completed_at, false;
+end;
+$function$;
+
+create or replace function public.cancel_camera_photo_upload(
+  p_session_id uuid, p_camera_import_id uuid
+)
+returns void language plpgsql security definer set search_path = public
+as $function$
+begin
+  if not exists (
+    select 1 from public.camera_live_imports i
+    where i.id = p_camera_import_id and i.photo_upload_session_id = p_session_id
+  ) then
+    raise exception using errcode = 'P0001', message = 'CAMERA_UPLOAD_BINDING_MISMATCH';
+  end if;
+  update public.photo_upload_sessions s set status = 'cancelled',
+    error = coalesce(s.error, 'Camera upload cancelled')
+  where s.id = p_session_id and s.status in ('issued', 'uploading', 'finalizing');
+end;
+$function$;
+
+revoke all on function public.reserve_camera_photo_upload(
+  uuid, text, text, text, text, bigint, text, text, text, boolean, boolean
+) from public, anon, authenticated;
+grant execute on function public.reserve_camera_photo_upload(
+  uuid, text, text, text, text, bigint, text, text, text, boolean, boolean
+) to service_role;
+revoke all on function public.begin_camera_photo_upload_finalization(uuid, uuid)
+  from public, anon, authenticated;
+grant execute on function public.begin_camera_photo_upload_finalization(uuid, uuid)
+  to service_role;
+revoke all on function public.complete_camera_photo_upload_finalization(uuid, uuid, uuid)
+  from public, anon, authenticated;
+grant execute on function public.complete_camera_photo_upload_finalization(uuid, uuid, uuid)
+  to service_role;
+revoke all on function public.cancel_camera_photo_upload(uuid, uuid)
+  from public, anon, authenticated;
+grant execute on function public.cancel_camera_photo_upload(uuid, uuid)
+  to service_role;
 
 -- =========================================================
 -- STORAGE POLICIES
@@ -1352,6 +2715,18 @@ create table if not exists public.guest_moments (
   constraint guest_moments_image_count check (cardinality(image_urls) between 1 and 4),
   constraint guest_moments_status_check check (status in ('published', 'hidden'))
 );
+
+alter table public.guest_moments
+  add column if not exists storage_asset_ids uuid[] not null default '{}';
+
+alter table public.guest_moments
+  drop constraint if exists guest_moments_storage_asset_count;
+alter table public.guest_moments
+  add constraint guest_moments_storage_asset_count
+  check (
+    array_length(storage_asset_ids, 1) is null
+    or array_length(storage_asset_ids, 1) <= 4
+  );
 
 create index if not exists idx_guest_moments_album_created
 on public.guest_moments(album_id, created_at desc)
@@ -1776,6 +3151,297 @@ grant all on public.ai_jobs to service_role;
 grant all on public.ai_suggestions to service_role;
 grant all on public.ai_audit_logs to service_role;
 grant usage, select on sequence public.ai_audit_logs_id_seq to service_role;
+
+-- =========================================================
+-- STORAGE DELETION JOBS (DUAL PROVIDER)
+-- =========================================================
+
+create table if not exists public.storage_deletion_jobs (
+  id uuid primary key default uuid_generate_v4(),
+  operation_id uuid not null,
+  owner_id uuid not null,
+  album_id uuid,
+  photo_id uuid,
+  storage_provider text not null,
+  storage_bucket text not null,
+  object_key text not null,
+  status text not null default 'staged',
+  retry_count integer not null default 0,
+  max_retries integer not null default 10,
+  worker_id text,
+  last_error text,
+  next_retry_at timestamptz,
+  started_at timestamptz,
+  completed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+
+  constraint storage_deletion_jobs_provider_check
+    check (storage_provider in ('supabase', 'r2')),
+  constraint storage_deletion_jobs_status_check
+    check (status in ('staged', 'pending', 'processing', 'completed', 'failed')),
+  constraint storage_deletion_jobs_retry_check
+    check (retry_count >= 0 and max_retries between 1 and 50),
+  constraint storage_deletion_jobs_bucket_check
+    check (
+      length(storage_bucket) between 3 and 63
+      and storage_bucket ~ '^[a-z0-9][a-z0-9.-]*[a-z0-9]$'
+      and storage_bucket not like '%..%'
+    ),
+  constraint storage_deletion_jobs_object_key_check
+    check (
+      length(object_key) between 1 and 1024
+      and object_key not like '/%'
+      and object_key not like '%..%'
+      and position(chr(92) in object_key) = 0
+      and object_key not like '%//%'
+    ),
+  constraint storage_deletion_jobs_object_unique
+    unique (operation_id, storage_provider, storage_bucket, object_key)
+);
+
+create index if not exists idx_storage_deletion_jobs_ready
+  on public.storage_deletion_jobs (status, next_retry_at, created_at)
+  where status in ('pending', 'failed');
+
+create index if not exists idx_storage_deletion_jobs_operation
+  on public.storage_deletion_jobs (operation_id, status);
+
+create index if not exists idx_storage_deletion_jobs_recovery
+  on public.storage_deletion_jobs (status, updated_at)
+  where status in ('staged', 'processing');
+
+alter table public.storage_deletion_jobs enable row level security;
+
+revoke all on table public.storage_deletion_jobs from anon, authenticated;
+grant all on table public.storage_deletion_jobs to service_role;
+
+create or replace function public.claim_storage_deletion_jobs(
+  p_worker_id text,
+  p_limit integer default 100,
+  p_operation_id uuid default null
+)
+returns setof public.storage_deletion_jobs
+language plpgsql
+security definer
+set search_path = public
+as $function$
+begin
+  if p_worker_id is null or btrim(p_worker_id) = '' then
+    raise exception 'p_worker_id is required';
+  end if;
+
+  return query
+  with claimable as (
+    select j.id
+    from public.storage_deletion_jobs j
+    where j.status in ('pending', 'failed')
+      and j.retry_count < j.max_retries
+      and (j.next_retry_at is null or j.next_retry_at <= now())
+      and (p_operation_id is null or j.operation_id = p_operation_id)
+    order by j.created_at asc
+    limit greatest(1, least(coalesce(p_limit, 100), 500))
+    for update skip locked
+  )
+  update public.storage_deletion_jobs j
+  set status = 'processing',
+      worker_id = p_worker_id,
+      started_at = now(),
+      updated_at = now()
+  from claimable c
+  where j.id = c.id
+  returning j.*;
+end;
+$function$;
+
+revoke all
+on function public.claim_storage_deletion_jobs(text, integer, uuid)
+from public, anon, authenticated;
+
+grant execute
+on function public.claim_storage_deletion_jobs(text, integer, uuid)
+to service_role;
+
+create or replace function public.recover_staged_storage_deletion_jobs(
+  p_stale_before timestamptz default now() - interval '10 minutes',
+  p_limit integer default 500
+)
+returns table(activated integer, discarded integer, requeued integer)
+language plpgsql
+security definer
+set search_path = public
+as $function$
+declare
+  v_activated integer := 0;
+  v_discarded integer := 0;
+  v_requeued integer := 0;
+begin
+  with interrupted as (
+    select j.id
+    from public.storage_deletion_jobs j
+    where j.status = 'processing'
+      and j.updated_at < p_stale_before
+      and j.retry_count < j.max_retries
+    order by j.updated_at asc
+    limit greatest(1, least(coalesce(p_limit, 500), 2000))
+    for update skip locked
+  )
+  update public.storage_deletion_jobs j
+  set status = 'failed',
+      retry_count = least(j.max_retries, j.retry_count + 1),
+      worker_id = null,
+      last_error = 'Recovered after interrupted storage deletion',
+      next_retry_at = now(),
+      updated_at = now()
+  from interrupted i
+  where j.id = i.id;
+
+  get diagnostics v_requeued = row_count;
+
+  with candidates as (
+    select j.id
+    from public.storage_deletion_jobs j
+    where j.status = 'staged'
+      and j.updated_at < p_stale_before
+      and (
+        (j.photo_id is not null and not exists (
+          select 1 from public.photos p where p.id = j.photo_id
+        ))
+        or
+        (j.photo_id is null and j.album_id is not null and not exists (
+          select 1 from public.albums a where a.id = j.album_id
+        ))
+      )
+    order by j.created_at asc
+    limit greatest(1, least(coalesce(p_limit, 500), 2000))
+    for update skip locked
+  )
+  update public.storage_deletion_jobs j
+  set status = 'pending',
+      next_retry_at = null,
+      last_error = 'Recovered after database deletion',
+      updated_at = now()
+  from candidates c
+  where j.id = c.id;
+
+  get diagnostics v_activated = row_count;
+
+  with abandoned as (
+    select j.id
+    from public.storage_deletion_jobs j
+    where j.status = 'staged'
+      and j.updated_at < now() - interval '24 hours'
+      and (
+        (j.photo_id is not null and exists (
+          select 1 from public.photos p where p.id = j.photo_id
+        ))
+        or
+        (j.photo_id is null and j.album_id is not null and exists (
+          select 1 from public.albums a where a.id = j.album_id
+        ))
+      )
+    order by j.created_at asc
+    limit greatest(1, least(coalesce(p_limit, 500), 2000))
+    for update skip locked
+  )
+  delete from public.storage_deletion_jobs j
+  using abandoned a
+  where j.id = a.id;
+
+  get diagnostics v_discarded = row_count;
+
+  return query select v_activated, v_discarded, v_requeued;
+end;
+$function$;
+
+revoke all
+on function public.recover_staged_storage_deletion_jobs(timestamptz, integer)
+from public, anon, authenticated;
+
+grant execute
+on function public.recover_staged_storage_deletion_jobs(timestamptz, integer)
+to service_role;
+
+-- =========================================================
+-- STORAGE CONSISTENCY ISSUES (DUAL PROVIDER)
+-- =========================================================
+
+create table if not exists public.storage_consistency_issues (
+  id uuid primary key default gen_random_uuid(),
+  issue_type text not null,
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  album_id uuid references public.albums(id) on delete cascade,
+  photo_id uuid references public.photos(id) on delete cascade,
+  storage_provider text not null default 'supabase'
+    check (storage_provider in ('supabase', 'r2')),
+  bucket text not null default 'albums',
+  storage_path text not null,
+  severity text not null default 'warning'
+    check (severity in ('info', 'warning', 'high', 'critical')),
+  status text not null default 'open'
+    check (status in ('open', 'resolved', 'ignored')),
+  details jsonb not null default '{}'::jsonb,
+  detected_at timestamptz not null default now(),
+  resolved_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_storage_consistency_open_object
+  on public.storage_consistency_issues (
+    status,
+    storage_provider,
+    bucket,
+    storage_path
+  )
+  where status = 'open';
+
+create index if not exists idx_storage_consistency_owner_detected
+  on public.storage_consistency_issues (owner_id, detected_at desc);
+
+create index if not exists idx_storage_assets_cleanup_expiry
+  on public.storage_assets (status, expires_at)
+  where status in ('uploading', 'failed') and expires_at is not null;
+
+drop trigger if exists trg_storage_consistency_issues_updated_at
+  on public.storage_consistency_issues;
+create trigger trg_storage_consistency_issues_updated_at
+before update on public.storage_consistency_issues
+for each row execute procedure public.set_updated_at();
+
+alter table public.storage_consistency_issues enable row level security;
+revoke all on table public.storage_consistency_issues from anon, authenticated;
+grant all on table public.storage_consistency_issues to service_role;
+
+create or replace function public.cleanup_storage_consistency_issues(
+  keep_days integer default 30
+)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $function$
+declare
+  deleted_count integer := 0;
+begin
+  if keep_days < 1 then
+    raise exception 'keep_days must be positive';
+  end if;
+
+  delete from public.storage_consistency_issues
+  where status in ('resolved', 'ignored')
+    and coalesce(resolved_at, updated_at, detected_at)
+      < now() - make_interval(days => keep_days);
+
+  get diagnostics deleted_count = row_count;
+  return deleted_count;
+end;
+$function$;
+
+revoke all on function public.cleanup_storage_consistency_issues(integer)
+  from public, anon, authenticated;
+grant execute on function public.cleanup_storage_consistency_issues(integer)
+  to service_role;
 
 -- =========================================================
 -- DONE FULL SCHEMA v2.4

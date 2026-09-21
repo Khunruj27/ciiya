@@ -8,6 +8,7 @@ import PortfolioEditor from '@/components/portfolio-editor'
 import NotificationBell from '@/components/notification-bell'
 import { getUnreadNotificationCount } from '@/lib/notifications'
 import { getServerDictionary } from '@/lib/i18n-server'
+import type { PortfolioStorageAsset, StorageProvider } from '@/lib/storage'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,6 +74,53 @@ export default async function PortfolioPage() {
     }
   }
 
+  const storageAssetIds = Array.isArray(portfolio.storage_asset_ids)
+    ? portfolio.storage_asset_ids
+    : []
+  let initialAssets: PortfolioStorageAsset[] = []
+
+  if (storageAssetIds.length > 0) {
+    const { data: assetRows, error: assetError } = await supabase
+      .from('storage_assets')
+      .select(
+        'id, storage_provider, storage_bucket, object_key, public_url, size_bytes'
+      )
+      .eq('owner_id', user.id)
+      .eq('asset_kind', 'portfolio')
+      .eq('status', 'active')
+      .in('id', storageAssetIds)
+
+    if (assetError) {
+      console.error('[portfolio] unable to load storage metadata:', assetError)
+    } else {
+      initialAssets = (assetRows || [])
+        .map((asset) => {
+          const provider = asset.storage_provider as StorageProvider
+          const url = String(asset.public_url || '').trim()
+          const sizeBytes = Number(asset.size_bytes)
+
+          if (
+            (provider !== 'supabase' && provider !== 'r2') ||
+            !url ||
+            !Number.isSafeInteger(sizeBytes) ||
+            sizeBytes < 1
+          ) {
+            return null
+          }
+
+          return {
+            id: asset.id,
+            provider,
+            bucket: asset.storage_bucket,
+            key: asset.object_key,
+            url,
+            sizeBytes,
+          }
+        })
+        .filter((asset): asset is PortfolioStorageAsset => asset !== null)
+    }
+  }
+
   if (!portfolio) {
     return (
       <main className="grid min-h-screen place-items-center bg-ground px-6 text-center text-ink">
@@ -133,7 +181,7 @@ export default async function PortfolioPage() {
 
         <PortfolioEditor
           initial={portfolio}
-          userId={user.id}
+          initialAssets={initialAssets}
           origin={origin}
         />
       </div>

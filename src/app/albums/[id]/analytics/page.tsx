@@ -9,6 +9,8 @@ import NotificationBell from '@/components/notification-bell'
 import { Eye, Download, Heart, ScanFace, Camera, Images, ArrowLeft } from 'lucide-react'
 import styles from './analytics.module.css'
 import { DailyActivityChart, HourlyActivityChart } from '@/components/analytics-activity-charts'
+import { resolvePhotoDeliveries } from '@/lib/storage/delivery'
+import { resolveAlbumCoverDeliveries } from '@/lib/storage/album-covers'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -75,14 +77,16 @@ export default async function AlbumAnalyticsPage({ params }: PageProps) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: album } = await supabase
+  const { data: albumData } = await supabase
     .from('albums')
-    .select('id, title, cover_url, view_count')
+    .select('id, title, cover_url, cover_photo_id, view_count')
     .eq('id', id)
     .eq('owner_id', user.id)
     .maybeSingle()
 
-  if (!album) redirect('/albums')
+  if (!albumData) redirect('/albums')
+
+  const [album] = await resolveAlbumCoverDeliveries(supabase, [albumData])
 
   const unreadNotificationCount = await getUnreadNotificationCount(supabase, user.id)
 
@@ -91,7 +95,7 @@ export default async function AlbumAnalyticsPage({ params }: PageProps) {
   const [{ data: photos }, { data: events }, momentsResult] = await Promise.all([
     supabase
       .from('photos')
-      .select('id, filename, file_name, thumbnail_url, preview_url, view_count, download_count, like_count')
+      .select('id, filename, file_name, storage_provider, storage_bucket, thumbnail_url, preview_url, thumbnail_path, preview_path, view_count, download_count, like_count')
       .eq('album_id', id)
       .eq('owner_id', user.id),
     supabase
@@ -108,7 +112,7 @@ export default async function AlbumAnalyticsPage({ params }: PageProps) {
       .eq('status', 'published'),
   ])
 
-  const safePhotos = photos || []
+  const safePhotos = resolvePhotoDeliveries(photos || [])
   const safeEvents = events || []
   const totalDownloads = safePhotos.reduce((sum, photo) => sum + Number(photo.download_count || 0), 0)
   const totalLikes = safePhotos.reduce((sum, photo) => sum + Number(photo.like_count || 0), 0)

@@ -17,6 +17,7 @@ type Props = {
   categories?: Category[]
   initialAutoFaceScan?: boolean
   initialAutoPublish?: boolean
+  r2UploadsEnabled?: boolean
   onOptimisticUploads?: (items: OptimisticUpload[]) => void
   showLabel?: boolean
 }
@@ -26,6 +27,7 @@ export default function UploadPhotoModal({
   categories = [],
   initialAutoFaceScan = true,
   initialAutoPublish = false,
+  r2UploadsEnabled = false,
   onOptimisticUploads,
   showLabel = false,
 }: Props) {
@@ -103,6 +105,7 @@ export default function UploadPhotoModal({
                 categories={categories}
                 initialAutoFaceScan={initialAutoFaceScan}
                 initialAutoPublish={initialAutoPublish}
+                r2UploadsEnabled={r2UploadsEnabled}
                 onOptimisticUploads={onOptimisticUploads}
               />
               </div>

@@ -10,6 +10,12 @@ import { createClient } from '@supabase/supabase-js'
 import * as faceapi from '@vladmandic/face-api'
 import canvas from 'canvas'
 import WebSocket from 'ws'
+import {
+  createStorageRef,
+  getStorageAdapter,
+  type StorageAdapter,
+  type StorageProvider,
+} from '../src/lib/storage'
 
 function getSafeIntegerEnv(
   value: string | undefined,
@@ -96,6 +102,8 @@ type PhotoRecord = {
   public_url?: string | null
   original_url?: string | null
   image_url?: string | null
+  storage_provider?: string | null
+  storage_bucket?: string | null
 }
 
 type FaceRow = {
@@ -168,6 +176,31 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   transport: WebSocket as unknown as typeof globalThis.WebSocket,
 },
 })
+
+const storageAdapters = new Map<StorageProvider, StorageAdapter>()
+
+function getWorkerStorageAdapter(provider: StorageProvider) {
+  const existing = storageAdapters.get(provider)
+
+  if (existing) return existing
+
+  const adapter = getStorageAdapter(
+    provider,
+    provider === 'supabase' ? { supabase } : {}
+  )
+
+  storageAdapters.set(provider, adapter)
+  return adapter
+}
+
+function getPhotoStorageProvider(photo: PhotoRecord | null): StorageProvider {
+  const value = photo?.storage_provider
+
+  if (value == null || value === '') return 'supabase'
+  if (value === 'supabase' || value === 'r2') return value
+
+  throw new Error(`Unsupported photo storage provider: ${String(value)}`)
+}
 
 const { Canvas, Image, ImageData } = canvas
 
@@ -1174,30 +1207,29 @@ async function processFaceJob(
       }
     )
 
-    const {
-      data: imageFile,
-      error: downloadError,
-    } = await withRetry(() =>
-      supabase.storage
-        .from('albums')
-        .download(imagePath)
-    )
+    const storageProvider = getPhotoStorageProvider(photo)
+    const storageBucket =
+      storageProvider === 'r2'
+        ? photo?.storage_bucket?.trim()
+        : 'albums'
 
-    if (downloadError || !imageFile) {
-      throw new Error(
-        downloadError?.message ||
-          `Cannot download ${imagePath}`
-      )
+    if (!storageBucket) {
+      throw new Error('R2 photo is missing storage_bucket')
     }
+
+    const imageRef = createStorageRef({
+      provider: storageProvider,
+      bucket: storageBucket,
+      key: imagePath,
+    })
+    const buffer = await withRetry(() =>
+      getWorkerStorageAdapter(storageProvider).downloadObject(imageRef)
+    )
 
     await updateFaceProgress(
       job.photo_id,
       30,
       'processing'
-    )
-
-    const buffer = Buffer.from(
-      await imageFile.arrayBuffer()
     )
 
     let detections: Awaited<

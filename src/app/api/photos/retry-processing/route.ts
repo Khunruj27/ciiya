@@ -4,6 +4,12 @@ import {
   createClient,
   type SupabaseClient,
 } from '@supabase/supabase-js'
+import {
+  createStorageRef,
+  getStorageAdapter,
+  resolvePresetStorageRef,
+  type StorageProvider,
+} from '@/lib/storage'
 
 type RequestedSize = 'sd' | 'hd' | 'uhd' | 'original'
 
@@ -48,34 +54,6 @@ function hasUnsafeStoragePath(path: string) {
     lowerPath.includes('%2f') ||
     lowerPath.includes('%5c')
   )
-}
-
-async function storageObjectExists(
-  supabaseAdmin: SupabaseClient,
-  storagePath: string,
-  bucket = 'albums'
-) {
-  const parts = storagePath.split('/')
-  const fileName = parts.pop()
-
-  if (!fileName || parts.length === 0) {
-    return false
-  }
-
-  const folder = parts.join('/')
-
-  const { data, error } = await supabaseAdmin.storage
-    .from(bucket)
-    .list(folder, {
-      limit: 5,
-      search: fileName,
-    })
-
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  return data.some((item) => item.name === fileName)
 }
 
 export async function POST(req: NextRequest) {
@@ -123,6 +101,8 @@ const photoId = String(body.photoId || '').trim()
         user_id,
         original_path,
         storage_path,
+        storage_provider,
+        storage_bucket,
         selected_size,
         preset_path
         `
@@ -184,10 +164,29 @@ if (
   )
 }
 
-const originalExists = await storageObjectExists(
-  supabaseAdmin,
-  originalPath
-)
+const provider: StorageProvider =
+  photo.storage_provider === 'r2' ? 'r2' : 'supabase'
+const originalBuckets =
+  provider === 'r2'
+    ? [String(photo.storage_bucket || '')]
+    : photo.storage_bucket
+      ? [String(photo.storage_bucket)]
+      : ['albums', 'originals']
+
+let originalExists = false
+for (const bucket of originalBuckets.filter(Boolean)) {
+  const head = await getStorageAdapter(
+    provider,
+    provider === 'supabase' ? { supabase: supabaseAdmin } : {}
+  ).objectExists(
+    createStorageRef({ provider, bucket, key: originalPath })
+  )
+
+  if (head.exists) {
+    originalExists = true
+    break
+  }
+}
 
 if (!originalExists) {
   return NextResponse.json(
@@ -197,17 +196,22 @@ if (!originalExists) {
 }
 
 if (photo.preset_path) {
-  const presetBucket = photo.preset_path.startsWith(
-    expectedUserPresetPrefix
-  )
-    ? 'presets'
-    : 'albums'
-
-  const presetExists = await storageObjectExists(
-    supabaseAdmin,
-    photo.preset_path,
-    presetBucket
-  )
+  const presetRef = await resolvePresetStorageRef({
+    supabase: supabaseAdmin,
+    ownerId,
+    albumId: photo.album_id,
+    presetPath: photo.preset_path,
+  })
+  const presetExists = presetRef
+    ? (
+        await getStorageAdapter(
+          presetRef.provider,
+          presetRef.provider === 'supabase'
+            ? { supabase: supabaseAdmin }
+            : {}
+        ).objectExists(presetRef)
+      ).exists
+    : false
 
   if (!presetExists) {
     return NextResponse.json(

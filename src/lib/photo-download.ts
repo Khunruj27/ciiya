@@ -1,5 +1,15 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
+import {
+  createStorageRef,
+  getStorageAdapter,
+  type StorageAdapter,
+  type StorageProvider,
+} from '@/lib/storage'
+import {
+  buildPhotoDownloadStoragePlan,
+  normalizePhotoStorageProvider,
+} from '@/lib/storage/photo-download-plan'
 
 export type DownloadSize = 'sd' | 'hd' | 'uhd' | 'original'
 
@@ -31,19 +41,11 @@ export type DownloadPhotoRecord = {
   hd_path?: string | null
   uhd_path?: string | null
   download_count?: number | null
+  storage_provider?: string | null
+  storage_bucket?: string | null
 }
 
 const BUCKET = 'albums'
-// Full-resolution originals live in a separate PRIVATE bucket so a leaked
-// public URL can't expose them forever; only the service role (this module)
-// reads them. Display derivatives (preview/thumbnail/sd/hd/uhd) stay in the
-// public `albums` bucket. Originals are the only tier stored under an
-// `/original/` path segment, so the path alone tells us which bucket to read.
-const ORIGINALS_BUCKET = 'originals'
-
-function bucketForStoragePath(path: string) {
-  return path.includes('/original/') ? ORIGINALS_BUCKET : BUCKET
-}
 
 const generatingMap = new Map<string, Promise<Buffer>>()
 
@@ -263,29 +265,36 @@ async function getOrCreateGeneratedBuffer(params: {
   return Buffer.from(generatedBuffer)
 }
 
-async function downloadStorageFile(
-  supabase: SupabaseClient,
+async function downloadStorageFile(params: {
+  adapter: StorageAdapter
+  storageProvider: StorageProvider
+  storageBucket: string | null
   path: string
-) {
-  const primaryBucket = bucketForStoragePath(path)
+}) {
+  const plan = buildPhotoDownloadStoragePlan({
+    storageProvider: params.storageProvider,
+    storageBucket: params.storageBucket,
+    path: params.path,
+  })
+  let lastError: unknown
 
-  let { data, error } = await supabase.storage
-    .from(primaryBucket)
-    .download(path)
-
-  // An `/original/` path normally lives in the private originals bucket, but a
-  // just-uploaded (not-yet-relocated) original — or one for an album delivered
-  // at 'original' size, which stays public — still sits in `albums`. Fall back
-  // there before giving up.
-  if ((error || !data) && primaryBucket === ORIGINALS_BUCKET) {
-    ;({ data, error } = await supabase.storage.from(BUCKET).download(path))
+  for (const bucket of plan.buckets) {
+    try {
+      return await params.adapter.downloadObject(
+        createStorageRef({
+          provider: plan.provider,
+          bucket,
+          key: params.path,
+        })
+      )
+    } catch (error) {
+      lastError = error
+    }
   }
 
-  if (error || !data) {
-    throw new Error(error?.message || `File not found: ${path}`)
-  }
-
-  return Buffer.from(await data.arrayBuffer())
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`File not found: ${params.path}`)
 }
 
 export async function incrementDownloadCount(
@@ -306,41 +315,67 @@ export async function incrementDownloadCount(
 
 async function saveGeneratedSize(params: {
   supabase: SupabaseClient
+  adapter: StorageAdapter
+  storageProvider: StorageProvider
+  storageBucket: string | null
   photoId: string
   size: Exclude<DownloadSize, 'original'>
   path: string
   buffer: Buffer
 }) {
-  const { supabase, photoId, size, path, buffer } = params
+  const {
+    supabase,
+    adapter,
+    storageProvider,
+    storageBucket,
+    photoId,
+    size,
+    path,
+    buffer,
+  } = params
+  const bucket = storageProvider === 'r2' ? storageBucket : BUCKET
 
-  const upload = await supabase.storage.from(BUCKET).upload(path, buffer, {
+  if (!bucket) {
+    throw new Error('R2 photo is missing storage_bucket')
+  }
+
+  const objectRef = createStorageRef({
+    provider: storageProvider,
+    bucket,
+    key: path,
+  })
+
+  await adapter.uploadObject(objectRef, buffer, {
     contentType: 'image/jpeg',
     cacheControl: '31536000',
     upsert: true,
   })
 
-  if (upload.error) {
-    throw new Error(upload.error.message)
-  }
-
-  const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path)
+  // R2 delivery tiers stay private and are returned only through this
+  // authorized endpoint. Supabase keeps its legacy public derivative URLs.
+  const generatedUrl =
+    storageProvider === 'supabase'
+      ? supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
+      : null
 
   const updatePayload: Record<string, unknown> = {}
 
   if (size === 'sd') {
     updatePayload.sd_path = path
-    updatePayload.sd_url = urlData.publicUrl
+    updatePayload.sd_url = generatedUrl
   }
 
   if (size === 'hd') {
     updatePayload.hd_path = path
-    updatePayload.hd_url = urlData.publicUrl
+    updatePayload.hd_url = generatedUrl
   }
 
   if (size === 'uhd') {
     updatePayload.uhd_path = path
-    updatePayload.uhd_url = urlData.publicUrl
+    updatePayload.uhd_url = generatedUrl
   }
+
+  updatePayload.updated_at = new Date().toISOString()
 
   const { error: updateError } = await supabase
     .from('photos')
@@ -353,17 +388,8 @@ async function saveGeneratedSize(params: {
       updateError.message
     )
 
-    const { error: cleanupError } = await supabase.storage
-      .from(BUCKET)
-      .remove([path])
-
-    if (cleanupError) {
-      console.error(
-        '[photo-download] generated file rollback failed:',
-        cleanupError.message
-      )
-    }
-
+    // Keep the deterministic object for an idempotent retry. Deleting here
+    // could remove an object committed by a concurrent download request.
     throw new Error('Failed to save generated image')
   }
 }
@@ -385,6 +411,7 @@ export async function resolvePhotoDownload(params: {
   supabase: SupabaseClient
   photo: DownloadPhotoRecord
   album: DownloadAlbumRecord
+  storageAdapter?: StorageAdapter
 }) {
   const { supabase, photo, album } = params
 
@@ -415,6 +442,27 @@ export async function resolvePhotoDownload(params: {
     throw new PhotoDownloadError('Photo not found', 404)
   }
 
+  let storageProvider: StorageProvider
+
+  try {
+    storageProvider = normalizePhotoStorageProvider(photo.storage_provider)
+  } catch {
+    throw new PhotoDownloadError('Photo not found', 404)
+  }
+
+  const storageBucket = photo.storage_bucket?.trim() || null
+
+  if (storageProvider === 'r2' && !storageBucket) {
+    throw new PhotoDownloadError('Photo not found', 404)
+  }
+
+  const adapter =
+    params.storageAdapter ||
+    getStorageAdapter(
+      storageProvider,
+      storageProvider === 'supabase' ? { supabase } : {}
+    )
+
   const size = normalizeAlbumDownloadSize(album.download_size)
 
   if (size === 'original' && album.allow_original_download !== true) {
@@ -433,7 +481,12 @@ export async function resolvePhotoDownload(params: {
       throw new PhotoDownloadError('Original file path not found', 404)
     }
 
-    const buffer = await downloadStorageFile(supabase, originalPath)
+    const buffer = await downloadStorageFile({
+      adapter,
+      storageProvider,
+      storageBucket,
+      path: originalPath,
+    })
 
     return { buffer, filename, contentType, size }
   }
@@ -442,7 +495,12 @@ export async function resolvePhotoDownload(params: {
 
   if (existingPath) {
     try {
-      const buffer = await downloadStorageFile(supabase, existingPath)
+      const buffer = await downloadStorageFile({
+        adapter,
+        storageProvider,
+        storageBucket,
+        path: existingPath,
+      })
       return { buffer, filename, contentType, size }
     } catch (error) {
       console.warn(
@@ -458,23 +516,41 @@ export async function resolvePhotoDownload(params: {
     throw new PhotoDownloadError('Original file path not found', 404)
   }
 
-  const sourceBuffer = await downloadStorageFile(supabase, sourcePath)
-
-  const resizedBuffer = await getOrCreateGeneratedBuffer({
-    cacheKey: `${photo.id}:${size}`,
-    originalBuffer: sourceBuffer,
-    width,
+  const sourceBuffer = await downloadStorageFile({
+    adapter,
+    storageProvider,
+    storageBucket,
+    path: sourcePath,
   })
+  let resizedBuffer: Buffer
+
+  try {
+    resizedBuffer = await getOrCreateGeneratedBuffer({
+      cacheKey: `${storageProvider}:${photo.id}:${size}`,
+      originalBuffer: sourceBuffer,
+      width,
+    })
+  } finally {
+    sourceBuffer.fill(0)
+  }
 
   const generatedPath = makeOutputPath(sourcePath, size)
 
-  await saveGeneratedSize({
-    supabase,
-    photoId: photo.id,
-    size,
-    path: generatedPath,
-    buffer: resizedBuffer,
-  })
+  try {
+    await saveGeneratedSize({
+      supabase,
+      adapter,
+      storageProvider,
+      storageBucket,
+      photoId: photo.id,
+      size,
+      path: generatedPath,
+      buffer: resizedBuffer,
+    })
+  } catch (error) {
+    resizedBuffer.fill(0)
+    throw error
+  }
 
   return { buffer: resizedBuffer, filename, contentType, size }
 }

@@ -5,6 +5,7 @@ import {
   hasValidSharePasswordAccess,
   isAlbumPubliclyVisible,
 } from '@/lib/share-access'
+import { resolvePhotoDelivery } from '@/lib/storage/delivery'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -64,8 +65,12 @@ export async function GET(req: NextRequest) {
         confidence,
         photos:photo_id (
           id,
+          storage_provider,
+          storage_bucket,
           thumbnail_url,
           preview_url,
+          preview_path,
+          thumbnail_path,
           image_url,
           filename,
           file_name
@@ -97,9 +102,10 @@ export async function GET(req: NextRequest) {
       const clusterKey =
         face.person_cluster_id || `face-${face.id}`
 
-      const photo = Array.isArray(face.photos)
+      const rawPhoto = Array.isArray(face.photos)
         ? face.photos[0]
         : face.photos
+      const photo = rawPhoto ? resolvePhotoDelivery(rawPhoto) : null
 
       const imageUrl =
         photo?.thumbnail_url ||

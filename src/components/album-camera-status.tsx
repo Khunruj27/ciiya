@@ -325,6 +325,7 @@ setShowSettings(false)
   try {
     const formData = new FormData()
     formData.append('file', file)
+    formData.append('albumId', albumId)
 
     const res = await fetch('/api/presets/upload', {
       method: 'POST',

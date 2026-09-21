@@ -113,6 +113,8 @@ export async function POST(req: NextRequest) {
         file_name,
         storage_path,
         original_path,
+        storage_provider,
+        storage_bucket,
         preview_path,
         thumbnail_path,
         sd_path,

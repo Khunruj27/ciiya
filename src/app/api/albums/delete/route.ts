@@ -1,16 +1,25 @@
+import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import {
   createClient,
   type SupabaseClient,
 } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import {
+  activateStorageDeletionOperation,
+  buildAlbumObjectDeletionTarget,
+  buildLegacyGuestMomentDeletionTarget,
+  buildPhotoDeletionTargets,
+  dedupeStorageDeletionTargets,
+  processStorageDeletionJobs,
+  stageStorageDeletionJobs,
+  type StorageDeletionTarget,
+} from '@/lib/storage/deletion-jobs'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const BUCKET = 'albums'
 const LIST_LIMIT = 1000
-const REMOVE_CHUNK_SIZE = 100
 
 type StorageFile = {
   name: string
@@ -34,41 +43,9 @@ function getSupabaseAdmin(): SupabaseAdminClient {
   })
 }
 
-function uniquePaths(paths: Array<string | null | undefined>) {
-  return Array.from(
-    new Set(
-      paths
-        .filter(Boolean)
-        .map((path) => String(path).trim())
-        .filter(Boolean)
-    )
-  )
-}
-
-function hasUnsafeStoragePath(path: string) {
-  const lowerPath = path.toLowerCase()
-
-  return (
-    path.includes('..') ||
-    path.includes('\\') ||
-    lowerPath.includes('%2f') ||
-    lowerPath.includes('%5c') ||
-    path.includes('//')
-  )
-}
-
-function chunkArray<T>(items: T[], size: number) {
-  const chunks: T[][] = []
-
-  for (let i = 0; i < items.length; i += size) {
-    chunks.push(items.slice(i, i + size))
-  }
-
-  return chunks
-}
-
 async function listAllStoragePaths(
   supabase: SupabaseAdminClient,
+  bucket: string,
   prefix: string
 ) {
   const allPaths: string[] = []
@@ -76,7 +53,7 @@ async function listAllStoragePaths(
 
   while (true) {
     const { data: files, error } = await supabase.storage
-      .from(BUCKET)
+      .from(bucket)
       .list(prefix, {
         limit: LIST_LIMIT,
         offset,
@@ -87,8 +64,9 @@ async function listAllStoragePaths(
       })
 
     if (error) {
-      console.error('List storage paths error:', error.message)
-      break
+      throw new Error(
+        `Unable to list ${bucket}/${prefix}: ${error.message}`
+      )
     }
 
     const storageFiles = (files || []) as StorageFile[]
@@ -124,14 +102,14 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json().catch(() => null)
 
-if (!body) {
-  return NextResponse.json(
-    { error: 'Invalid request body' },
-    { status: 400 }
-  )
-}
+    if (!body) {
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      )
+    }
 
-const albumId = String(body.albumId || '').trim()
+    const albumId = String(body.albumId || '').trim()
 
     if (!albumId) {
       return NextResponse.json(
@@ -141,11 +119,11 @@ const albumId = String(body.albumId || '').trim()
     }
 
     if (albumId.length > 100) {
-  return NextResponse.json(
-    { error: 'Invalid albumId' },
-    { status: 400 }
-  )
-}
+      return NextResponse.json(
+        { error: 'Invalid albumId' },
+        { status: 400 }
+      )
+    }
 
     const { data: album, error: albumCheckError } = await supabase
       .from('albums')
@@ -163,6 +141,9 @@ const albumId = String(body.albumId || '').trim()
       .select(
         `
         id,
+        album_id,
+        storage_provider,
+        storage_bucket,
         storage_path,
         original_path,
         preview_path,
@@ -182,62 +163,164 @@ const albumId = String(body.albumId || '').trim()
     const photos = photosData ?? []
     const photoIds = photos.map((photo) => photo.id)
 
-    const dbPaths = uniquePaths(
-      photos.flatMap((photo) => [
-        photo.storage_path,
-        photo.original_path,
-        photo.preview_path,
-        photo.thumbnail_path,
-        photo.sd_path,
-        photo.hd_path,
-        photo.uhd_path,
-      ])
-    )
-
     const expectedPrefix = `${user.id}/${albumId}/`
 
-const folderPrefixes = [
-  `${expectedPrefix}cover`,
-  `${expectedPrefix}photos`,
-  `${expectedPrefix}original`,
-  `${expectedPrefix}preview`,
-  `${expectedPrefix}thumbnail`,
-  `${expectedPrefix}sd`,
-  `${expectedPrefix}hd`,
-  `${expectedPrefix}uhd`,
-  `${expectedPrefix}presets`,
-].filter((prefix) => prefix.startsWith(expectedPrefix))
+    const folderPrefixes = [
+      `${expectedPrefix}cover`,
+      `${expectedPrefix}photos`,
+      `${expectedPrefix}original`,
+      `${expectedPrefix}preview`,
+      `${expectedPrefix}thumbnail`,
+      `${expectedPrefix}thumbnails`,
+      `${expectedPrefix}sd`,
+      `${expectedPrefix}hd`,
+      `${expectedPrefix}uhd`,
+      `${expectedPrefix}presets`,
+    ].filter((prefix) => prefix.startsWith(expectedPrefix))
 
-    const storagePaths: string[] = []
+    const deletionTargets: StorageDeletionTarget[] = []
 
-    for (const prefix of folderPrefixes) {
-      const paths = await listAllStoragePaths(supabaseAdmin, prefix)
-      storagePaths.push(...paths)
+    try {
+      for (const photo of photos) {
+        deletionTargets.push(
+          ...buildPhotoDeletionTargets({
+            photo,
+            ownerId: user.id,
+            albumId,
+          })
+        )
+      }
+    } catch (pathError) {
+      console.error('[albums/delete] invalid photo storage data:', pathError)
+      return NextResponse.json(
+        { error: 'Album storage data is invalid' },
+        { status: 409 }
+      )
     }
 
-   const allowedPrefix = `${user.id}/${albumId}/`
+    const { data: storageAssets, error: storageAssetError } =
+      await supabaseAdmin
+        .from('storage_assets')
+        .select('storage_provider, storage_bucket, object_key')
+        .eq('owner_id', user.id)
+        .eq('album_id', albumId)
 
- const pathsToRemove = uniquePaths([...dbPaths, ...storagePaths]).filter(
-  (path) =>
-    path.startsWith(allowedPrefix) &&
-    !hasUnsafeStoragePath(path)
-)
+    if (storageAssetError) {
+      return NextResponse.json(
+        { error: storageAssetError.message },
+        { status: 500 }
+      )
+    }
 
-    let deletedStorageFiles = 0
-    let storageWarning: string | null = null
+    try {
+      for (const asset of storageAssets || []) {
+        const provider = asset.storage_provider
 
-    for (const chunk of chunkArray(pathsToRemove, REMOVE_CHUNK_SIZE)) {
-      const { error: storageError } = await supabaseAdmin.storage
-        .from(BUCKET)
-        .remove(chunk)
+        if (provider !== 'supabase' && provider !== 'r2') {
+          throw new Error('Unsupported storage asset provider')
+        }
 
-      if (storageError) {
-        storageWarning = storageError.message
-        console.error('Album storage delete warning:', storageError.message)
-      } else {
-        deletedStorageFiles += chunk.length
+        deletionTargets.push(
+          buildAlbumObjectDeletionTarget({
+            provider,
+            bucket: asset.storage_bucket,
+            key: asset.object_key,
+            ownerId: user.id,
+            albumId,
+          })
+        )
+      }
+    } catch (pathError) {
+      console.error('[albums/delete] invalid non-photo storage data:', pathError)
+      return NextResponse.json(
+        { error: 'Album asset storage data is invalid' },
+        { status: 409 }
+      )
+    }
+
+    const { data: guestMoments, error: guestMomentError } =
+      await supabaseAdmin
+        .from('guest_moments')
+        .select('storage_paths')
+        .eq('album_id', albumId)
+
+    if (guestMomentError) {
+      return NextResponse.json(
+        { error: guestMomentError.message },
+        { status: 500 }
+      )
+    }
+
+    for (const moment of guestMoments || []) {
+      for (const path of moment.storage_paths || []) {
+        // New owner-scoped objects are already represented by storage_assets.
+        // Only the pre-Phase-10 albumId/date path needs this compatibility row.
+        if (String(path).startsWith(expectedPrefix)) continue
+
+        try {
+          deletionTargets.push(
+            buildLegacyGuestMomentDeletionTarget({
+              key: String(path),
+              albumId,
+            })
+          )
+        } catch (pathError) {
+          console.error(
+            '[albums/delete] ignored unsafe legacy Guest Moment path:',
+            pathError
+          )
+        }
       }
     }
+
+    for (const prefix of folderPrefixes) {
+      const paths = await listAllStoragePaths(supabaseAdmin, 'albums', prefix)
+
+      for (const path of paths) {
+        try {
+          deletionTargets.push(
+            buildAlbumObjectDeletionTarget({
+              provider: 'supabase',
+              bucket: 'albums',
+              key: path,
+              ownerId: user.id,
+              albumId,
+            })
+          )
+        } catch (pathError) {
+          console.error('[albums/delete] ignored unsafe listed path:', pathError)
+        }
+      }
+    }
+
+    const legacyOriginalPaths = await listAllStoragePaths(
+      supabaseAdmin,
+      'originals',
+      `${expectedPrefix}original`
+    )
+
+    for (const path of legacyOriginalPaths) {
+      try {
+        deletionTargets.push(
+          buildAlbumObjectDeletionTarget({
+            provider: 'supabase',
+            bucket: 'originals',
+            key: path,
+            ownerId: user.id,
+            albumId,
+          })
+        )
+      } catch (pathError) {
+        console.error('[albums/delete] ignored unsafe original path:', pathError)
+      }
+    }
+
+    const staged = await stageStorageDeletionJobs({
+      supabase: supabaseAdmin,
+      ownerId: user.id,
+      albumId,
+      targets: dedupeStorageDeletionTargets(deletionTargets),
+    })
 
     if (photoIds.length > 0) {
       await supabaseAdmin.from('worker_logs').delete().in('photo_id', photoIds)
@@ -431,6 +514,35 @@ const folderPrefixes = [
       return NextResponse.json({ error: albumError.message }, { status: 500 })
     }
 
+    let deletionResult = { claimed: 0, completed: 0, failed: 0 }
+    let storageWarning: string | null = null
+
+    if (staged.operationId) {
+      try {
+        await activateStorageDeletionOperation(
+          supabaseAdmin,
+          staged.operationId
+        )
+        deletionResult = await processStorageDeletionJobs({
+          supabase: supabaseAdmin,
+          workerId: `album-delete-${randomUUID()}`,
+          operationId: staged.operationId,
+          limit: Math.max(1, staged.staged),
+        })
+
+        const pendingCount = staged.staged - deletionResult.completed
+        if (pendingCount > 0) {
+          storageWarning = `${pendingCount} object(s) queued for retry`
+        }
+      } catch (storageError) {
+        storageWarning =
+          storageError instanceof Error
+            ? storageError.message
+            : 'Storage deletion queued for retry'
+        console.error('[albums/delete] storage cleanup deferred:', storageError)
+      }
+    }
+
     const { error: recalculateError } = await supabaseAdmin.rpc(
       'recalculate_user_storage',
       {
@@ -447,9 +559,12 @@ const folderPrefixes = [
 
     return NextResponse.json({
       success: true,
-      deletedStorageFiles,
+      deletedStorageFiles: deletionResult.completed,
       deletedPhotoRows: photos.length,
       deletedAlbumId: albumId,
+      cleanupPending:
+        staged.staged > deletionResult.completed ||
+        Boolean(storageWarning),
       storageWarning,
       storageRecalculated: !recalculateError,
     })

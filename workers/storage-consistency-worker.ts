@@ -3,46 +3,66 @@ import { config } from 'dotenv'
 config({ path: '.env.local' })
 
 import { createClient } from '@supabase/supabase-js'
+import {
+  cleanupExpiredStorageReservations,
+  getPhotoStorageCandidates,
+  scanTrackedStorageObjects,
+  storageObjectIdentity,
+  type StorageConsistencyIssue,
+} from '../src/lib/storage/consistency'
+import { getStorageAdapter } from '../src/lib/storage'
+import {
+  processStorageDeletionJobs,
+  recoverStagedStorageDeletionJobs,
+} from '../src/lib/storage/deletion-jobs'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  }
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+if (!supabaseUrl || !serviceRoleKey) {
+  throw new Error('Missing Supabase worker environment variables')
+}
+
+const supabase = createClient(supabaseUrl, serviceRoleKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+})
+
+function positiveNumber(value: string | undefined, fallback: number) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
+const POLL_INTERVAL = positiveNumber(
+  process.env.STORAGE_CONSISTENCY_INTERVAL,
+  60_000
 )
-
-const configuredPollInterval = Number(
-  process.env.STORAGE_CONSISTENCY_INTERVAL || 60_000
+const SCAN_BATCH_SIZE = Math.min(
+  2000,
+  positiveNumber(process.env.STORAGE_CONSISTENCY_BATCH_SIZE, 250)
 )
+const CLEANUP_DRY_RUN = process.env.STORAGE_CLEANUP_DRY_RUN !== 'false'
+const workerId = `storage-consistency-${process.pid}`
 
-const POLL_INTERVAL =
-  Number.isFinite(configuredPollInterval) && configuredPollInterval >= 1000
-    ? configuredPollInterval
-    : 60_000
-
-console.log('[StorageConsistencyWorker] started')
-
-let lastCleanupAt = 0
+let scanOffset = 0
+let lastDailyCleanupAt = 0
 let isShuttingDown = false
 const wakeSleepers = new Set<() => void>()
+
+console.log('[StorageConsistencyWorker] started', {
+  batchSize: SCAN_BATCH_SIZE,
+  cleanupDryRun: CLEANUP_DRY_RUN,
+})
 
 function sleep(ms: number) {
   return new Promise<void>((resolve) => {
     let settled = false
-
     const finish = () => {
       if (settled) return
-
       settled = true
       clearTimeout(timer)
       wakeSleepers.delete(finish)
       resolve()
     }
-
     const timer = setTimeout(finish, ms)
     wakeSleepers.add(finish)
   })
@@ -50,408 +70,149 @@ function sleep(ms: number) {
 
 function requestShutdown(signal: string) {
   if (isShuttingDown) return
-
   isShuttingDown = true
-
   console.log(`[StorageConsistencyWorker] received ${signal}, shutting down`)
-
-  for (const wake of [...wakeSleepers]) {
-    wake()
-  }
+  for (const wake of [...wakeSleepers]) wake()
 }
 
 process.on('SIGTERM', () => requestShutdown('SIGTERM'))
 process.on('SIGINT', () => requestShutdown('SIGINT'))
 
-async function logIssue(
-  issueType: string,
-  ownerId: string,
-  albumId: string | null,
-  photoId: string | null,
-  storagePath: string | null,
-  details: Record<string, unknown> = {}
-) {
-  const { data: existing } = await supabase
+async function persistIssue(issue: StorageConsistencyIssue) {
+  const { data: existing, error: lookupError } = await supabase
     .from('storage_consistency_issues')
     .select('id')
-    .eq('issue_type', issueType)
+    .eq('issue_type', issue.issueType)
     .eq('status', 'open')
-    .eq('storage_path', storagePath)
+    .eq('storage_provider', issue.ref.provider)
+    .eq('bucket', issue.ref.bucket)
+    .eq('storage_path', issue.ref.key)
     .maybeSingle()
 
+  if (lookupError) throw new Error(lookupError.message)
   if (existing) return
 
-  const { error } = await supabase
-    .from('storage_consistency_issues')
-    .insert({
-  issue_type: issueType,
-  owner_id: ownerId,
-  album_id: albumId,
-  photo_id: photoId,
-  bucket: 'albums',
-  storage_path: storagePath,
-  severity:
-    issueType === 'missing_storage_file' ? 'high' : 'warning',
-  status: 'open',
-  details,
-  detected_at: new Date().toISOString(),
-})
+  const { error } = await supabase.from('storage_consistency_issues').insert({
+    issue_type: issue.issueType,
+    owner_id: issue.ownerId,
+    album_id: issue.albumId,
+    photo_id: issue.photoId,
+    storage_provider: issue.ref.provider,
+    bucket: issue.ref.bucket,
+    storage_path: issue.ref.key,
+    severity: issue.issueType === 'missing_storage_file' ? 'high' : 'warning',
+    status: 'open',
+    details: {
+      source: issue.source,
+      expected_size_bytes: issue.expectedSizeBytes ?? null,
+      actual_size_bytes: issue.actualSizeBytes ?? null,
+    },
+    detected_at: new Date().toISOString(),
+  })
 
-  if (error) {
-    console.error(error.message)
-  }
+  if (error) throw new Error(error.message)
 }
 
-async function resolveIssue(
-  issueType: string,
-  storagePath: string | null
+async function resolveHealthyObjects(
+  refs: Awaited<ReturnType<typeof scanTrackedStorageObjects>>['healthyRefs']
 ) {
-  if (!storagePath) return
+  for (const ref of refs) {
+    const { error } = await supabase
+      .from('storage_consistency_issues')
+      .update({
+        status: 'resolved',
+        resolved_at: new Date().toISOString(),
+      })
+      .eq('status', 'open')
+      .eq('storage_provider', ref.provider)
+      .eq('bucket', ref.bucket)
+      .eq('storage_path', ref.key)
 
-  const { error } = await supabase
-    .from('storage_consistency_issues')
-    .update({
-      status: 'resolved',
-      resolved_at: new Date().toISOString(),
-    })
-    .eq('issue_type', issueType)
-    .eq('status', 'open')
-    .eq('storage_path', storagePath)
-
-  if (error) {
-    console.error('[StorageConsistencyWorker] resolve failed:', error.message)
+    if (error) throw new Error(error.message)
   }
 }
 
-async function storageFileExists(path: string): Promise<boolean | null> {
-  const parts = path.split('/')
+async function queueRepairJobs(issues: StorageConsistencyIssue[]) {
+  const photoIds = [
+    ...new Set(
+      issues
+        .filter(
+          (issue) =>
+            issue.source === 'photos' &&
+            issue.issueType === 'missing_storage_file' &&
+            issue.photoId
+        )
+        .map((issue) => issue.photoId as string)
+    ),
+  ]
+  if (photoIds.length === 0) return
 
-  if (parts.length < 2) {
-    return false
-  }
-
-  const filename = parts.pop()
-
-  if (!filename) {
-    return false
-  }
-
-  const folder = parts.join('/')
-
-  const { data, error } = await supabase.storage
-    .from('albums')
-    .list(folder, {
-      limit: 100,
-      search: filename,
-    })
-
-  if (error) {
-    console.error(
-      `[StorageConsistencyWorker] storage lookup failed for ${path}:`,
-      error.message
-    )
-
-    return null
-  }
-
-  return data.some((item) => item.name === filename)
-}
-
-async function listStoragePaths(prefix: string) {
-  const { data, error } = await supabase.storage
-    .from('albums')
-    .list(prefix, {
-      limit: 1000,
-      sortBy: {
-        column: 'name',
-        order: 'asc',
-      },
-    })
-
-  if (error) {
-    console.error('[StorageConsistencyWorker] list failed:', error.message)
-    return []
-  }
-
-  return (data || [])
-    .filter((item) => item.name)
-    .map((item) => `${prefix}/${item.name}`)
-}
-
-async function scanPhotos() {
   const { data: photos, error } = await supabase
     .from('photos')
-    .select(`
-      id,
-      album_id,
-      owner_id,
-      original_path,
-      preview_path,
-      thumbnail_path,
-      hd_path,
-      sd_path,
-      uhd_path
-    `)
-
-  if (error) {
-    console.error(error.message)
-    return
-  }
-
-  for (const photo of photos ?? []) {
-    const paths = [
-      photo.original_path,
-      photo.preview_path,
-      photo.thumbnail_path,
-      photo.hd_path,
-      photo.sd_path,
-      photo.uhd_path,
-    ].filter(Boolean) as string[]
-
-    for (const storagePath of paths) {
-      const exists = await storageFileExists(storagePath)
-
-if (exists === null) {
-  continue
-}
-
-if (!exists) {
-
-    await logIssue(
-    'missing_storage_file',
-    photo.owner_id,
-    photo.album_id,
-    photo.id,
-    storagePath,
-    {
-      source: 'photos',
-    }
-  )
-
-  if (
-  storagePath !== photo.original_path &&
-  photo.original_path &&
-  photo.owner_id &&
-  photo.album_id
-) {
-  const originalExists = await storageFileExists(photo.original_path)
-
-  if (originalExists === true) {
-    await queueRepairJob({
-      id: photo.id,
-      album_id: photo.album_id,
-      owner_id: photo.owner_id,
-      original_path: photo.original_path,
-    })
-  }
-}
-}
-
-else {
-  await resolveIssue('missing_storage_file', storagePath)
-}
-
-    }
-  }
-  
-  
-
-  console.log('[StorageConsistencyWorker] photo scan complete')
-}
-
-
-
-async function start() {
-  while (!isShuttingDown) {
-    const now = Date.now()
-
-    try {
-      await scanPhotos()
-      await scanStorageOrphans()
-      await resolveMissingOrphanIssues()
-
-      if (now - lastCleanupAt > 24 * 60 * 60 * 1000) {
-        await cleanupOldIssues()
-        lastCleanupAt = now
-      }
-    } catch (error) {
-      console.error('[StorageConsistencyWorker] scan failed:', error)
-    }
-
-    if (isShuttingDown) {
-      break
-    }
-
-    await sleep(POLL_INTERVAL)
-  }
-
-  console.log('[StorageConsistencyWorker] graceful shutdown complete')
-}
-
-start().catch((error) => {
-  console.error('[StorageConsistencyWorker] fatal:', error)
-  process.exit(1)
-})
-
-async function scanStorageOrphans() {
-  const { data: albums, error: albumError } = await supabase
-    .from('albums')
-    .select('id, owner_id')
-
-  if (albumError) {
-    console.error(albumError.message)
-    return
-  }
-
-  for (const album of albums ?? []) {
-    const ownerId = album.owner_id
-    const albumId = album.id
-
-    if (!ownerId || !albumId) continue
-
-    const { data: photos, error: photoError } = await supabase
-      .from('photos')
-      .select(`
-        storage_path,
-        original_path,
-        preview_path,
-        thumbnail_path,
-        hd_path,
-        sd_path,
-        uhd_path
-      `)
-      .eq('album_id', albumId)
-      .eq('owner_id', ownerId)
-
-    if (photoError) {
-      console.error(photoError.message)
-      continue
-    }
-
-    const knownPaths = new Set(
-      (photos ?? [])
-        .flatMap((photo) => [
-          photo.storage_path,
-          photo.original_path,
-          photo.preview_path,
-          photo.thumbnail_path,
-          photo.hd_path,
-          photo.sd_path,
-          photo.uhd_path,
-        ])
-        .filter(Boolean)
-        .map(String)
+    .select(
+      'id, album_id, owner_id, user_id, original_path, storage_provider, storage_bucket'
     )
+    .in('id', photoIds)
+  if (error) throw new Error(error.message)
 
-    const prefixes = [
-      `${ownerId}/${albumId}/original`,
-      `${ownerId}/${albumId}/preview`,
-      `${ownerId}/${albumId}/thumbnail`,
-      `${ownerId}/${albumId}/sd`,
-      `${ownerId}/${albumId}/hd`,
-      `${ownerId}/${albumId}/uhd`,
-    ]
-
-    for (const prefix of prefixes) {
-      const storagePaths = await listStoragePaths(prefix)
-
-      for (const storagePath of storagePaths) {
-        if (knownPaths.has(storagePath)) continue
-
-        await logIssue(
-          'storage_orphan_file',
-          ownerId,
-          albumId,
-          null,
-          storagePath,
-          {
-            source: 'storage',
-            prefix,
-          }
-        )
+  for (const photo of photos || []) {
+    const ownerId = photo.owner_id || photo.user_id
+    if (!ownerId || !photo.album_id || !photo.original_path) continue
+    const derivativeMissing = issues.some(
+      (issue) =>
+        issue.photoId === photo.id && issue.ref.key !== photo.original_path
+    )
+    if (!derivativeMissing) continue
+    const originalCandidates = getPhotoStorageCandidates(
+      photo,
+      photo.original_path
+    )
+    let originalExists = false
+    for (const ref of originalCandidates) {
+      const head = await getStorageAdapter(ref.provider, { supabase }).objectExists(
+        ref
+      )
+      if (head.exists) {
+        originalExists = true
+        break
       }
     }
-  }
+    if (!originalExists) continue
+    const { data: existing } = await supabase
+      .from('photo_jobs')
+      .select('id')
+      .eq('photo_id', photo.id)
+      .in('status', ['pending', 'processing'])
+      .maybeSingle()
+    if (existing) continue
 
-  console.log('[StorageConsistencyWorker] orphan scan complete')
-}
-
-async function queueRepairJob(photo: {
-  id: string
-  album_id: string
-  owner_id: string
-  original_path: string
-}) {
-  const { data: existing } = await supabase
-    .from('photo_jobs')
-    .select('id')
-    .eq('photo_id', photo.id)
-    .in('status', ['pending', 'processing'])
-    .maybeSingle()
-
-  if (existing) return
-
-  const { error } = await supabase
-    .from('photo_jobs')
-.upsert(
-  {
-      photo_id: photo.id,
-      album_id: photo.album_id,
-      owner_id: photo.owner_id,
-      original_path: photo.original_path,
-      size: 'hd',
-      status: 'pending',
-      priority: 180,
-      progress: 0,
-      retry_count: 0,
-      retries: 0,
-      worker_id: null,
-      claimed_by: null,
-      started_at: null,
-      finished_at: null,
-      updated_at: new Date().toISOString(),
-      payload: {
-        source: 'storage-consistency-repair',
+    const { error: queueError } = await supabase.from('photo_jobs').upsert(
+      {
+        photo_id: photo.id,
+        album_id: photo.album_id,
+        owner_id: ownerId,
+        original_path: photo.original_path,
+        size: 'hd',
+        status: 'pending',
+        priority: 180,
+        progress: 0,
+        retry_count: 0,
+        retries: 0,
+        updated_at: new Date().toISOString(),
+        payload: { source: 'storage-consistency-repair' },
       },
-      },
-  {
-    onConflict: 'photo_id',
-  }
-)
-
-  if (error) {
-    console.error('[StorageConsistencyWorker] repair queue failed:', error.message)
-  }
-}
-
-async function resolveMissingOrphanIssues() {
-  const { data: issues, error } = await supabase
-    .from('storage_consistency_issues')
-    .select('id, storage_path')
-    .eq('issue_type', 'storage_orphan_file')
-    .eq('status', 'open')
-    .limit(200)
-
-  if (error) {
-    console.error('[StorageConsistencyWorker] load orphan issues failed:', error.message)
-    return
-  }
-
-  for (const issue of issues ?? []) {
-    if (!issue.storage_path) continue
-
-const stillExists = await storageFileExists(issue.storage_path)
-
-if (stillExists === false) {
-  await resolveIssue(
-    'storage_orphan_file',
-    issue.storage_path
-  )
-}
+      { onConflict: 'photo_id' }
+    )
+    if (queueError) {
+      console.error(
+        '[StorageConsistencyWorker] repair queue failed:',
+        queueError.message
+      )
+    }
   }
 }
 
-async function cleanupOldIssues() {
+async function cleanupOldRows() {
   const cleanupTasks = [
     ['cleanup_storage_consistency_issues', { keep_days: 30 }],
     ['cleanup_worker_metrics', { keep_days: 30 }],
@@ -461,14 +222,83 @@ async function cleanupOldIssues() {
 
   for (const [rpcName, params] of cleanupTasks) {
     const { error } = await supabase.rpc(rpcName, params)
-
     if (error) {
-      console.error(
-        `[StorageConsistencyWorker] ${rpcName} failed:`,
-        error.message
-      )
-    } else {
-      console.log(`[StorageConsistencyWorker] ${rpcName} complete`)
+      console.error(`[StorageConsistencyWorker] ${rpcName} failed:`, error.message)
     }
   }
 }
+
+async function runCycle() {
+  const scan = await scanTrackedStorageObjects({
+    supabase,
+    limit: SCAN_BATCH_SIZE,
+    offset: scanOffset,
+  })
+  await Promise.all(scan.issues.map((issue) => persistIssue(issue)))
+  await resolveHealthyObjects(scan.healthyRefs)
+  await queueRepairJobs(scan.issues)
+
+  const reachedEnd =
+    scan.photoRowsScanned < SCAN_BATCH_SIZE &&
+    scan.assetRowsScanned < SCAN_BATCH_SIZE
+  scanOffset = reachedEnd ? 0 : scanOffset + SCAN_BATCH_SIZE
+
+  const reservations = await cleanupExpiredStorageReservations({
+    supabase,
+    dryRun: CLEANUP_DRY_RUN,
+    limit: 100,
+    allowR2Delete:
+      process.env.STORAGE_CLEANUP_ALLOW_R2_DELETE === 'true',
+  })
+  const recovered = await recoverStagedStorageDeletionJobs(supabase, 500)
+  const deletions = await processStorageDeletionJobs({
+    supabase,
+    workerId,
+    limit: 100,
+  })
+
+  const summary = {
+    scan: {
+      offset: scanOffset,
+      checked: scan.checked,
+      healthy: scan.healthy,
+      missing: scan.missing,
+      mismatched: scan.mismatched,
+      skipped: scan.skipped,
+      identities: scan.healthyRefs.slice(0, 3).map(storageObjectIdentity),
+    },
+    reservations,
+    recovered,
+    deletions,
+  }
+  console.log('[StorageConsistencyWorker] cycle complete', summary)
+
+  await supabase.from('worker_logs').insert({
+    worker_type: 'storage-consistency',
+    level: scan.missing > 0 ? 'warning' : 'info',
+    message: 'Provider-aware storage consistency cycle completed',
+    metadata: summary,
+  })
+}
+
+async function start() {
+  while (!isShuttingDown) {
+    try {
+      await runCycle()
+      if (Date.now() - lastDailyCleanupAt > 24 * 60 * 60 * 1000) {
+        await cleanupOldRows()
+        lastDailyCleanupAt = Date.now()
+      }
+    } catch (error) {
+      console.error('[StorageConsistencyWorker] cycle failed:', error)
+    }
+
+    if (!isShuttingDown) await sleep(POLL_INTERVAL)
+  }
+  console.log('[StorageConsistencyWorker] graceful shutdown complete')
+}
+
+start().catch((error) => {
+  console.error('[StorageConsistencyWorker] fatal:', error)
+  process.exit(1)
+})

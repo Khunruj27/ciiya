@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { PLAN_LIMITS, type PlanKey } from '@/lib/plans'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 function normalizePlanKey(value?: string | null): PlanKey {
   const plan = String(value || '').toLowerCase().trim()
@@ -36,14 +37,17 @@ function parseStorageBytes(
   return parsedValue
 }
 
-export async function getUserStoragePlan(userId: string) {
+export async function getUserStoragePlan(
+  userId: string,
+  storageClient?: SupabaseClient
+) {
   const normalizedUserId = userId.trim()
 
   if (!normalizedUserId) {
     throw new Error('Invalid userId')
   }
 
-  const supabase = await createServerSupabaseClient()
+  const supabase = storageClient || (await createServerSupabaseClient())
 
   const { data, error } = await supabase
     .from('user_storage_usage')

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { resolvePhotoDeliveries } from '@/lib/storage/delivery'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -85,9 +86,13 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
               `
               id,
               filename,
+              storage_provider,
+              storage_bucket,
               public_url,
               preview_url,
               thumbnail_url,
+              preview_path,
+              thumbnail_path,
               blur_data_url
               `
             )
@@ -95,7 +100,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
         : { data: [] }
 
     const photoMap = new Map(
-      (previewPhotos || []).map((photo) => [photo.id, photo])
+      resolvePhotoDeliveries(previewPhotos || []).map((photo) => [photo.id, photo])
     )
 
     const people = (clusters || []).map((cluster) => ({

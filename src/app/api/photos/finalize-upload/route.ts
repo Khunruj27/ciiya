@@ -6,9 +6,20 @@ import {
 } from '@supabase/supabase-js'
 import { getUserStoragePlan } from '@/lib/get-user-storage-plan'
 import crypto from 'crypto'
+import {
+  assertOwnedAlbumObjectKey,
+  createStorageRef,
+  getStorageAdapter,
+  resolvePhotoDelivery,
+  type StorageProvider,
+} from '@/lib/storage'
+import { MAX_DIRECT_PHOTO_UPLOAD_BYTES } from '@/lib/storage/photo-upload-policy'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 type RequestedSize = 'sd' | 'hd' | 'uhd' | 'original'
 
@@ -30,11 +41,49 @@ type PhotoRecord = {
   original_url?: string | null
   preview_url?: string | null
   thumbnail_url?: string | null
+  preview_path?: string | null
+  thumbnail_path?: string | null
 
   processing_status?: string | null
+  storage_provider?: StorageProvider | null
+  storage_bucket?: string | null
+}
+
+type UploadFinalizationSession = {
+  session_id: string
+  session_owner_id: string
+  session_album_id: string
+  session_category_id: string | null
+  completed_photo_id: string | null
+  session_storage_provider: 'r2'
+  session_storage_bucket: string
+  session_object_key: string
+  session_original_file_name: string
+  session_content_type: string
+  session_expected_size_bytes: number | string
+  session_file_hash: string
+  session_requested_size: RequestedSize
+  session_preset_path: string | null
+  session_auto_face_scan: boolean
+  session_auto_publish: boolean
+  session_status: string
+  session_expires_at: string
+  already_completed: boolean
 }
 
 type SupabaseAdminClient = SupabaseClient
+
+function firstRow<T>(value: unknown): T | null {
+  if (Array.isArray(value)) return (value[0] as T | undefined) || null
+  if (value && typeof value === 'object') return value as T
+  return null
+}
+
+function finalizationRpcCode(message: string) {
+  return message.match(
+    /(?:UPLOAD_SESSION_[A-Z_]+|PHOTO_UPLOAD_BINDING_MISMATCH|CAMERA_[A-Z_]+|CAMERA_UPLOAD_BINDING_MISMATCH)/
+  )?.[0]
+}
 
 function isValidWorkerSecret(providedSecret: string) {
   const configuredSecret = String(
@@ -163,6 +212,8 @@ async function ensurePhotoJob(params: {
   fileName?: string | null
   publicUrl?: string | null
   source: string
+  storageProvider?: StorageProvider
+  storageBucket?: string | null
 }) {
   const {
     supabaseAdmin,
@@ -175,6 +226,8 @@ async function ensurePhotoJob(params: {
     fileName,
     publicUrl,
     source,
+    storageProvider = 'supabase',
+    storageBucket = null,
   } = params
 
   const photoId = photo.id
@@ -281,6 +334,8 @@ async function ensurePhotoJob(params: {
           presetPath:
             resolvedPresetPath,
           jobPriority,
+          storageProvider,
+          storageBucket,
         },
         updated_at:
           new Date().toISOString(),
@@ -374,6 +429,26 @@ async function safeRecalculateStorage(
   }
 }
 
+async function completeR2UploadFinalization(params: {
+  client: SupabaseClient
+  uploadSessionId: string
+  photoId: string
+  cameraImportId: string | null
+}) {
+  if (params.cameraImportId) {
+    return params.client.rpc('complete_camera_photo_upload_finalization', {
+      p_session_id: params.uploadSessionId,
+      p_camera_import_id: params.cameraImportId,
+      p_photo_id: params.photoId,
+    })
+  }
+
+  return params.client.rpc('complete_photo_upload_finalization', {
+    p_session_id: params.uploadSessionId,
+    p_photo_id: params.photoId,
+  })
+}
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
@@ -408,11 +483,49 @@ if (!body) {
   )
 }
 
-    const albumId = String(body.albumId || '').trim()
-    const storagePath = String(body.storagePath || '').trim()
-    const fileName = String(body.fileName || '').trim()
-    const fileSizeBytes = Number(body.fileSizeBytes || 0)
-    const MAX_UPLOAD_BYTES = 200 * 1024 * 1024 // 200MB
+    let albumId = String(body.albumId || '').trim()
+    let storagePath = String(body.storagePath || '').trim()
+    let fileName = String(body.fileName || '').trim()
+    let fileSizeBytes = Number(body.fileSizeBytes || 0)
+    const storageProvider = String(
+      body.storageProvider || 'supabase'
+    ).trim() as StorageProvider
+    let storageBucket = body.storageBucket
+      ? String(body.storageBucket).trim()
+      : storageProvider === 'supabase'
+        ? 'albums'
+        : ''
+    const uploadSessionId = body.uploadSessionId
+      ? String(body.uploadSessionId).trim()
+      : null
+    const cameraImportId = body.cameraImportId
+      ? String(body.cameraImportId).trim()
+      : null
+
+if (storageProvider !== 'supabase' && storageProvider !== 'r2') {
+  return NextResponse.json(
+    { error: 'Invalid storage provider' },
+    { status: 400 }
+  )
+}
+
+if (
+  storageProvider === 'r2' &&
+  isWorkerRequest &&
+  (!cameraImportId || !UUID_PATTERN.test(cameraImportId))
+) {
+  return NextResponse.json(
+    { error: 'Missing camera import binding' },
+    { status: 400 }
+  )
+}
+
+if (cameraImportId && !isWorkerRequest) {
+  return NextResponse.json(
+    { error: 'Camera import binding is worker-only' },
+    { status: 400 }
+  )
+}
 
 const providedFileHash = String(
   body.fileHash || ''
@@ -429,7 +542,7 @@ const hashSource =
   providedFileHash ||
   `${fileName}-${fileSizeBytes}-${storagePath}`
 
-const fileHash = /^[a-f0-9]{64}$/i.test(
+let fileHash = /^[a-f0-9]{64}$/i.test(
   hashSource
 )
   ? hashSource.toLowerCase()
@@ -438,11 +551,11 @@ const fileHash = /^[a-f0-9]{64}$/i.test(
       .update(hashSource, 'utf8')
       .digest('hex')
 
-    const size = normalizeRequestedSize(String(body.size || 'hd').toLowerCase())
-    const categoryId = body.categoryId
+    let size = normalizeRequestedSize(String(body.size || 'hd').toLowerCase())
+    let categoryId = body.categoryId
   ? String(body.categoryId).trim().slice(0, 100)
   : null
-    const presetPath = body.presetPath ? String(body.presetPath).trim() : null
+    let presetPath = body.presetPath ? String(body.presetPath).trim() : null
 
  if (
   !albumId ||
@@ -457,7 +570,7 @@ const fileHash = /^[a-f0-9]{64}$/i.test(
       )
     }
 
-    if (fileSizeBytes > MAX_UPLOAD_BYTES) {
+    if (fileSizeBytes > MAX_DIRECT_PHOTO_UPLOAD_BYTES) {
   return NextResponse.json(
     { error: 'File too large' },
     { status: 400 }
@@ -516,6 +629,105 @@ if (!ownerId) {
   )
 }
 
+let r2Session: UploadFinalizationSession | null = null
+
+if (storageProvider === 'r2') {
+  if (!uploadSessionId || !UUID_PATTERN.test(uploadSessionId) || !storageBucket) {
+    return NextResponse.json(
+      { error: 'Missing R2 upload session data' },
+      { status: 400 }
+    )
+  }
+
+  const finalizationClient = isWorkerRequest ? supabaseAdmin : supabase
+  const beginRpc = isWorkerRequest
+    ? 'begin_camera_photo_upload_finalization'
+    : 'begin_photo_upload_finalization'
+  const beginParams = isWorkerRequest
+    ? {
+        p_session_id: uploadSessionId,
+        p_camera_import_id: cameraImportId!,
+      }
+    : { p_session_id: uploadSessionId }
+  const { data: sessionData, error: sessionError } =
+    await finalizationClient.rpc(beginRpc, beginParams)
+
+  if (sessionError) {
+    const code = finalizationRpcCode(sessionError.message)
+    const status =
+      code === 'UPLOAD_SESSION_NOT_FOUND'
+        ? 404
+        : code === 'UPLOAD_SESSION_EXPIRED'
+          ? 410
+          : 409
+
+    return NextResponse.json(
+      {
+        error: code || 'Unable to begin upload finalization',
+        code: code || 'UPLOAD_FINALIZATION_FAILED',
+      },
+      { status }
+    )
+  }
+
+  r2Session = firstRow<UploadFinalizationSession>(sessionData)
+
+  if (
+    !r2Session ||
+    r2Session.session_owner_id !== ownerId ||
+    r2Session.session_album_id !== albumId ||
+    r2Session.session_storage_provider !== 'r2' ||
+    r2Session.session_storage_bucket !== storageBucket ||
+    r2Session.session_object_key !== storagePath
+  ) {
+    return NextResponse.json(
+      { error: 'Upload session does not match this object' },
+      { status: 409 }
+    )
+  }
+
+  if (r2Session.already_completed && r2Session.completed_photo_id) {
+    const { data: completedPhoto, error: completedPhotoError } =
+      await supabaseAdmin
+        .from('photos')
+        .select(
+          'id, storage_provider, storage_bucket, public_url, preview_url, thumbnail_url, preview_path, thumbnail_path, processing_status'
+        )
+        .eq('id', r2Session.completed_photo_id)
+        .eq('owner_id', ownerId)
+        .maybeSingle()
+
+    if (completedPhotoError || !completedPhoto) {
+      return NextResponse.json(
+        { error: 'Completed upload photo was not found' },
+        { status: 409 }
+      )
+    }
+
+    const deliveryPhoto = resolvePhotoDelivery(completedPhoto)
+
+    return NextResponse.json({
+      success: true,
+      duplicate: false,
+      idempotent: true,
+      photoId: completedPhoto.id,
+      publicUrl: deliveryPhoto.preview_url || deliveryPhoto.public_url,
+      thumbnailUrl: deliveryPhoto.thumbnail_url,
+      processingStatus: completedPhoto.processing_status || 'pending',
+    })
+  }
+
+  albumId = r2Session.session_album_id
+  storagePath = r2Session.session_object_key
+  storageBucket = r2Session.session_storage_bucket
+  fileName = r2Session.session_original_file_name
+  fileSizeBytes = Number(r2Session.session_expected_size_bytes)
+  fileHash = r2Session.session_file_hash
+  size = normalizeRequestedSize(r2Session.session_requested_size)
+  categoryId = r2Session.session_category_id
+  presetPath = r2Session.session_preset_path
+}
+
 const expectedOriginalPrefix =
   `${ownerId}/${albumId}/original/`
 
@@ -567,12 +779,32 @@ const presetBucket = presetPath
     : 'albums'
   : null
 
+let r2OriginalRef: ReturnType<typeof createStorageRef> | null = null
+
+if (storageProvider === 'r2') {
+  try {
+    assertOwnedAlbumObjectKey(storagePath, ownerId, albumId, ['original'])
+    r2OriginalRef = createStorageRef({
+      provider: 'r2',
+      bucket: storageBucket,
+      key: storagePath,
+    })
+  } catch {
+    return NextResponse.json(
+      { error: 'Invalid R2 storage object' },
+      { status: 400 }
+    )
+  }
+}
+
 const [
-  originalFileExists,
+  originalObjectResult,
   presetFileExists,
   existingPhotoResult,
 ] = await Promise.all([
-  storageObjectExists(supabaseAdmin, storagePath),
+  r2OriginalRef
+    ? getStorageAdapter('r2').objectExists(r2OriginalRef)
+    : storageObjectExists(supabaseAdmin, storagePath),
   presetPath
     ? storageObjectExists(supabaseAdmin, presetPath, presetBucket!)
     : Promise.resolve(true),
@@ -591,10 +823,15 @@ const [
       original_url,
       preview_url,
       thumbnail_url,
+      preview_path,
+      thumbnail_path,
       processing_status,
       original_path,
       storage_path,
-      preset_path
+      preset_path,
+      storage_provider,
+      storage_bucket,
+      original_size_bytes
     `
     )
     .eq('album_id', albumId)
@@ -602,11 +839,51 @@ const [
     .maybeSingle(),
 ])
 
+const originalFileExists =
+  typeof originalObjectResult === 'boolean'
+    ? originalObjectResult
+    : originalObjectResult.exists
+
 if (!originalFileExists) {
   return NextResponse.json(
-    { error: 'Uploaded file not found in storage' },
+    {
+      error: 'Uploaded file not found in storage',
+      cleanupSafe: storageProvider === 'r2',
+    },
     { status: 400 }
   )
+}
+
+if (r2OriginalRef && typeof originalObjectResult !== 'boolean') {
+  const storedContentType = String(originalObjectResult.contentType || '')
+    .split(';')[0]
+    .trim()
+    .toLowerCase()
+  const expectedContentType = String(r2Session?.session_content_type || '')
+    .trim()
+    .toLowerCase()
+
+  if (originalObjectResult.sizeBytes !== fileSizeBytes) {
+    return NextResponse.json(
+      {
+        error: 'Uploaded object size does not match the reservation',
+        code: 'UPLOAD_SIZE_MISMATCH',
+        cleanupSafe: true,
+      },
+      { status: 400 }
+    )
+  }
+
+  if (!storedContentType || storedContentType !== expectedContentType) {
+    return NextResponse.json(
+      {
+        error: 'Uploaded object type does not match the reservation',
+        code: 'UPLOAD_CONTENT_TYPE_MISMATCH',
+        cleanupSafe: true,
+      },
+      { status: 400 }
+    )
+  }
 }
 
 if (presetPath && !presetFileExists) {
@@ -614,6 +891,7 @@ if (presetPath && !presetFileExists) {
     {
       error:
         'Preset file not found in storage',
+      cleanupSafe: storageProvider === 'r2',
     },
     { status: 400 }
   )
@@ -635,13 +913,42 @@ if (presetPath && !presetFileExists) {
       hasPreset: Boolean(presetPath),
     })
 
-    const { data: publicUrlData } = supabaseAdmin.storage
-      .from('albums')
-      .getPublicUrl(storagePath)
-
-    const publicUrl = publicUrlData.publicUrl
+    const publicUrl = r2OriginalRef
+      ? getStorageAdapter('r2').getPublicUrl(r2OriginalRef)
+      : supabaseAdmin.storage.from('albums').getPublicUrl(storagePath).data
+          .publicUrl
 
     if (existingPhoto) {
+      const isSameR2Upload =
+        storageProvider === 'r2' &&
+        existingPhoto.storage_provider === 'r2' &&
+        existingPhoto.storage_bucket === storageBucket &&
+        existingPhoto.storage_path === storagePath &&
+        existingPhoto.original_path === storagePath &&
+        Number(existingPhoto.original_size_bytes) === fileSizeBytes
+
+      if (isSameR2Upload && uploadSessionId) {
+        const { error: completeExistingError } =
+          await completeR2UploadFinalization({
+            client: isWorkerRequest ? supabaseAdmin : supabase,
+            uploadSessionId,
+            photoId: existingPhoto.id,
+            cameraImportId: isWorkerRequest ? cameraImportId : null,
+          })
+
+        if (completeExistingError) {
+          return NextResponse.json(
+            {
+              error: 'Unable to complete upload session',
+              code:
+                finalizationRpcCode(completeExistingError.message) ||
+                'UPLOAD_SESSION_COMPLETE_FAILED',
+            },
+            { status: 409 }
+          )
+        }
+      }
+
       const needsRepair =
         !existingPhoto.preview_url ||
         !existingPhoto.thumbnail_url ||
@@ -667,6 +974,9 @@ if (presetPath && !presetFileExists) {
             existingPhoto.original_url ||
             publicUrl,
           source: 'finalize-upload-duplicate-repair',
+          storageProvider:
+            existingPhoto.storage_provider === 'r2' ? 'r2' : 'supabase',
+          storageBucket: existingPhoto.storage_bucket || null,
         })
 
         const { error: duplicateRepairUpdateError } =
@@ -693,20 +1003,23 @@ if (duplicateRepairUpdateError) {
 }
       }
 
+      const deliveryPhoto = resolvePhotoDelivery(existingPhoto)
+
       return NextResponse.json({
         success: true,
-        duplicate: true,
+        duplicate: !isSameR2Upload,
+        idempotent: isSameR2Upload,
         repaired: needsRepair,
         jobQueued: queueResult?.queued || false,
         jobId: queueResult?.jobId || null,
         jobError: queueResult?.error || null,
         photoId: existingPhoto.id,
         publicUrl:
-          existingPhoto.preview_url ||
-          existingPhoto.public_url ||
-          existingPhoto.original_url ||
+          deliveryPhoto.preview_url ||
+          deliveryPhoto.public_url ||
+          deliveryPhoto.original_url ||
           publicUrl,
-        thumbnailUrl: existingPhoto.thumbnail_url,
+        thumbnailUrl: deliveryPhoto.thumbnail_url,
         processingStatus: needsRepair
           ? queueResult?.queued
             ? 'pending'
@@ -756,6 +1069,7 @@ if (estimatedNextUsage > currentLimit) {
   {
     error: 'Storage full',
     code: 'STORAGE_LIMIT_EXCEEDED',
+    cleanupSafe: storageProvider === 'r2',
     plan: normalizedPlan,
     storageUsedBytes: currentUsed,
     storageLimitBytes: currentLimit,
@@ -779,6 +1093,15 @@ if (estimatedNextUsage > currentLimit) {
 
         storage_path: storagePath,
         original_path: storagePath,
+
+        ...(storageProvider === 'r2'
+          ? {
+              storage_provider: 'r2',
+              storage_bucket: storageBucket,
+              storage_version: 1,
+              migration_status: 'completed',
+            }
+          : {}),
 
         public_url: publicUrl,
         original_url: publicUrl,
@@ -805,6 +1128,10 @@ if (estimatedNextUsage > currentLimit) {
           requestedSize: size,
           presetPath,
           jobPriority,
+          storageProvider,
+          storageBucket: storageProvider === 'r2' ? storageBucket : null,
+          uploadSessionId,
+          cameraImportId: isWorkerRequest ? cameraImportId : null,
         },
 
         updated_at: new Date().toISOString(),
@@ -819,6 +1146,28 @@ if (estimatedNextUsage > currentLimit) {
       )
     }
 
+    if (storageProvider === 'r2' && uploadSessionId) {
+      const { error: completeSessionError } =
+        await completeR2UploadFinalization({
+          client: isWorkerRequest ? supabaseAdmin : supabase,
+          uploadSessionId,
+          photoId: insertedPhoto.id,
+          cameraImportId: isWorkerRequest ? cameraImportId : null,
+        })
+
+      if (completeSessionError) {
+        return NextResponse.json(
+          {
+            error: 'Photo saved but upload session could not be completed',
+            code:
+              finalizationRpcCode(completeSessionError.message) ||
+              'UPLOAD_SESSION_COMPLETE_FAILED',
+          },
+          { status: 500 }
+        )
+      }
+    }
+
     const queueResult = await ensurePhotoJob({
       supabaseAdmin,
       photo: insertedPhoto,
@@ -830,6 +1179,8 @@ if (estimatedNextUsage > currentLimit) {
       fileName,
       publicUrl,
       source: 'finalize-upload',
+      storageProvider,
+      storageBucket: storageProvider === 'r2' ? storageBucket : null,
     })
 
     if (!queueResult.queued) {
@@ -846,6 +1197,10 @@ if (estimatedNextUsage > currentLimit) {
           presetPath,
           jobPriority,
           queueError: queueResult.error,
+          storageProvider,
+          storageBucket: storageProvider === 'r2' ? storageBucket : null,
+          uploadSessionId,
+          cameraImportId: isWorkerRequest ? cameraImportId : null,
         },
       })
       .eq('id', insertedPhoto.id)

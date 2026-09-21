@@ -37,6 +37,24 @@ export async function GET() {
 
     const seen = new Set<string>()
 
+    const recentPaths = (data || [])
+      .map((item) => String(item.preset_path || '').trim())
+      .filter(Boolean)
+    const { data: assetRows } = recentPaths.length
+      ? await supabase
+          .from('storage_assets')
+          .select('object_key, original_name')
+          .eq('owner_id', user.id)
+          .eq('asset_kind', 'preset')
+          .in('object_key', recentPaths)
+      : { data: [] }
+    const namesByPath = new Map(
+      (assetRows || []).map((asset) => [
+        asset.object_key,
+        String(asset.original_name || '').replace(/\.xmp$/i, ''),
+      ])
+    )
+
     const presets = (data || [])
       .map((item) => String(item.preset_path || '').trim())
       .filter(Boolean)
@@ -48,7 +66,7 @@ export async function GET() {
       .slice(0, 3)
       .map((path) => ({
         path,
-        name: cleanPresetName(path),
+        name: namesByPath.get(path) || cleanPresetName(path),
       }))
 
     return NextResponse.json({

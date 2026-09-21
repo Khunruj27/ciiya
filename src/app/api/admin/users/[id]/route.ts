@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { resolvePhotoDeliveries } from '@/lib/storage/delivery'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -143,9 +144,13 @@ return NextResponse.json(
           id,
           album_id,
           filename,
+          storage_provider,
+          storage_bucket,
           public_url,
           preview_url,
           thumbnail_url,
+          preview_path,
+          thumbnail_path,
           processing_status,
           file_size_bytes,
           created_at
@@ -256,7 +261,7 @@ if (queryErrors.length > 0) {
 }
 
     const albums = albumsResult.data || []
-    const photos = photosResult.data || []
+    const photos = resolvePhotoDeliveries(photosResult.data || [])
     const storage = storageResult.data || null
     const subscription = subscriptionResult.data || null
     const photoJobs = photoJobsResult.data || []

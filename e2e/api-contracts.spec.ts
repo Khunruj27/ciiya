@@ -16,15 +16,43 @@ test.describe('public and protected API contracts', () => {
   })
 
   test('owner APIs reject anonymous access', async ({ request }) => {
-    const [albums, workerStats, adminUsers] = await Promise.all([
+    const [
+      albums,
+      workerStats,
+      adminUsers,
+      uploadUrl,
+      finalizeUpload,
+      deletePhoto,
+      deleteAlbum,
+      portfolioUploadUrl,
+      portfolioFinalize,
+      portfolioDelete,
+      presetUpload,
+    ] = await Promise.all([
       request.get('/api/albums'),
       request.get('/api/worker/stats'),
       request.get('/api/admin/users'),
+      request.post('/api/photos/upload-url', { data: {} }),
+      request.post('/api/photos/finalize-upload', { data: {} }),
+      request.delete('/api/photos/delete', { data: { photoId: 'none' } }),
+      request.post('/api/albums/delete', { data: { albumId: 'none' } }),
+      request.post('/api/portfolio/assets/upload-url', { data: {} }),
+      request.post('/api/portfolio/assets/finalize', { data: {} }),
+      request.post('/api/portfolio/assets/delete', { data: {} }),
+      request.post('/api/presets/upload'),
     ])
 
     expect(albums.status()).toBe(401)
     expect(workerStats.status()).toBe(401)
     expect(adminUsers.status()).toBe(401)
+    expect(uploadUrl.status()).toBe(401)
+    expect(finalizeUpload.status()).toBe(401)
+    expect(deletePhoto.status()).toBe(401)
+    expect(deleteAlbum.status()).toBe(401)
+    expect(portfolioUploadUrl.status()).toBe(401)
+    expect(portfolioFinalize.status()).toBe(401)
+    expect(portfolioDelete.status()).toBe(401)
+    expect(presetUpload.status()).toBe(401)
   })
 
   test('share APIs require a token', async ({ request }) => {

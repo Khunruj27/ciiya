@@ -18,6 +18,7 @@ type Props = {
   categories?: Category[]
   initialAutoFaceScan?: boolean
   initialAutoPublish?: boolean
+  r2UploadsEnabled?: boolean
   onUploadStarted?: () => void
   onOptimisticUploads?: (items: OptimisticUpload[]) => void
 }
@@ -32,6 +33,7 @@ type UploadStatus =
 
 type UploadItem = {
   id: string
+  clientUploadId: string
   file: File
   progress: number
   status: UploadStatus
@@ -124,11 +126,85 @@ function retryableResponseError(response: Response) {
   return null
 }
 
+type R2UploadUrlResponse = {
+  success?: boolean
+  duplicate?: boolean
+  code?: string
+  error?: string
+  photoId?: string
+  publicUrl?: string | null
+  thumbnailUrl?: string | null
+  processingStatus?: string | null
+  provider?: 'r2'
+  bucket?: string
+  storagePath?: string
+  uploadSessionId?: string
+  uploadUrl?: string
+  method?: 'PUT'
+  headers?: Record<string, string>
+  fileHash?: string
+}
+
+class UploadRequestError extends Error {
+  status: number
+  code: string | null
+
+  constructor(message: string, status = 0, code: string | null = null) {
+    super(message)
+    this.name = 'UploadRequestError'
+    this.status = status
+    this.code = code
+  }
+}
+
+function putSignedPhoto(params: {
+  file: File
+  url: string
+  headers: Record<string, string>
+  onProgress: (progress: number) => void
+}) {
+  return new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('PUT', params.url)
+
+    for (const [name, value] of Object.entries(params.headers)) {
+      xhr.setRequestHeader(name, value)
+    }
+
+    xhr.upload.addEventListener('progress', (event) => {
+      if (!event.lengthComputable) return
+      params.onProgress(Math.round((event.loaded / event.total) * 100))
+    })
+    xhr.addEventListener('load', () => {
+      if ((xhr.status >= 200 && xhr.status < 300) || xhr.status === 412) {
+        resolve()
+        return
+      }
+
+      reject(
+        new UploadRequestError(
+          `R2 upload failed (${xhr.status || 'network'})`,
+          xhr.status
+        )
+      )
+    })
+    xhr.addEventListener('error', () => {
+      reject(new UploadRequestError('Network error while uploading to R2'))
+    })
+    xhr.addEventListener('timeout', () => {
+      reject(new UploadRequestError('R2 upload timed out', 408))
+    })
+    xhr.timeout = 10 * 60 * 1000
+    xhr.send(params.file)
+  })
+}
+
 export default function UploadPhotoForm({
   albumId,
   categories = [],
   initialAutoFaceScan = true,
   initialAutoPublish = false,
+  r2UploadsEnabled = false,
   onUploadStarted,
   onOptimisticUploads,
 }: Props) {
@@ -372,6 +448,186 @@ export default function UploadPhotoForm({
     return finalizeData
   }
 
+  async function cancelR2Upload(uploadSessionId: string) {
+    try {
+      await fetch('/api/photos/upload-url', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uploadSessionId }),
+        keepalive: true,
+      })
+    } catch {
+      // The reservation expires automatically. Cleanup workers can remove an
+      // object left behind after a browser disconnect.
+    }
+  }
+
+  async function uploadDirectToR2(
+    item: UploadItem,
+    context: {
+      userId: string
+      presetPath: string | null
+    }
+  ) {
+    updateItem(item.id, {
+      progress: 5,
+      status: 'uploading',
+    })
+
+    const signedResponse = await retryAsync(
+      () =>
+        fetch('/api/photos/upload-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            albumId,
+            clientUploadId: item.clientUploadId,
+            fileName: item.file.name,
+            contentType: item.file.type || 'image/jpeg',
+            fileSizeBytes: item.file.size,
+            lastModified: item.file.lastModified,
+            fileHash: getQuickFileHash(item.file),
+            size,
+            categoryId: categoryId || null,
+            presetPath: context.presetPath,
+            autoFaceScan,
+            autoPublish,
+          }),
+        }),
+      {
+        attempts: MAX_UPLOAD_RETRIES,
+        getRetryableResultError: retryableResponseError,
+      }
+    )
+    const signedData = (await signedResponse
+      .json()
+      .catch(() => null)) as R2UploadUrlResponse | null
+
+    if (signedData?.code === 'R2_UPLOADS_DISABLED') {
+      return uploadDirectToSupabase(item, context)
+    }
+
+    if (signedData?.duplicate) {
+      updateItem(item.id, {
+        progress: 100,
+        status: 'duplicate',
+        error: undefined,
+      })
+      return signedData
+    }
+
+    if (!signedResponse.ok || !signedData?.success) {
+      throw new UploadRequestError(
+        signedData?.error || t.upload.uploadFailed,
+        signedResponse.status,
+        signedData?.code || null
+      )
+    }
+
+    if (
+      !signedData.uploadSessionId ||
+      !signedData.uploadUrl ||
+      !signedData.storagePath ||
+      !signedData.bucket ||
+      !signedData.headers ||
+      !signedData.fileHash
+    ) {
+      throw new Error('Invalid R2 upload response')
+    }
+
+    const uploadSessionId = signedData.uploadSessionId
+    let objectUploaded = false
+
+    try {
+      await retryAsync(
+        () =>
+          putSignedPhoto({
+            file: item.file,
+            url: signedData.uploadUrl!,
+            headers: signedData.headers!,
+            onProgress(progress) {
+              updateItem(item.id, {
+                progress: 10 + Math.round(progress * 0.7),
+                status: 'uploading',
+              })
+            },
+          }),
+        {
+          attempts: MAX_UPLOAD_RETRIES,
+          shouldRetryError: isRetryableServiceError,
+        }
+      )
+
+      objectUploaded = true
+
+      updateItem(item.id, { progress: 82, status: 'uploading' })
+
+      const finalizeRes = await retryAsync(
+        () =>
+          fetch('/api/photos/finalize-upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              albumId,
+              storagePath: signedData.storagePath,
+              storageProvider: 'r2',
+              storageBucket: signedData.bucket,
+              uploadSessionId,
+              fileName: item.file.name,
+              fileHash: signedData.fileHash,
+              fileSizeBytes: item.file.size,
+              size,
+              categoryId: categoryId || null,
+              presetPath: context.presetPath,
+              autoFaceScan,
+              autoPublish,
+            }),
+          }),
+        {
+          attempts: MAX_UPLOAD_RETRIES,
+          getRetryableResultError: retryableResponseError,
+        }
+      )
+      const finalizeData = await finalizeRes.json().catch(() => null)
+
+      if (finalizeData?.duplicate) {
+        await cancelR2Upload(uploadSessionId)
+        updateItem(item.id, {
+          progress: 100,
+          status: 'duplicate',
+          error: undefined,
+        })
+        return finalizeData
+      }
+
+      if (!finalizeRes.ok || !finalizeData?.success) {
+        if (finalizeData?.cleanupSafe === true) {
+          await cancelR2Upload(uploadSessionId)
+        }
+
+        throw new UploadRequestError(
+          finalizeData?.error ||
+            finalizeData?.jobError ||
+            t.upload.finalizeFailed,
+          finalizeRes.status,
+          finalizeData?.code || null
+        )
+      }
+
+      updateItem(item.id, {
+        progress: 100,
+        status: 'queued',
+        error: undefined,
+      })
+      return finalizeData
+    } catch (error) {
+      if (!objectUploaded) {
+        await cancelR2Upload(uploadSessionId)
+      }
+      throw error
+    }
+  }
+
   async function runUploadPool(
     uploadItems: UploadItem[],
     context: {
@@ -404,7 +660,9 @@ export default function UploadPhotoForm({
         })
 
         try {
-          const data = await uploadDirectToSupabase(item, context)
+          const data = r2UploadsEnabled
+            ? await uploadDirectToR2(item, context)
+            : await uploadDirectToSupabase(item, context)
 
           if (
   data?.code === 'STORAGE_LIMIT_EXCEEDED' ||
@@ -546,24 +804,20 @@ if (isMounted()) {
       let sharedPresetPath: string | null = null
 
       if (presetFile) {
-        const presetSafeName = getSafeFileName(presetFile.name)
-        sharedPresetPath = `${user.id}/${albumId}/presets/${presetSafeName}`
+        const presetFormData = new FormData()
+        presetFormData.append('file', presetFile)
+        presetFormData.append('albumId', albumId)
+        const presetResponse = await fetch('/api/presets/upload', {
+          method: 'POST',
+          body: presetFormData,
+        })
+        const presetResult = await presetResponse.json().catch(() => null)
 
-        const { error: presetUploadError } = await retryAsync(
-          () =>
-            supabase.storage.from('albums').upload(sharedPresetPath!, presetFile, {
-              contentType: 'application/xml',
-              upsert: true,
-            }),
-          {
-            attempts: MAX_UPLOAD_RETRIES,
-            getRetryableResultError: (result) => retryableResultError(result.error),
-          }
-        )
-
-        if (presetUploadError) {
-          throw new Error(presetUploadError.message)
+        if (!presetResponse.ok || !presetResult?.path) {
+          throw new Error(presetResult?.error || 'Upload preset failed')
         }
+
+        sharedPresetPath = presetResult.path
       }
 
       const results = await runUploadPool(uploadItems, {
@@ -649,6 +903,7 @@ setItems((prev) => {
 
     newItems.push({
       id: makeItemId(file),
+      clientUploadId: crypto.randomUUID(),
       file,
       progress: 0,
       status: 'waiting',

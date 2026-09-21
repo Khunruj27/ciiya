@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import ReorderPhotosBoard from '@/components/reorder-photos-board'
+import { resolvePhotoDeliveries } from '@/lib/storage/delivery'
 
 type PageProps = {
   params: Promise<{ id: string }>
@@ -42,6 +43,13 @@ export default async function ReorderPhotosPage({ params }: PageProps) {
     throw new Error(photosError.message)
   }
 
+  const deliveryPhotos = resolvePhotoDeliveries(photos || [])
+    .filter((photo) => Boolean(photo.public_url))
+    .map((photo) => ({
+      ...photo,
+      public_url: photo.public_url!,
+    }))
+
   return (
     <main className="min-h-screen bg-ground px-5 py-8 text-ink sm:px-8">
       <div className="mx-auto max-w-4xl space-y-4">
@@ -59,7 +67,7 @@ export default async function ReorderPhotosPage({ params }: PageProps) {
           </p>
         </div>
 
-        <ReorderPhotosBoard albumId={album.id} photos={photos || []} />
+        <ReorderPhotosBoard albumId={album.id} photos={deliveryPhotos} />
       </div>
     </main>
   )

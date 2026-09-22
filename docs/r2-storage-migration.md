@@ -24,19 +24,41 @@ explicitly records an additive compatibility field.
 | --- | --- | --- |
 | 1 | R2/S3 dependencies and environment configuration | Complete |
 | 2 | Provider-neutral storage adapter | Complete |
-| 3 | Additive dual-provider database fields | Complete (not deployed) |
-| 4 | New browser uploads to R2 with presigned PUT | Complete in code (disabled; not deployed) |
-| 5 | Provider-aware upload finalization | Complete in code (disabled; not deployed) |
-| 6 | Photo Worker and Face Worker | Complete in code (not deployed) |
-| 7 | Downloads and lazy derivative generation | Complete in code (not deployed) |
-| 8 | Photo/album deletion and retryable partial failures | Complete in code (not deployed) |
-| 9 | Camera Live Import Worker | Complete in code (disabled; not deployed) |
-| 10 | Portfolio, Guest Moments, covers, and XMP presets | Complete in code (disabled; not deployed) |
-| 11 | Storage consistency and orphan cleanup | Complete in code (dry-run; not deployed) |
-| 12 | Dual-provider read-path audit | Complete in code (not deployed) |
-| 13 | Supabase-to-R2 migration and verification tools | Complete in code (not deployed or run) |
-| 14 | Production canary validation | Complete in code (live canary not run) |
-| 15 | Delayed Supabase Storage cleanup | Complete in code (cleanup not run) |
+| 3 | Additive dual-provider database fields | Complete and deployed |
+| 4 | New browser uploads to R2 with presigned PUT | Complete and deployed |
+| 5 | Provider-aware upload finalization | Complete and deployed |
+| 6 | Photo Worker and Face Worker | Complete and deployed |
+| 7 | Downloads and lazy derivative generation | Complete and deployed |
+| 8 | Photo/album deletion and retryable partial failures | Complete and deployed |
+| 9 | Camera Live Import Worker | Complete and deployed |
+| 10 | Portfolio, Guest Moments, covers, and XMP presets | Complete and deployed |
+| 11 | Storage consistency and orphan cleanup | Complete and deployed; destructive cleanup disabled |
+| 12 | Dual-provider read-path audit | Complete and deployed |
+| 13 | Supabase-to-R2 migration and verification tools | Complete; Production migration verified |
+| 14 | Production canary validation | Complete; full R2 rollout enabled |
+| 15 | Delayed Supabase Storage cleanup | Retention active; source deletion not started |
+
+## Production rollout record
+
+On 22 September 2026, the Production migration completed with all 24 tracked
+photos using R2 and no failed or in-flight migrations. Album, Public Share,
+Face Search, download, Portfolio, Guest Moments, XMP preset, and Camera Live
+Import smoke tests passed. The owner canary allowlist was then cleared in the
+Vercel web application and both Railway worker services, enabling the full R2
+upload rollout. Vercel returned to `Ready` and both Railway services returned
+to `Online` after deployment.
+
+The post-rollout read-only consistency audit checked 130 tracked objects: all
+130 were healthy, with no missing objects, size mismatches, skipped checks, or
+open consistency issues. Photo and face queues were empty and the system
+health check was `HEALTHY`.
+
+Phase 15 remains intentionally non-destructive. Twelve migrated photo rows are
+in `retained` state, none are currently due, and the earliest source-cleanup
+timestamp is 22 October 2026 at 04:25 UTC (11:25 Asia/Bangkok). Migration apply,
+generic destructive cleanup, and Supabase source-cleanup gates remain disabled.
+Retained Supabase objects must not be deleted before the retention gate opens
+and the bounded Phase 15 canary dry-run passes.
 
 ## Phase 1
 

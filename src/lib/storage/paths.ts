@@ -11,6 +11,13 @@ export const PHOTO_OBJECT_KINDS = [
 
 export type PhotoObjectKind = (typeof PHOTO_OBJECT_KINDS)[number]
 
+const FACE_SOURCE_OBJECT_KINDS = [
+  'uhd',
+  'hd',
+  'preview',
+  'original',
+] as const satisfies readonly PhotoObjectKind[]
+
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -256,6 +263,19 @@ export function assertOwnedAlbumObjectKey(
   }
 
   return normalizeObjectKey(value)
+}
+
+export function isValidFaceSourceObjectKey(
+  value: string,
+  ownerId: string,
+  albumId: string
+) {
+  return isOwnedAlbumObjectKey(
+    value,
+    ownerId,
+    albumId,
+    FACE_SOURCE_OBJECT_KINDS
+  )
 }
 
 export function isPublicDeliveryKey(value: string) {

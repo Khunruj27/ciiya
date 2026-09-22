@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { buildPhotoWorkerObjectPlan } from '../src/lib/storage/photo-worker-plan'
+import { isValidFaceSourceObjectKey } from '../src/lib/storage/paths'
 
 const original =
   '11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222/original/33333333-3333-4333-8333-333333333333.webp'
@@ -61,6 +62,38 @@ assert.throws(
       hasPreset: false,
     }),
   /original object key/
+)
+
+const ownerId = '11111111-1111-4111-8111-111111111111'
+const albumId = '22222222-2222-4222-8222-222222222222'
+
+for (const kind of ['uhd', 'hd', 'preview', 'original']) {
+  assert.equal(
+    isValidFaceSourceObjectKey(
+      `${ownerId}/${albumId}/${kind}/33333333-3333-4333-8333-333333333333.jpg`,
+      ownerId,
+      albumId
+    ),
+    true
+  )
+}
+
+assert.equal(
+  isValidFaceSourceObjectKey(
+    `${ownerId}/${albumId}/thumbnail/33333333-3333-4333-8333-333333333333.jpg`,
+    ownerId,
+    albumId
+  ),
+  false
+)
+
+assert.equal(
+  isValidFaceSourceObjectKey(
+    `${ownerId}/${albumId}/uhd/../original/33333333-3333-4333-8333-333333333333.jpg`,
+    ownerId,
+    albumId
+  ),
+  false
 )
 
 console.log('Photo Worker storage plan checks passed')

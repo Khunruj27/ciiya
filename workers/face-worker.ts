@@ -13,6 +13,7 @@ import WebSocket from 'ws'
 import {
   createStorageRef,
   getStorageAdapter,
+  isValidFaceSourceObjectKey,
   type StorageAdapter,
   type StorageProvider,
 } from '../src/lib/storage'
@@ -255,19 +256,6 @@ function sleep(ms: number) {
 
     wakeSleepers.add(finish)
   })
-}
-
-function hasUnsafeStoragePath(path: string) {
-  const lowerPath = path.toLowerCase()
-
-  return (
-    path.includes('..') ||
-    path.includes('\\') ||
-    path.includes('//') ||
-    lowerPath.includes('%2e') ||
-    lowerPath.includes('%2f') ||
-    lowerPath.includes('%5c')
-  )
 }
 
 function getValidFaceDescriptor(
@@ -1177,23 +1165,11 @@ async function processFaceJob(
       job.image_path
     )
 
-    const allowedPrefix =
-      `${job.owner_id}/${job.album_id}/`
-
-    if (
-      hasUnsafeStoragePath(imagePath) ||
-      !(
-        imagePath.startsWith(
-          `${allowedPrefix}hd/`
-        ) ||
-        imagePath.startsWith(
-          `${allowedPrefix}preview/`
-        ) ||
-        imagePath.startsWith(
-          `${allowedPrefix}original/`
-        )
-      )
-    ) {
+    if (!isValidFaceSourceObjectKey(
+      imagePath,
+      job.owner_id,
+      job.album_id
+    )) {
       throw new Error('Invalid image_path')
     }
 

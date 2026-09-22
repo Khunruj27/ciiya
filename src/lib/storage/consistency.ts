@@ -200,18 +200,6 @@ export function getProtectedSupabaseSourceCandidates(
     .filter((ref): ref is StorageObjectRef => Boolean(ref))
 }
 
-async function selectOptional(
-  promise: PromiseLike<{ data: unknown; error: { message?: string } | null }>,
-  label: string
-) {
-  const { data, error } = await promise
-  if (error) {
-    console.warn(`[storage-consistency] ${label} skipped:`, error.message)
-    return []
-  }
-  return Array.isArray(data) ? data : []
-}
-
 async function selectRequired(
   promise: PromiseLike<{ data: unknown; error: { message?: string } | null }>,
   label: string
@@ -332,18 +320,38 @@ export async function collectReferencedStorageObjects(
     )
   }
 
-  const albums = (await selectRequired(
-    supabase
-      .from('albums')
-      .select('cover_url, cover_path, cover_storage_path, album_preset_path'),
-    'album legacy assets'
-  )) as Array<Record<string, unknown>>
+  // `cover_path` and `cover_storage_path` were explored during the storage
+  // migration design but were never part of the canonical albums schema.
+  // Query only deployed columns, with a pre-preset fallback for databases
+  // that have not received the album preset column yet.
+  const albumResult = await supabase
+    .from('albums')
+    .select('cover_url, album_preset_path')
+  let albumData: unknown[] | null = albumResult.data
+  let albumError = albumResult.error
+
+  if (albumError) {
+    const fallback = await supabase.from('albums').select('cover_url')
+    albumData = fallback.data
+    albumError = fallback.error
+  }
+  if (albumError) {
+    throw new Error(
+      `Unable to build album legacy assets storage references: ${albumError.message}`
+    )
+  }
+  const albums = (albumData || []) as Array<Record<string, unknown>>
 
   for (const album of albums) {
-    for (const field of ['cover_path', 'cover_storage_path', 'album_preset_path']) {
-      const key = typeof album[field] === 'string' ? album[field] : null
-      if (!key) continue
-      addRef(refs, safeRef({ provider: 'supabase', bucket: 'albums', key }))
+    const presetKey =
+      typeof album.album_preset_path === 'string'
+        ? album.album_preset_path
+        : null
+    if (presetKey) {
+      addRef(
+        refs,
+        safeRef({ provider: 'supabase', bucket: 'albums', key: presetKey })
+      )
     }
     const publicObject = extractSupabasePublicObject(
       typeof album.cover_url === 'string' ? album.cover_url : null
@@ -453,18 +461,10 @@ export async function collectReferencedStorageObjects(
     }
   }
 
-  const profiles = (await selectOptional(
-    supabase.from('profiles').select('avatar_path, avatar_storage_path'),
-    'profile assets'
-  )) as Array<Record<string, unknown>>
-
-  for (const profile of profiles) {
-    for (const field of ['avatar_path', 'avatar_storage_path']) {
-      const key = typeof profile[field] === 'string' ? profile[field] : null
-      if (!key) continue
-      addRef(refs, safeRef({ provider: 'supabase', bucket: 'avatars', key }))
-    }
-  }
+  // Avatars currently live in the `albums` bucket while their URL is stored
+  // in Supabase Auth user metadata, not in columns on `public.profiles`.
+  // They cannot be collected through the application-schema client here, so
+  // `/profile/` keys remain categorically protected by isUnsafeCleanupKey().
 
   return refs
 }

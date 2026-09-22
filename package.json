@@ -42,6 +42,7 @@
     "storage:cleanup": "tsx scripts/storage-cleanup-cron.ts",
     "storage:retry-deletions": "tsx scripts/retry-storage-deletions.ts",
     "storage:migrate:r2": "tsx scripts/migrate-supabase-to-r2.ts",
+    "storage:audit": "tsx scripts/audit-storage-consistency.ts",
     "storage:validate:r2": "tsx scripts/validate-r2-production.ts",
     "storage:cleanup:supabase-sources": "tsx scripts/cleanup-migrated-supabase-sources.ts",
     "billing:cron": "tsx scripts/billing-cron.ts",

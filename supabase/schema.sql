@@ -2006,6 +2006,8 @@ for each row execute procedure public.update_storage_after_photo_delete();
 create or replace function public.update_storage_after_photo_size_update()
 returns trigger
 language plpgsql
+security definer
+set search_path = public, pg_temp
 as $$
 declare
   uid uuid;
@@ -2043,6 +2045,11 @@ begin
   return new;
 end;
 $$;
+
+revoke all on function public.update_storage_after_photo_size_update() from public;
+revoke all on function public.update_storage_after_photo_size_update() from anon;
+revoke all on function public.update_storage_after_photo_size_update() from authenticated;
+grant execute on function public.update_storage_after_photo_size_update() to service_role;
 
 drop trigger if exists trg_photo_size_update_storage on public.photos;
 create trigger trg_photo_size_update_storage

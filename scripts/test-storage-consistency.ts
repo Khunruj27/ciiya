@@ -217,6 +217,15 @@ assert.match(cleanupRouteSource, /runStorageOrphanCleanup/)
 assert.match(cleanupRouteSource, /STORAGE_CLEANUP_ALLOW_R2_DELETE/)
 assert.doesNotMatch(cleanupRouteSource, /\.storage\.from/)
 
+const consistencySource = await readFile(
+  'src/lib/storage/consistency.ts',
+  'utf8'
+)
+assert.match(consistencySource, /select\('cover_url, album_preset_path'\)/)
+assert.doesNotMatch(consistencySource, /select\([^)]*cover_path/)
+assert.doesNotMatch(consistencySource, /profiles'\)\.select\('avatar_path/)
+assert.match(consistencySource, /normalized\.includes\('\/profile\/'\)/)
+
 console.log('Phase 11 storage consistency and cleanup checks passed')
 }
 

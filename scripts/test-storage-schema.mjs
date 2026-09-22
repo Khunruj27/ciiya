@@ -45,6 +45,10 @@ const cameraImportUniqueMigrationPath = new URL(
   '../supabase/migrations/202609220002_remove_stale_camera_import_session_file_unique.sql',
   import.meta.url
 )
+const photoSizeQuotaMigrationPath = new URL(
+  '../supabase/migrations/202609220003_ensure_photo_size_quota_trigger.sql',
+  import.meta.url
+)
 const schemaPath = new URL('../supabase/schema.sql', import.meta.url)
 
 const [
@@ -59,6 +63,7 @@ const [
   sourceCleanupMigration,
   presetPathValidationMigration,
   cameraImportUniqueMigration,
+  photoSizeQuotaMigration,
   schema,
 ] = await Promise.all([
   readFile(migrationPath, 'utf8'),
@@ -72,6 +77,7 @@ const [
   readFile(sourceCleanupMigrationPath, 'utf8'),
   readFile(presetPathValidationMigrationPath, 'utf8'),
   readFile(cameraImportUniqueMigrationPath, 'utf8'),
+  readFile(photoSizeQuotaMigrationPath, 'utf8'),
   readFile(schemaPath, 'utf8'),
 ])
 
@@ -309,5 +315,23 @@ for (const sql of [cameraImportUniqueMigration, schema]) {
 
 assert.doesNotMatch(cameraImportUniqueMigration, /\bdelete\s+from\b/i)
 assert.doesNotMatch(cameraImportUniqueMigration, /\bdrop\s+(table|column)\b/i)
+
+for (const sql of [photoSizeQuotaMigration, schema]) {
+  assert.match(
+    sql,
+    /create or replace function public\.update_storage_after_photo_size_update\(\)/
+  )
+  assert.match(
+    sql,
+    /diff := coalesce\(new\.file_size_bytes, 0\) - coalesce\(old\.file_size_bytes, 0\)/
+  )
+  assert.match(
+    sql,
+    /create trigger trg_photo_size_update_storage[\s\S]*after update of file_size_bytes on public\.photos/
+  )
+}
+
+assert.doesNotMatch(photoSizeQuotaMigration, /\bdelete\s+from\b/i)
+assert.doesNotMatch(photoSizeQuotaMigration, /\bdrop\s+(table|column)\b/i)
 
 console.log('Storage schema migration contract checks passed')

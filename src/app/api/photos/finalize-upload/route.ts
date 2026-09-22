@@ -10,6 +10,7 @@ import {
   assertOwnedAlbumObjectKey,
   createStorageRef,
   getStorageAdapter,
+  resolvePresetStorageRef,
   resolvePhotoDelivery,
   type StorageProvider,
 } from '@/lib/storage'
@@ -177,6 +178,25 @@ async function storageObjectExists(
   }
 
   return data.some((item) => item.name === fileName)
+}
+
+async function presetStorageObjectExists(params: {
+  supabaseAdmin: SupabaseAdminClient
+  ownerId: string
+  albumId: string
+  presetPath: string
+}) {
+  const ref = await resolvePresetStorageRef({
+    supabase: params.supabaseAdmin,
+    ownerId: params.ownerId,
+    albumId: params.albumId,
+    presetPath: params.presetPath,
+  })
+
+  if (!ref) return false
+
+  const result = await getStorageAdapter(ref.provider).objectExists(ref)
+  return result.exists
 }
 
 function getPhotoJobPriority(params: {
@@ -773,12 +793,6 @@ if (presetPath && hasUnsafeStoragePath(presetPath)) {
   )
 }
 
-const presetBucket = presetPath
-  ? presetPath.startsWith(expectedUserPresetPrefix)
-    ? 'presets'
-    : 'albums'
-  : null
-
 let r2OriginalRef: ReturnType<typeof createStorageRef> | null = null
 
 if (storageProvider === 'r2') {
@@ -806,7 +820,12 @@ const [
     ? getStorageAdapter('r2').objectExists(r2OriginalRef)
     : storageObjectExists(supabaseAdmin, storagePath),
   presetPath
-    ? storageObjectExists(supabaseAdmin, presetPath, presetBucket!)
+    ? presetStorageObjectExists({
+        supabaseAdmin,
+        ownerId,
+        albumId,
+        presetPath,
+      })
     : Promise.resolve(true),
   supabaseAdmin
     .from('photos')

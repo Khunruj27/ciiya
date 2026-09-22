@@ -37,6 +37,10 @@ const sourceCleanupMigrationPath = new URL(
   '../supabase/migrations/202609210009_delayed_supabase_source_cleanup.sql',
   import.meta.url
 )
+const presetPathValidationMigrationPath = new URL(
+  '../supabase/migrations/202609220001_fix_encoded_preset_path_validation.sql',
+  import.meta.url
+)
 const schemaPath = new URL('../supabase/schema.sql', import.meta.url)
 
 const [
@@ -49,6 +53,7 @@ const [
   consistencyMigration,
   photoCopyMigration,
   sourceCleanupMigration,
+  presetPathValidationMigration,
   schema,
 ] = await Promise.all([
   readFile(migrationPath, 'utf8'),
@@ -60,6 +65,7 @@ const [
   readFile(consistencyMigrationPath, 'utf8'),
   readFile(photoCopyMigrationPath, 'utf8'),
   readFile(sourceCleanupMigrationPath, 'utf8'),
+  readFile(presetPathValidationMigrationPath, 'utf8'),
   readFile(schemaPath, 'utf8'),
 ])
 
@@ -246,5 +252,34 @@ for (const sql of [sourceCleanupMigration, schema]) {
 
 assert.doesNotMatch(sourceCleanupMigration, /\bdelete\s+from\b/i)
 assert.doesNotMatch(sourceCleanupMigration, /\bdrop\s+(table|column)\b/i)
+
+for (const sql of [
+  uploadSessionMigration,
+  cameraStorageMigration,
+  schema,
+]) {
+  assert.match(sql, /position\('%2e' in lower\(p_preset_path\)\) > 0/)
+  assert.match(sql, /position\('%2f' in lower\(p_preset_path\)\) > 0/)
+  assert.match(sql, /position\('%5c' in lower\(p_preset_path\)\) > 0/)
+  assert.doesNotMatch(sql, /lower\(p_preset_path\) like '%(?:2e|2f|5c)%'/)
+}
+
+assert.match(presetPathValidationMigration, /pg_get_functiondef/)
+assert.match(presetPathValidationMigration, /public\.reserve_photo_upload/)
+assert.match(presetPathValidationMigration, /public\.reserve_camera_photo_upload/)
+assert.match(
+  presetPathValidationMigration,
+  /'position\(''%2e'' in lower\(p_preset_path\)\) > 0'/
+)
+assert.match(
+  presetPathValidationMigration,
+  /'position\(''%2f'' in lower\(p_preset_path\)\) > 0'/
+)
+assert.match(
+  presetPathValidationMigration,
+  /'position\(''%5c'' in lower\(p_preset_path\)\) > 0'/
+)
+assert.doesNotMatch(presetPathValidationMigration, /\bdrop\s+(table|column)\b/i)
+assert.doesNotMatch(presetPathValidationMigration, /\bdelete\s+from\b/i)
 
 console.log('Storage schema migration contract checks passed')

@@ -220,9 +220,9 @@ begin
     or p_preset_path like '%..%'
     or position(chr(92) in p_preset_path) > 0
     or p_preset_path like '%//%'
-    or lower(p_preset_path) like '%2e%'
-    or lower(p_preset_path) like '%2f%'
-    or lower(p_preset_path) like '%5c%'
+    or position('%2e' in lower(p_preset_path)) > 0
+    or position('%2f' in lower(p_preset_path)) > 0
+    or position('%5c' in lower(p_preset_path)) > 0
     or length(p_preset_path) > 500
   ) then
     raise exception using errcode = 'P0001', message = 'INVALID_PRESET_PATH';

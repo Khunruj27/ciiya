@@ -94,6 +94,7 @@ try {
     portfolioEditor,
     guestMoments,
     presetUpload,
+    finalizeUpload,
     photoWorker,
     albumCover,
     albumDelete,
@@ -109,6 +110,13 @@ try {
       ),
       readFile(
         new URL('../src/app/api/presets/upload/route.ts', import.meta.url),
+        'utf8'
+      ),
+      readFile(
+        new URL(
+          '../src/app/api/photos/finalize-upload/route.ts',
+          import.meta.url
+        ),
         'utf8'
       ),
       readFile(new URL('../workers/photo-worker.ts', import.meta.url), 'utf8'),
@@ -129,6 +137,12 @@ try {
   assert.doesNotMatch(guestMoments, /\.storage\.from\('guest-moments'\)/)
   assert.match(presetUpload, /getStorageAssetTarget\('preset', user\.id\)/)
   assert.doesNotMatch(presetUpload, /\.storage\s*\n?\s*\.from\('presets'\)/)
+  assert.match(finalizeUpload, /resolvePresetStorageRef/)
+  assert.match(finalizeUpload, /getStorageAdapter\(ref\.provider\)\.objectExists\(ref\)/)
+  assert.doesNotMatch(
+    finalizeUpload,
+    /storageObjectExists\(supabaseAdmin, presetPath/
+  )
   assert.match(photoWorker, /resolvePresetStorageRef/)
   assert.match(albumCover, /cover_photo_id: photoId, cover_url: coverUrl/)
   assert.match(albumDelete, /\.from\('storage_assets'\)/)

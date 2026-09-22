@@ -41,6 +41,10 @@ const presetPathValidationMigrationPath = new URL(
   '../supabase/migrations/202609220001_fix_encoded_preset_path_validation.sql',
   import.meta.url
 )
+const cameraImportUniqueMigrationPath = new URL(
+  '../supabase/migrations/202609220002_remove_stale_camera_import_session_file_unique.sql',
+  import.meta.url
+)
 const schemaPath = new URL('../supabase/schema.sql', import.meta.url)
 
 const [
@@ -54,6 +58,7 @@ const [
   photoCopyMigration,
   sourceCleanupMigration,
   presetPathValidationMigration,
+  cameraImportUniqueMigration,
   schema,
 ] = await Promise.all([
   readFile(migrationPath, 'utf8'),
@@ -66,6 +71,7 @@ const [
   readFile(photoCopyMigrationPath, 'utf8'),
   readFile(sourceCleanupMigrationPath, 'utf8'),
   readFile(presetPathValidationMigrationPath, 'utf8'),
+  readFile(cameraImportUniqueMigrationPath, 'utf8'),
   readFile(schemaPath, 'utf8'),
 ])
 
@@ -281,5 +287,27 @@ assert.match(
 )
 assert.doesNotMatch(presetPathValidationMigration, /\bdrop\s+(table|column)\b/i)
 assert.doesNotMatch(presetPathValidationMigration, /\bdelete\s+from\b/i)
+
+for (const sql of [cameraImportUniqueMigration, schema]) {
+  assert.match(
+    sql,
+    /drop constraint if exists camera_live_imports_session_file_uidx/
+  )
+  assert.match(
+    sql,
+    /drop index if exists public\.camera_live_imports_session_file_uidx/
+  )
+  assert.match(
+    sql,
+    /drop index if exists public\.idx_camera_live_imports_unique_file/
+  )
+  assert.match(
+    sql,
+    /create unique index if not exists idx_camera_live_imports_unique_filename[\s\S]*album_id, filename/
+  )
+}
+
+assert.doesNotMatch(cameraImportUniqueMigration, /\bdelete\s+from\b/i)
+assert.doesNotMatch(cameraImportUniqueMigration, /\bdrop\s+(table|column)\b/i)
 
 console.log('Storage schema migration contract checks passed')

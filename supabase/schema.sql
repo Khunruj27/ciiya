@@ -2276,6 +2276,15 @@ on public.camera_live_imports(album_id);
 create index if not exists idx_camera_live_imports_status
 on public.camera_live_imports(status);
 
+-- camera_file_id is a transient gphoto2 list position, so historical
+-- uniqueness on (session_id, camera_file_id) must not survive schema replay.
+alter table public.camera_live_imports
+  drop constraint if exists camera_live_imports_session_file_uidx;
+
+drop index if exists public.camera_live_imports_session_file_uidx;
+
+drop index if exists public.idx_camera_live_imports_unique_file;
+
 create unique index if not exists idx_camera_live_imports_unique_filename
 on public.camera_live_imports(album_id, filename);
 

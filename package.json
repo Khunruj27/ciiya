@@ -32,6 +32,7 @@
     "test:storage:phase14": "node --import tsx scripts/test-r2-production-validation.ts",
     "test:storage:phase15": "node --import tsx scripts/test-supabase-source-cleanup.ts",
     "test:workers:lifecycle": "node --import tsx scripts/test-worker-graceful-shutdown.ts",
+    "test:admin:user-detail": "node --import tsx scripts/test-admin-user-detail-query.ts",
     "worker:photos": "tsx workers/photo-worker.ts",
     "worker:faces": "tsx workers/face-worker.ts",
     "worker:camera": "tsx workers/camera-live-import-worker.ts",

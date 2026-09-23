@@ -132,7 +132,7 @@ return NextResponse.json(
     cover_url,
     created_at,
     updated_at,
-    photos(count)
+    photos!photos_album_id_fkey(count)
   `)
   .eq('owner_id', userId)
   .order('updated_at', { ascending: false }),

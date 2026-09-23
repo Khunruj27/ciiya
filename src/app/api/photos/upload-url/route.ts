@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { getUserStoragePlan } from '@/lib/get-user-storage-plan'
 import {
+  resolvePhotoUploadPrincipal,
+  type PhotoUploadPrincipal,
+} from '@/lib/photo-upload-principal'
+import { rateLimit, tooManyRequests } from '@/lib/rate-limit'
+import {
   createStorageRef,
   getR2Config,
   getStorageAdapter,
@@ -43,11 +48,12 @@ type CancelledReservationRow = {
   object_key: string
 }
 
-function json(body: unknown, status = 200) {
+function json(body: unknown, status = 200, headers?: Record<string, string>) {
   return NextResponse.json(body, {
     status,
     headers: {
       'Cache-Control': 'no-store, max-age=0',
+      ...headers,
     },
   })
 }
@@ -58,7 +64,7 @@ function isUuid(value: string) {
 
 function rpcErrorCode(message: string) {
   return message.match(
-    /(?:STORAGE_LIMIT_EXCEEDED|ALBUM_NOT_FOUND|CATEGORY_NOT_FOUND|INVALID_[A-Z_]+|UPLOAD_SESSION_CONFLICT|UPLOAD_SESSION_NOT_FOUND|UPLOAD_ALREADY_COMPLETED)/
+    /(?:SYNC_DEVICE_UNAUTHORIZED|STORAGE_LIMIT_EXCEEDED|ALBUM_NOT_FOUND|CATEGORY_NOT_FOUND|INVALID_[A-Z_]+|UPLOAD_SESSION_CONFLICT|UPLOAD_SESSION_NOT_FOUND|UPLOAD_ALREADY_COMPLETED)/
   )?.[0]
 }
 
@@ -69,12 +75,18 @@ function firstRow<T>(value: unknown): T | null {
 }
 
 async function cancelReservation(
-  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  principal: PhotoUploadPrincipal,
   sessionId: string
 ) {
-  const { data, error } = await supabase.rpc('cancel_photo_upload_session', {
-    p_session_id: sessionId,
-  })
+  const { data, error } =
+    principal.kind === 'ciiya-sync'
+      ? await principal.client.rpc('cancel_ciiya_sync_photo_upload', {
+          p_device_id: principal.deviceId,
+          p_session_id: sessionId,
+        })
+      : await principal.client.rpc('cancel_photo_upload_session', {
+          p_session_id: sessionId,
+        })
 
   if (error) return { row: null, error }
 
@@ -85,17 +97,44 @@ async function cancelReservation(
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createServerSupabaseClient()
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser()
+  const browserClient = await createServerSupabaseClient()
+  const { principal, rolloutDisabled } = await resolvePhotoUploadPrincipal({
+    request,
+    browserClient,
+  })
 
-  if (authError || !user) {
+  if (rolloutDisabled) {
+    return json(
+      {
+        error: 'Ciiya Sync is temporarily paused',
+        code: 'CIIYA_SYNC_ROLLOUT_PAUSED',
+      },
+      503,
+      { 'Retry-After': '60' }
+    )
+  }
+
+  if (!principal) {
     return json({ error: 'Unauthorized', code: 'UNAUTHORIZED' }, 401)
   }
 
-  if (!isR2PhotoUploadEnabledForOwner(user.id)) {
+  if (principal.kind === 'ciiya-sync') {
+    const rate = await rateLimit(request, {
+      bucket: 'ciiya-sync-photo-upload',
+      identifier: principal.deviceId,
+      limit: 600,
+      windowSeconds: 10 * 60,
+    })
+
+    if (!rate.allowed) {
+      return tooManyRequests(rate, 'Ciiya Sync is uploading too quickly')
+    }
+  }
+
+  const ownerId = principal.ownerId
+  const supabase = principal.client
+
+  if (!isR2PhotoUploadEnabledForOwner(ownerId)) {
     return json(
       {
         error: 'Direct R2 photo uploads are not enabled',
@@ -149,8 +188,18 @@ export async function POST(request: NextRequest) {
     return json({ error: 'Invalid category', code: 'INVALID_CATEGORY' }, 400)
   }
 
-  const expectedAlbumPresetPrefix = `${user.id}/${albumId}/presets/`
-  const expectedUserPresetPrefix = `${user.id}/presets/`
+  if (principal.kind === 'ciiya-sync' && presetPath) {
+    return json(
+      {
+        error: 'Ciiya Sync uploads must already contain Lightroom edits',
+        code: 'SYNC_PRESET_NOT_ALLOWED',
+      },
+      400
+    )
+  }
+
+  const expectedAlbumPresetPrefix = `${ownerId}/${albumId}/presets/`
+  const expectedUserPresetPrefix = `${ownerId}/presets/`
 
   if (
     presetPath &&
@@ -171,7 +220,7 @@ export async function POST(request: NextRequest) {
   if (
     albumError ||
     !album ||
-    (album.owner_id !== user.id && album.user_id !== user.id)
+    (album.owner_id !== ownerId && album.user_id !== ownerId)
   ) {
     return json({ error: 'Album not found', code: 'ALBUM_NOT_FOUND' }, 404)
   }
@@ -217,7 +266,7 @@ export async function POST(request: NextRequest) {
 
   try {
     ;[plan, estimatedUploadBytes] = await Promise.all([
-      getUserStoragePlan(user.id),
+      getUserStoragePlan(ownerId),
       Promise.resolve(estimatePhotoStorageBytes(fileSizeBytes)),
     ])
   } catch (error) {
@@ -252,36 +301,44 @@ export async function POST(request: NextRequest) {
     )
   }
   const objectKey = photoObjectKey({
-    ownerId: user.id,
+    ownerId,
     albumId,
     objectId: crypto.randomUUID(),
     kind: 'original',
     extension: getDirectPhotoExtension(contentType),
   })
 
-  const { data: reservationData, error: reservationError } = await supabase.rpc(
-    'reserve_photo_upload',
-    {
-      p_album_id: albumId,
-      p_client_upload_id: clientUploadId,
-      p_storage_bucket: r2Config.bucketName,
-      p_object_key: objectKey,
-      p_original_file_name: fileName,
-      p_content_type: contentType,
-      p_expected_size_bytes: fileSizeBytes,
-      p_file_hash: fileHash,
-      p_requested_size: requestedSize,
-      p_category_id: categoryId,
-      p_preset_path: presetPath,
-      p_auto_face_scan: autoFaceScan,
-      p_auto_publish: autoPublish,
-    }
-  )
+  const reservationRequest = {
+    p_album_id: albumId,
+    p_client_upload_id: clientUploadId,
+    p_storage_bucket: r2Config.bucketName,
+    p_object_key: objectKey,
+    p_original_file_name: fileName,
+    p_content_type: contentType,
+    p_expected_size_bytes: fileSizeBytes,
+    p_file_hash: fileHash,
+    p_requested_size: requestedSize,
+    p_category_id: categoryId,
+    p_auto_face_scan: autoFaceScan,
+    p_auto_publish: autoPublish,
+  }
+  const { data: reservationData, error: reservationError } =
+    principal.kind === 'ciiya-sync'
+      ? await supabase.rpc('reserve_ciiya_sync_photo_upload', {
+          p_device_id: principal.deviceId,
+          ...reservationRequest,
+        })
+      : await supabase.rpc('reserve_photo_upload', {
+          ...reservationRequest,
+          p_preset_path: presetPath,
+        })
 
   if (reservationError) {
     const code = rpcErrorCode(reservationError.message)
     const status =
-      code === 'STORAGE_LIMIT_EXCEEDED'
+      code === 'SYNC_DEVICE_UNAUTHORIZED'
+        ? 401
+        : code === 'STORAGE_LIMIT_EXCEEDED'
         ? 403
         : code === 'ALBUM_NOT_FOUND'
           ? 404
@@ -355,20 +412,31 @@ export async function POST(request: NextRequest) {
       plan: plan.plan,
     })
   } catch (error) {
-    await cancelReservation(supabase, reservation.session_id)
+    await cancelReservation(principal, reservation.session_id)
     console.error('[photo upload-url] signing failed:', error)
     return json({ error: 'Unable to create upload URL' }, 500)
   }
 }
 
 export async function DELETE(request: NextRequest) {
-  const supabase = await createServerSupabaseClient()
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser()
+  const browserClient = await createServerSupabaseClient()
+  const { principal, rolloutDisabled } = await resolvePhotoUploadPrincipal({
+    request,
+    browserClient,
+  })
 
-  if (authError || !user) {
+  if (rolloutDisabled) {
+    return json(
+      {
+        error: 'Ciiya Sync is temporarily paused',
+        code: 'CIIYA_SYNC_ROLLOUT_PAUSED',
+      },
+      503,
+      { 'Retry-After': '60' }
+    )
+  }
+
+  if (!principal) {
     return json({ error: 'Unauthorized', code: 'UNAUTHORIZED' }, 401)
   }
 
@@ -385,7 +453,7 @@ export async function DELETE(request: NextRequest) {
     return json({ error: 'Invalid upload session', code: 'INVALID_REQUEST' }, 400)
   }
 
-  const { row, error } = await cancelReservation(supabase, sessionId)
+  const { row, error } = await cancelReservation(principal, sessionId)
 
   if (error || !row) {
     const code = rpcErrorCode(error?.message || '')

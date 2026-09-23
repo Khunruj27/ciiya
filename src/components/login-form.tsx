@@ -13,9 +13,11 @@ import { getAuthErrorMessage } from '@/lib/auth-error-message'
 export default function LoginForm({
   initialError = '',
   passwordReset = false,
+  nextPath = '/albums',
 }: {
   initialError?: string
   passwordReset?: boolean
+  nextPath?: string
 }) {
   const router = useRouter()
   const { t, locale } = useI18n()
@@ -53,7 +55,7 @@ export default function LoginForm({
       return
     }
 
-    router.replace('/albums')
+    router.replace(nextPath)
     router.refresh()
   }
 
@@ -121,7 +123,7 @@ export default function LoginForm({
             </div>
 
             <GoogleSignInButton
-              next="/albums"
+              next={nextPath}
               label={locale === 'th' ? 'เข้าสู่ระบบด้วย Google' : 'Continue with Google'}
               onError={(message) =>
                 setErrorMsg(

@@ -3460,5 +3460,936 @@ grant execute on function public.cleanup_storage_consistency_issues(integer)
   to service_role;
 
 -- =========================================================
--- DONE FULL SCHEMA v2.4
+-- CIIYA SYNC DEVICE PAIRING
+-- =========================================================
+
+-- Phase 14.5.1: Ciiya Sync device pairing foundation.
+--
+-- Ciiya Sync is a local Lightroom companion. It receives a short-lived
+-- pairing code, is approved by the signed-in owner, and exchanges the pairing
+-- for a revocable device token. Only token hashes are stored in PostgreSQL.
+-- Existing Browser Upload, Camera Live Import, Photo Worker, Face Worker, and
+-- storage-provider behavior remain unchanged by this migration.
+
+create table if not exists public.ciiya_sync_devices (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references auth.users(id) on delete cascade,
+  client_device_id uuid not null,
+  name text not null,
+  platform text not null default 'unknown',
+  app_version text,
+  token_hash text not null unique,
+  token_expires_at timestamptz not null,
+  scopes text[] not null default array[
+    'albums:read',
+    'photos:upload',
+    'sync:write'
+  ]::text[],
+  last_seen_at timestamptz,
+  revoked_at timestamptz,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint ciiya_sync_devices_owner_client_unique
+    unique (owner_id, client_device_id),
+  constraint ciiya_sync_devices_name_check
+    check (length(btrim(name)) between 1 and 80),
+  constraint ciiya_sync_devices_platform_check
+    check (platform in ('macos', 'windows', 'linux', 'unknown')),
+  constraint ciiya_sync_devices_token_hash_check
+    check (token_hash ~ '^[a-f0-9]{64}$'),
+  constraint ciiya_sync_devices_token_expiry_check
+    check (token_expires_at > created_at),
+  constraint ciiya_sync_devices_scopes_check
+    check (
+      scopes <@ array[
+        'albums:read',
+        'photos:upload',
+        'sync:write'
+      ]::text[]
+      and cardinality(scopes) > 0
+    )
+);
+
+create index if not exists idx_ciiya_sync_devices_owner_active
+  on public.ciiya_sync_devices (owner_id, updated_at desc)
+  where revoked_at is null;
+
+create index if not exists idx_ciiya_sync_devices_active_token
+  on public.ciiya_sync_devices (token_hash)
+  where revoked_at is null;
+
+drop trigger if exists trg_ciiya_sync_devices_updated_at
+  on public.ciiya_sync_devices;
+create trigger trg_ciiya_sync_devices_updated_at
+before update on public.ciiya_sync_devices
+for each row execute procedure public.set_updated_at();
+
+create table if not exists public.ciiya_sync_pairings (
+  id uuid primary key default gen_random_uuid(),
+  client_device_id uuid not null,
+  device_id uuid references public.ciiya_sync_devices(id) on delete set null,
+  owner_id uuid references auth.users(id) on delete cascade,
+  user_code_hash text not null unique,
+  poll_secret_hash text not null,
+  device_name text not null,
+  platform text not null default 'unknown',
+  app_version text,
+  status text not null default 'pending',
+  expires_at timestamptz not null,
+  approved_at timestamptz,
+  consumed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint ciiya_sync_pairings_name_check
+    check (length(btrim(device_name)) between 1 and 80),
+  constraint ciiya_sync_pairings_platform_check
+    check (platform in ('macos', 'windows', 'linux', 'unknown')),
+  constraint ciiya_sync_pairings_status_check
+    check (status in ('pending', 'approved', 'consumed', 'expired', 'denied')),
+  constraint ciiya_sync_pairings_code_hash_check
+    check (user_code_hash ~ '^[a-f0-9]{64}$'),
+  constraint ciiya_sync_pairings_poll_hash_check
+    check (poll_secret_hash ~ '^[a-f0-9]{64}$'),
+  constraint ciiya_sync_pairings_expiry_check
+    check (expires_at > created_at)
+);
+
+create index if not exists idx_ciiya_sync_pairings_status_expiry
+  on public.ciiya_sync_pairings (status, expires_at);
+
+create index if not exists idx_ciiya_sync_pairings_client_created
+  on public.ciiya_sync_pairings (client_device_id, created_at desc);
+
+drop trigger if exists trg_ciiya_sync_pairings_updated_at
+  on public.ciiya_sync_pairings;
+create trigger trg_ciiya_sync_pairings_updated_at
+before update on public.ciiya_sync_pairings
+for each row execute procedure public.set_updated_at();
+
+alter table public.ciiya_sync_devices enable row level security;
+alter table public.ciiya_sync_pairings enable row level security;
+
+drop policy if exists "ciiya_sync_devices_select_own"
+  on public.ciiya_sync_devices;
+create policy "ciiya_sync_devices_select_own"
+on public.ciiya_sync_devices for select
+to authenticated
+using (owner_id = auth.uid());
+
+revoke all on table public.ciiya_sync_devices from anon, authenticated;
+grant select on table public.ciiya_sync_devices to authenticated;
+grant all on table public.ciiya_sync_devices to service_role;
+
+revoke all on table public.ciiya_sync_pairings from anon, authenticated;
+grant all on table public.ciiya_sync_pairings to service_role;
+
+create or replace function public.approve_ciiya_sync_pairing(
+  p_user_code_hash text,
+  p_owner_id uuid
+)
+returns table (
+  pairing_id uuid,
+  pairing_status text,
+  device_name text,
+  device_platform text,
+  pairing_expires_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+as $function$
+declare
+  v_pairing public.ciiya_sync_pairings%rowtype;
+begin
+  if p_user_code_hash !~ '^[a-f0-9]{64}$' then
+    raise exception using errcode = 'P0001', message = 'INVALID_PAIRING_CODE';
+  end if;
+
+  if not exists (select 1 from auth.users u where u.id = p_owner_id) then
+    raise exception using errcode = 'P0001', message = 'OWNER_NOT_FOUND';
+  end if;
+
+  select p.* into v_pairing
+  from public.ciiya_sync_pairings p
+  where p.user_code_hash = p_user_code_hash
+  for update;
+
+  if not found then
+    raise exception using errcode = 'P0001', message = 'PAIRING_NOT_FOUND';
+  end if;
+
+  if v_pairing.expires_at <= now() then
+    update public.ciiya_sync_pairings p
+    set status = 'expired'
+    where p.id = v_pairing.id
+      and p.status in ('pending', 'approved');
+
+    return query select
+      v_pairing.id,
+      'expired'::text,
+      v_pairing.device_name,
+      v_pairing.platform,
+      v_pairing.expires_at;
+    return;
+  end if;
+
+  if v_pairing.status = 'pending' then
+    update public.ciiya_sync_pairings p
+    set owner_id = p_owner_id,
+        status = 'approved',
+        approved_at = now()
+    where p.id = v_pairing.id;
+  elsif v_pairing.status = 'approved' and v_pairing.owner_id <> p_owner_id then
+    raise exception using errcode = 'P0001', message = 'PAIRING_ALREADY_APPROVED';
+  elsif v_pairing.status <> 'approved' then
+    raise exception using errcode = 'P0001', message = 'PAIRING_NOT_PENDING';
+  end if;
+
+  return query select
+    v_pairing.id,
+    'approved'::text,
+    v_pairing.device_name,
+    v_pairing.platform,
+    v_pairing.expires_at;
+end;
+$function$;
+
+revoke all
+on function public.approve_ciiya_sync_pairing(text, uuid)
+from public, anon, authenticated;
+grant execute
+on function public.approve_ciiya_sync_pairing(text, uuid)
+to service_role;
+
+create or replace function public.consume_ciiya_sync_pairing(
+  p_pairing_id uuid,
+  p_poll_secret_hash text,
+  p_token_hash text,
+  p_token_expires_at timestamptz
+)
+returns table (
+  pairing_status text,
+  paired_device_id uuid,
+  paired_owner_id uuid,
+  token_issued boolean
+)
+language plpgsql
+security definer
+set search_path = public
+as $function$
+declare
+  v_pairing public.ciiya_sync_pairings%rowtype;
+  v_device_id uuid;
+begin
+  if p_poll_secret_hash !~ '^[a-f0-9]{64}$'
+    or p_token_hash !~ '^[a-f0-9]{64}$'
+  then
+    raise exception using errcode = 'P0001', message = 'INVALID_PAIRING_SECRET';
+  end if;
+
+  if p_token_expires_at <= now() + interval '1 day'
+    or p_token_expires_at > now() + interval '100 days'
+  then
+    raise exception using errcode = 'P0001', message = 'INVALID_TOKEN_EXPIRY';
+  end if;
+
+  select p.* into v_pairing
+  from public.ciiya_sync_pairings p
+  where p.id = p_pairing_id
+    and p.poll_secret_hash = p_poll_secret_hash
+  for update;
+
+  if not found then
+    raise exception using errcode = 'P0001', message = 'PAIRING_NOT_FOUND';
+  end if;
+
+  if v_pairing.expires_at <= now()
+    and v_pairing.status in ('pending', 'approved')
+  then
+    update public.ciiya_sync_pairings p
+    set status = 'expired'
+    where p.id = v_pairing.id;
+
+    return query select 'expired'::text, null::uuid, null::uuid, false;
+    return;
+  end if;
+
+  if v_pairing.status = 'pending' then
+    return query select 'pending'::text, null::uuid, null::uuid, false;
+    return;
+  end if;
+
+  if v_pairing.status = 'consumed' then
+    return query select
+      'consumed'::text,
+      v_pairing.device_id,
+      v_pairing.owner_id,
+      false;
+    return;
+  end if;
+
+  if v_pairing.status <> 'approved' or v_pairing.owner_id is null then
+    return query select v_pairing.status, null::uuid, v_pairing.owner_id, false;
+    return;
+  end if;
+
+  insert into public.ciiya_sync_devices as d (
+    owner_id,
+    client_device_id,
+    name,
+    platform,
+    app_version,
+    token_hash,
+    token_expires_at,
+    scopes,
+    last_seen_at,
+    revoked_at
+  ) values (
+    v_pairing.owner_id,
+    v_pairing.client_device_id,
+    v_pairing.device_name,
+    v_pairing.platform,
+    v_pairing.app_version,
+    p_token_hash,
+    p_token_expires_at,
+    array['albums:read', 'photos:upload', 'sync:write']::text[],
+    now(),
+    null
+  )
+  on conflict (owner_id, client_device_id) do update
+  set name = excluded.name,
+      platform = excluded.platform,
+      app_version = excluded.app_version,
+      token_hash = excluded.token_hash,
+      token_expires_at = excluded.token_expires_at,
+      scopes = excluded.scopes,
+      last_seen_at = now(),
+      revoked_at = null
+  returning d.id into v_device_id;
+
+  update public.ciiya_sync_pairings p
+  set device_id = v_device_id,
+      status = 'consumed',
+      consumed_at = now()
+  where p.id = v_pairing.id;
+
+  return query select
+    'consumed'::text,
+    v_device_id,
+    v_pairing.owner_id,
+    true;
+end;
+$function$;
+
+revoke all
+on function public.consume_ciiya_sync_pairing(uuid, text, text, timestamptz)
+from public, anon, authenticated;
+grant execute
+on function public.consume_ciiya_sync_pairing(uuid, text, text, timestamptz)
+to service_role;
+
+-- =========================================================
+-- SCHEMA v2.6 — Ciiya Sync device uploads
+-- Mirrors migration 202609230003_ciiya_sync_upload.sql.
+-- =========================================================
+
+-- Phase 14.5.3: device-authenticated Ciiya Sync uploads.
+--
+-- Ciiya Sync reuses the existing R2 upload reservation and finalization
+-- invariants, but its bearer token is not a Supabase user session. These
+-- service-role-only RPCs derive the owner from an active, scoped device and
+-- bind every upload session to that exact device.
+
+alter table public.photo_upload_sessions
+  add column if not exists ciiya_sync_device_id uuid
+    references public.ciiya_sync_devices(id) on delete set null;
+
+create index if not exists idx_photo_upload_sessions_sync_device
+  on public.photo_upload_sessions (ciiya_sync_device_id, created_at desc)
+  where ciiya_sync_device_id is not null;
+
+create or replace function public.ciiya_sync_device_owner(
+  p_device_id uuid,
+  p_required_scope text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $function$
+declare
+  v_owner_id uuid;
+begin
+  select d.owner_id into v_owner_id
+  from public.ciiya_sync_devices d
+  where d.id = p_device_id
+    and d.revoked_at is null
+    and d.token_expires_at > now()
+    and p_required_scope = any(d.scopes);
+
+  if v_owner_id is null then
+    raise exception using errcode = '42501', message = 'SYNC_DEVICE_UNAUTHORIZED';
+  end if;
+
+  return v_owner_id;
+end;
+$function$;
+
+revoke all
+on function public.ciiya_sync_device_owner(uuid, text)
+from public, anon, authenticated;
+grant execute
+on function public.ciiya_sync_device_owner(uuid, text)
+to service_role;
+
+create or replace function public.reserve_ciiya_sync_photo_upload(
+  p_device_id uuid,
+  p_album_id uuid,
+  p_client_upload_id uuid,
+  p_storage_bucket text,
+  p_object_key text,
+  p_original_file_name text,
+  p_content_type text,
+  p_expected_size_bytes bigint,
+  p_file_hash text,
+  p_requested_size text,
+  p_category_id uuid default null,
+  p_auto_face_scan boolean default true,
+  p_auto_publish boolean default false
+)
+returns table (
+  session_id uuid,
+  reserved_object_key text,
+  reserved_storage_bucket text,
+  reserved_size_bytes bigint,
+  remaining_bytes bigint,
+  session_expires_at timestamptz,
+  reused boolean
+)
+language plpgsql
+security definer
+set search_path = public
+as $function$
+declare
+  v_user_id uuid := public.ciiya_sync_device_owner(
+    p_device_id,
+    'photos:upload'
+  );
+  v_existing public.photo_upload_sessions%rowtype;
+  v_session public.photo_upload_sessions%rowtype;
+  v_used_bytes bigint := 0;
+  v_limit_bytes bigint := 5368709120;
+  v_active_reserved bigint := 0;
+  v_reserved_bytes bigint;
+  v_expected_prefix text;
+  v_object_name text;
+begin
+  perform pg_advisory_xact_lock(hashtextextended(v_user_id::text, 0));
+
+  if not exists (
+    select 1
+    from public.albums a
+    where a.id = p_album_id
+      and (a.owner_id = v_user_id or a.user_id = v_user_id)
+  ) then
+    raise exception using errcode = 'P0001', message = 'ALBUM_NOT_FOUND';
+  end if;
+
+  if p_category_id is not null and not exists (
+    select 1
+    from public.categories c
+    where c.id = p_category_id
+      and c.album_id = p_album_id
+  ) then
+    raise exception using errcode = 'P0001', message = 'CATEGORY_NOT_FOUND';
+  end if;
+
+  if p_expected_size_bytes < 1 or p_expected_size_bytes > 209715200 then
+    raise exception using errcode = 'P0001', message = 'INVALID_UPLOAD_SIZE';
+  end if;
+
+  if p_content_type not in ('image/jpeg', 'image/png', 'image/webp') then
+    raise exception using errcode = 'P0001', message = 'INVALID_CONTENT_TYPE';
+  end if;
+
+  if p_requested_size not in ('sd', 'hd', 'uhd', 'original') then
+    raise exception using errcode = 'P0001', message = 'INVALID_REQUESTED_SIZE';
+  end if;
+
+  if p_file_hash !~ '^[a-f0-9]{64}$' then
+    raise exception using errcode = 'P0001', message = 'INVALID_FILE_HASH';
+  end if;
+
+  if p_original_file_name = '' or length(p_original_file_name) > 255 then
+    raise exception using errcode = 'P0001', message = 'INVALID_FILE_NAME';
+  end if;
+
+  if length(p_storage_bucket) not between 3 and 63
+    or p_storage_bucket !~ '^[a-z0-9][a-z0-9.-]*[a-z0-9]$'
+    or p_storage_bucket like '%..%'
+  then
+    raise exception using errcode = 'P0001', message = 'INVALID_STORAGE_BUCKET';
+  end if;
+
+  v_expected_prefix := v_user_id::text || '/' || p_album_id::text || '/original/';
+  v_object_name := substring(p_object_key from length(v_expected_prefix) + 1);
+
+  if p_object_key not like v_expected_prefix || '%'
+    or p_object_key like '%..%'
+    or position(chr(92) in p_object_key) > 0
+    or p_object_key like '%//%'
+    or length(p_object_key) > 1024
+  then
+    raise exception using errcode = 'P0001', message = 'INVALID_OBJECT_KEY';
+  end if;
+
+  if v_object_name !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|webp)$'
+    or (p_content_type = 'image/jpeg' and v_object_name !~ '\.jpg$')
+    or (p_content_type = 'image/png' and v_object_name !~ '\.png$')
+    or (p_content_type = 'image/webp' and v_object_name !~ '\.webp$')
+  then
+    raise exception using errcode = 'P0001', message = 'INVALID_OBJECT_KEY';
+  end if;
+
+  update public.photo_upload_sessions s
+  set status = 'expired',
+      error = coalesce(s.error, 'Signed upload session expired')
+  where s.owner_id = v_user_id
+    and s.status in ('issued', 'uploading', 'finalizing')
+    and s.expires_at <= now();
+
+  select s.* into v_existing
+  from public.photo_upload_sessions s
+  where s.owner_id = v_user_id
+    and s.client_upload_id = p_client_upload_id
+  for update;
+
+  if found and v_existing.ciiya_sync_device_id is distinct from p_device_id then
+    raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_CONFLICT';
+  end if;
+
+  if found
+    and v_existing.status in ('issued', 'uploading', 'finalizing')
+    and v_existing.expires_at > now()
+  then
+    if v_existing.album_id <> p_album_id
+      or v_existing.original_file_name <> p_original_file_name
+      or v_existing.content_type <> p_content_type
+      or v_existing.expected_size_bytes <> p_expected_size_bytes
+      or v_existing.file_hash <> p_file_hash
+    then
+      raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_CONFLICT';
+    end if;
+
+    return query
+      select
+        v_existing.id,
+        v_existing.object_key,
+        v_existing.storage_bucket,
+        v_existing.reserved_bytes,
+        greatest(
+          0,
+          coalesce(
+            (
+              select u.storage_limit_bytes -
+                coalesce(u.storage_used_bytes, u.used_bytes, 0)
+              from public.user_storage_usage u
+              where u.user_id = v_user_id
+            ),
+            5368709120
+          )
+        ),
+        v_existing.expires_at,
+        true;
+    return;
+  end if;
+
+  select
+    coalesce(u.storage_used_bytes, u.used_bytes, 0),
+    u.storage_limit_bytes
+  into v_used_bytes, v_limit_bytes
+  from public.user_storage_usage u
+  where u.user_id = v_user_id;
+
+  if not found then
+    v_used_bytes := 0;
+    v_limit_bytes := 5368709120;
+  end if;
+
+  select coalesce(sum(s.reserved_bytes), 0)
+  into v_active_reserved
+  from public.photo_upload_sessions s
+  where s.owner_id = v_user_id
+    and s.status in ('issued', 'uploading', 'finalizing')
+    and s.expires_at > now();
+
+  v_reserved_bytes :=
+    p_expected_size_bytes +
+    round(p_expected_size_bytes::numeric * 0.35)::bigint +
+    round(p_expected_size_bytes::numeric * 0.05)::bigint;
+
+  if v_used_bytes + v_active_reserved + v_reserved_bytes > v_limit_bytes then
+    raise exception using errcode = 'P0001', message = 'STORAGE_LIMIT_EXCEEDED';
+  end if;
+
+  if v_existing.id is null then
+    insert into public.photo_upload_sessions (
+      client_upload_id,
+      owner_id,
+      album_id,
+      category_id,
+      photo_id,
+      ciiya_sync_device_id,
+      storage_provider,
+      storage_bucket,
+      object_key,
+      original_file_name,
+      content_type,
+      expected_size_bytes,
+      reserved_bytes,
+      file_hash,
+      requested_size,
+      preset_path,
+      auto_face_scan,
+      auto_publish,
+      status,
+      error,
+      expires_at
+    ) values (
+      p_client_upload_id,
+      v_user_id,
+      p_album_id,
+      p_category_id,
+      null,
+      p_device_id,
+      'r2',
+      p_storage_bucket,
+      p_object_key,
+      p_original_file_name,
+      p_content_type,
+      p_expected_size_bytes,
+      v_reserved_bytes,
+      p_file_hash,
+      p_requested_size,
+      null,
+      p_auto_face_scan,
+      p_auto_publish,
+      'issued',
+      null,
+      now() + interval '15 minutes'
+    ) returning * into v_session;
+  else
+    update public.photo_upload_sessions s
+    set album_id = p_album_id,
+        category_id = p_category_id,
+        photo_id = null,
+        ciiya_sync_device_id = p_device_id,
+        storage_provider = 'r2',
+        storage_bucket = p_storage_bucket,
+        object_key = p_object_key,
+        original_file_name = p_original_file_name,
+        content_type = p_content_type,
+        expected_size_bytes = p_expected_size_bytes,
+        reserved_bytes = v_reserved_bytes,
+        file_hash = p_file_hash,
+        requested_size = p_requested_size,
+        preset_path = null,
+        auto_face_scan = p_auto_face_scan,
+        auto_publish = p_auto_publish,
+        status = 'issued',
+        error = null,
+        expires_at = now() + interval '15 minutes',
+        completed_at = null
+    where s.id = v_existing.id
+    returning s.* into v_session;
+  end if;
+
+  return query
+    select
+      v_session.id,
+      v_session.object_key,
+      v_session.storage_bucket,
+      v_session.reserved_bytes,
+      greatest(
+        0,
+        v_limit_bytes - v_used_bytes - v_active_reserved - v_reserved_bytes
+      ),
+      v_session.expires_at,
+      false;
+end;
+$function$;
+
+revoke all
+on function public.reserve_ciiya_sync_photo_upload(
+  uuid, uuid, uuid, text, text, text, text, bigint, text, text, uuid, boolean, boolean
+)
+from public, anon, authenticated;
+grant execute
+on function public.reserve_ciiya_sync_photo_upload(
+  uuid, uuid, uuid, text, text, text, text, bigint, text, text, uuid, boolean, boolean
+)
+to service_role;
+
+create or replace function public.cancel_ciiya_sync_photo_upload(
+  p_device_id uuid,
+  p_session_id uuid
+)
+returns table (
+  storage_provider text,
+  storage_bucket text,
+  object_key text
+)
+language plpgsql
+security definer
+set search_path = public
+as $function$
+declare
+  v_user_id uuid := public.ciiya_sync_device_owner(
+    p_device_id,
+    'photos:upload'
+  );
+  v_session public.photo_upload_sessions%rowtype;
+begin
+  select s.* into v_session
+  from public.photo_upload_sessions s
+  where s.id = p_session_id
+    and s.owner_id = v_user_id
+    and s.ciiya_sync_device_id = p_device_id
+  for update;
+
+  if not found then
+    raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_NOT_FOUND';
+  end if;
+
+  if v_session.status = 'completed' then
+    raise exception using errcode = 'P0001', message = 'UPLOAD_ALREADY_COMPLETED';
+  end if;
+
+  update public.photo_upload_sessions s
+  set status = 'cancelled',
+      error = coalesce(s.error, 'Cancelled by Ciiya Sync')
+  where s.id = v_session.id;
+
+  return query select
+    v_session.storage_provider,
+    v_session.storage_bucket,
+    v_session.object_key;
+end;
+$function$;
+
+revoke all
+on function public.cancel_ciiya_sync_photo_upload(uuid, uuid)
+from public, anon, authenticated;
+grant execute
+on function public.cancel_ciiya_sync_photo_upload(uuid, uuid)
+to service_role;
+
+create or replace function public.begin_ciiya_sync_photo_upload_finalization(
+  p_device_id uuid,
+  p_session_id uuid
+)
+returns table (
+  session_id uuid,
+  session_owner_id uuid,
+  session_album_id uuid,
+  session_category_id uuid,
+  completed_photo_id uuid,
+  session_storage_provider text,
+  session_storage_bucket text,
+  session_object_key text,
+  session_original_file_name text,
+  session_content_type text,
+  session_expected_size_bytes bigint,
+  session_file_hash text,
+  session_requested_size text,
+  session_preset_path text,
+  session_auto_face_scan boolean,
+  session_auto_publish boolean,
+  session_status text,
+  session_expires_at timestamptz,
+  already_completed boolean
+)
+language plpgsql
+security definer
+set search_path = public
+as $function$
+declare
+  v_user_id uuid := public.ciiya_sync_device_owner(
+    p_device_id,
+    'photos:upload'
+  );
+  v_session public.photo_upload_sessions%rowtype;
+begin
+  select s.* into v_session
+  from public.photo_upload_sessions s
+  where s.id = p_session_id
+    and s.owner_id = v_user_id
+    and s.ciiya_sync_device_id = p_device_id
+  for update;
+
+  if not found then
+    raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_NOT_FOUND';
+  end if;
+
+  if v_session.status = 'completed' then
+    return query select
+      v_session.id,
+      v_session.owner_id,
+      v_session.album_id,
+      v_session.category_id,
+      v_session.photo_id,
+      v_session.storage_provider,
+      v_session.storage_bucket,
+      v_session.object_key,
+      v_session.original_file_name,
+      v_session.content_type,
+      v_session.expected_size_bytes,
+      v_session.file_hash,
+      v_session.requested_size,
+      v_session.preset_path,
+      v_session.auto_face_scan,
+      v_session.auto_publish,
+      v_session.status,
+      v_session.expires_at,
+      true;
+    return;
+  end if;
+
+  if v_session.status not in ('issued', 'uploading', 'finalizing') then
+    raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_NOT_FINALIZABLE';
+  end if;
+
+  if v_session.expires_at <= now() then
+    raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_EXPIRED';
+  end if;
+
+  update public.photo_upload_sessions s
+  set status = 'finalizing',
+      error = null,
+      expires_at = greatest(s.expires_at, now() + interval '5 minutes')
+  where s.id = v_session.id
+  returning s.* into v_session;
+
+  return query select
+    v_session.id,
+    v_session.owner_id,
+    v_session.album_id,
+    v_session.category_id,
+    v_session.photo_id,
+    v_session.storage_provider,
+    v_session.storage_bucket,
+    v_session.object_key,
+    v_session.original_file_name,
+    v_session.content_type,
+    v_session.expected_size_bytes,
+    v_session.file_hash,
+    v_session.requested_size,
+    v_session.preset_path,
+    v_session.auto_face_scan,
+    v_session.auto_publish,
+    v_session.status,
+    v_session.expires_at,
+    false;
+end;
+$function$;
+
+revoke all
+on function public.begin_ciiya_sync_photo_upload_finalization(uuid, uuid)
+from public, anon, authenticated;
+grant execute
+on function public.begin_ciiya_sync_photo_upload_finalization(uuid, uuid)
+to service_role;
+
+create or replace function public.complete_ciiya_sync_photo_upload_finalization(
+  p_device_id uuid,
+  p_session_id uuid,
+  p_photo_id uuid
+)
+returns table (
+  session_id uuid,
+  completed_photo_id uuid,
+  completed_at timestamptz,
+  already_completed boolean
+)
+language plpgsql
+security definer
+set search_path = public
+as $function$
+declare
+  v_user_id uuid := public.ciiya_sync_device_owner(
+    p_device_id,
+    'photos:upload'
+  );
+  v_session public.photo_upload_sessions%rowtype;
+begin
+  select s.* into v_session
+  from public.photo_upload_sessions s
+  where s.id = p_session_id
+    and s.owner_id = v_user_id
+    and s.ciiya_sync_device_id = p_device_id
+  for update;
+
+  if not found then
+    raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_NOT_FOUND';
+  end if;
+
+  if v_session.status = 'completed' then
+    if v_session.photo_id is distinct from p_photo_id then
+      raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_PHOTO_CONFLICT';
+    end if;
+
+    return query select
+      v_session.id,
+      v_session.photo_id,
+      v_session.completed_at,
+      true;
+    return;
+  end if;
+
+  if v_session.status <> 'finalizing' then
+    raise exception using errcode = 'P0001', message = 'UPLOAD_SESSION_NOT_FINALIZING';
+  end if;
+
+  if not exists (
+    select 1
+    from public.photos p
+    where p.id = p_photo_id
+      and p.owner_id = v_user_id
+      and p.album_id = v_session.album_id
+      and p.storage_provider = 'r2'
+      and p.storage_bucket = v_session.storage_bucket
+      and p.storage_path = v_session.object_key
+      and p.original_path = v_session.object_key
+      and p.file_hash = v_session.file_hash
+      and p.original_size_bytes = v_session.expected_size_bytes
+  ) then
+    raise exception using errcode = 'P0001', message = 'PHOTO_UPLOAD_BINDING_MISMATCH';
+  end if;
+
+  update public.photo_upload_sessions s
+  set status = 'completed',
+      photo_id = p_photo_id,
+      completed_at = now(),
+      error = null
+  where s.id = v_session.id
+  returning s.* into v_session;
+
+  return query select
+    v_session.id,
+    v_session.photo_id,
+    v_session.completed_at,
+    false;
+end;
+$function$;
+
+revoke all
+on function public.complete_ciiya_sync_photo_upload_finalization(uuid, uuid, uuid)
+from public, anon, authenticated;
+grant execute
+on function public.complete_ciiya_sync_photo_upload_finalization(uuid, uuid, uuid)
+to service_role;
+
+-- =========================================================
+-- DONE FULL SCHEMA v2.6
 -- =========================================================

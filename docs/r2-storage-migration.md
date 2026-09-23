@@ -36,6 +36,7 @@ explicitly records an additive compatibility field.
 | 12 | Dual-provider read-path audit | Complete and deployed |
 | 13 | Supabase-to-R2 migration and verification tools | Complete; Production migration verified |
 | 14 | Production canary validation | Complete; full R2 rollout enabled |
+| 14.5 | Ciiya Sync Lightroom companion | Implemented; signed production canary pending |
 | 15 | Delayed Supabase Storage cleanup | Retention active; source deletion not started |
 
 ## Production rollout record

@@ -1,0 +1,82 @@
+name: Ciiya Sync Signed Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Release channel
+        required: true
+        default: canary
+        type: choice
+        options:
+          - canary
+          - stable
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ciiya-sync-release-${{ inputs.channel }}
+  cancel-in-progress: false
+
+jobs:
+  macos:
+    runs-on: macos-14
+    timeout-minutes: 45
+    env:
+      CIIYA_SYNC_RELEASE_CHANNEL: ${{ inputs.channel }}
+      CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Validate Ciiya Sync
+        run: npm run test:ciiya-sync
+      - run: npm run typecheck
+      - name: Build, sign, and notarize macOS installers
+        run: npm run dist:ciiya-sync:mac
+      - run: npm run manifest:ciiya-sync
+      - run: npm run validate:ciiya-sync:release -- --require-signing
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ciiya-sync-${{ inputs.channel }}-macos
+          path: release/ciiya-sync/
+          if-no-files-found: error
+          retention-days: 30
+
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      CIIYA_SYNC_RELEASE_CHANNEL: ${{ inputs.channel }}
+      CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Validate Ciiya Sync
+        run: npm run test:ciiya-sync
+      - run: npm run typecheck
+      - name: Build and sign Windows installers
+        run: npm run dist:ciiya-sync:win
+      - run: npm run manifest:ciiya-sync
+      - run: npm run validate:ciiya-sync:release -- --require-signing
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ciiya-sync-${{ inputs.channel }}-windows
+          path: release/ciiya-sync/
+          if-no-files-found: error
+          retention-days: 30

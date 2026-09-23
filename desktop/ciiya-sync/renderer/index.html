@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ciiya Sync</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true">C</div>
+          <div>
+            <p class="eyebrow">CIIYA DESKTOP</p>
+            <h1>Ciiya Sync</h1>
+          </div>
+        </div>
+        <div class="connection-pill" id="connection-pill">
+          <span class="status-dot"></span>
+          <span id="connection-label">กำลังตรวจสอบ</span>
+        </div>
+      </header>
+
+      <main>
+        <section class="setup-view" id="setup-view" hidden>
+          <div class="setup-copy">
+            <p class="eyebrow gold">LIGHTROOM → CIIYA</p>
+            <h2>แต่งเสร็จ<br />ส่งถึงลูกค้าได้เลย</h2>
+            <p class="lead">
+              เลือกโฟลเดอร์ Export เพียงครั้งเดียว Ciiya Sync จะรอจนภาพเขียนเสร็จ
+              แล้วอัปโหลดเข้าอัลบั้มอย่างปลอดภัยโดยอัตโนมัติ
+            </p>
+            <ul class="benefit-list">
+              <li><span>01</span> เก็บไฟล์ต้นฉบับไว้ในเครื่องเหมือนเดิม</li>
+              <li><span>02</span> หยุดเน็ตได้ งานกลับมาทำต่ออัตโนมัติ</li>
+              <li><span>03</span> ไม่ต้องใส่รหัสผ่าน Ciiya ในโปรแกรม</li>
+            </ul>
+          </div>
+
+          <div class="pair-card">
+            <div id="pair-idle">
+              <div class="pair-icon" aria-hidden="true">↗</div>
+              <p class="eyebrow">เชื่อมต่อคอมพิวเตอร์</p>
+              <h3>พร้อมเริ่ม Ciiya Sync</h3>
+              <p class="muted">
+                ระบบจะเปิดหน้า Ciiya ในเบราว์เซอร์ ให้เข้าสู่ระบบและยืนยันรหัสที่แสดง
+              </p>
+              <button class="primary-button" id="connect-button" type="button">
+                เชื่อมต่อกับ Ciiya
+              </button>
+            </div>
+
+            <div id="pair-waiting" hidden>
+              <p class="eyebrow gold">PAIRING CODE</p>
+              <h3>ยืนยันรหัสในเบราว์เซอร์</h3>
+              <button class="pair-code" id="pair-code" type="button" title="คัดลอกรหัส">
+                ---- ----
+              </button>
+              <p class="muted" id="pair-expiry">รอการยืนยันจาก Ciiya</p>
+              <div class="button-row">
+                <button class="secondary-button" id="open-pairing-button" type="button">
+                  เปิดหน้าเชื่อมต่อ
+                </button>
+                <button class="text-button" id="restart-pairing-button" type="button">
+                  สร้างรหัสใหม่
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="workspace" id="workspace" hidden>
+          <div class="workspace-hero">
+            <div>
+              <p class="eyebrow gold">LIVE FOLDER</p>
+              <h2>Lightroom export,<br />Ciiya delivers.</h2>
+            </div>
+            <div class="hero-status">
+              <span class="pulse-dot" id="hero-dot"></span>
+              <div>
+                <strong id="sync-heading">พร้อมซิงก์</strong>
+                <p id="sync-message">เลือกอัลบั้มและโฟลเดอร์</p>
+              </div>
+            </div>
+          </div>
+
+          <section class="session-overview" aria-labelledby="session-title">
+            <div class="session-identity">
+              <div class="live-chip" id="session-status-chip">
+                <span class="live-chip-dot"></span>
+                <span id="session-status-label">พักอยู่</span>
+              </div>
+              <div>
+                <p class="eyebrow">LIVE SESSION</p>
+                <h3 id="session-title">ยังไม่ได้เริ่ม Session</h3>
+                <p class="session-location" id="session-location">
+                  เลือกอัลบั้มและโฟลเดอร์สำหรับงานนี้
+                </p>
+              </div>
+            </div>
+            <div class="session-facts">
+              <div>
+                <span>เวลาทำงาน</span>
+                <strong id="session-duration">00:00:00</strong>
+              </div>
+              <div>
+                <span>รับภาพแล้ว</span>
+                <strong id="session-discovered">0</strong>
+              </div>
+              <div>
+                <span>ส่งสำเร็จ</span>
+                <strong id="session-delivered">0</strong>
+              </div>
+              <div>
+                <span>ข้อมูลที่ส่ง</span>
+                <strong id="session-bytes">0 B</strong>
+              </div>
+            </div>
+            <div class="realtime-state">
+              <div class="network-state" id="network-state">
+                <span class="network-dot"></span>
+                <span id="network-label">ออนไลน์</span>
+              </div>
+              <small id="last-activity">ยังไม่มีกิจกรรม</small>
+            </div>
+          </section>
+
+          <div class="dashboard-grid">
+            <section class="panel configuration-panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">SESSION SETUP</p>
+                  <h3>ตั้งค่างานนี้</h3>
+                </div>
+                <button class="icon-button" id="refresh-albums-button" type="button" title="รีเฟรชอัลบั้ม">↻</button>
+              </div>
+
+              <label class="field-label" for="album-select">อัลบั้มปลายทาง</label>
+              <div class="select-wrap">
+                <select id="album-select">
+                  <option value="">เลือกอัลบั้ม</option>
+                </select>
+              </div>
+
+              <span class="field-label">โฟลเดอร์ Lightroom Export</span>
+              <button class="folder-picker" id="folder-button" type="button">
+                <span class="folder-icon" aria-hidden="true">⌑</span>
+                <span class="folder-copy">
+                  <strong id="folder-name">ยังไม่ได้เลือกโฟลเดอร์</strong>
+                  <small id="folder-path">เลือกรูปจากโฟลเดอร์ที่ Lightroom Export ลงมา</small>
+                </span>
+                <span aria-hidden="true">›</span>
+              </button>
+
+              <div class="integration-card" id="lightroom-card">
+                <div class="integration-icon" aria-hidden="true">Lr</div>
+                <div class="integration-copy">
+                  <strong>Export Selection จาก Lightroom</strong>
+                  <small id="lightroom-status">กำลังตรวจสอบปลั๊กอิน…</small>
+                </div>
+                <button
+                  class="secondary-button compact-button"
+                  id="install-lightroom-button"
+                  type="button"
+                >
+                  ติดตั้งปลั๊กอิน
+                </button>
+              </div>
+
+              <label class="toggle-row">
+                <span>
+                  <strong>เริ่มต่ออัตโนมัติ</strong>
+                  <small>กลับมาทำงานต่อเมื่อเปิด Ciiya Sync</small>
+                </span>
+                <input id="autostart-toggle" type="checkbox" />
+                <span class="toggle" aria-hidden="true"></span>
+              </label>
+
+              <button class="primary-button sync-button" id="sync-button" type="button">
+                เริ่มซิงก์โฟลเดอร์
+              </button>
+              <p class="error-message" id="sync-error" hidden></p>
+            </section>
+
+            <section class="panel activity-panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">REALTIME QUEUE</p>
+                  <h3>ภาพใน Session นี้</h3>
+                </div>
+                <span class="queue-count" id="total-count">0</span>
+              </div>
+
+              <div class="metric-grid">
+                <div class="metric active-metric">
+                  <span>กำลังส่ง</span>
+                  <strong id="active-count">0</strong>
+                </div>
+                <div class="metric">
+                  <span>สำเร็จ</span>
+                  <strong id="completed-count">0</strong>
+                </div>
+                <div class="metric">
+                  <span>รอเครือข่าย</span>
+                  <strong id="retry-count">0</strong>
+                </div>
+                <div class="metric error-metric">
+                  <span>ต้องตรวจสอบ</span>
+                  <strong id="failed-count">0</strong>
+                </div>
+              </div>
+
+              <div class="activity-feed" id="activity-feed"></div>
+              <div class="empty-state" id="empty-state">
+                <div aria-hidden="true">◫</div>
+                <strong>รอภาพแรกจาก Lightroom</strong>
+                <p>เมื่อ Export รูปลงโฟลเดอร์ ภาพจะปรากฏที่นี่</p>
+              </div>
+            </section>
+          </div>
+
+          <footer class="workspace-footer">
+            <div>
+              <span class="security-dot"></span>
+              Token ถูกป้องกันด้วยระบบความปลอดภัยของเครื่องนี้
+              <span id="release-version"></span>
+            </div>
+            <button class="text-button danger" id="disconnect-button" type="button">
+              ยกเลิกการเชื่อมต่อ
+            </button>
+          </footer>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" hidden></div>
+    <script src="./renderer.js"></script>
+  </body>
+</html>

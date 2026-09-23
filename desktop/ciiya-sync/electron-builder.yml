@@ -1,0 +1,44 @@
+appId: co.ciiya.sync
+productName: Ciiya Sync
+electronVersion: 44.4.3
+artifactName: Ciiya-Sync-${version}-${os}-${arch}.${ext}
+directories:
+  output: ../../release/ciiya-sync
+files:
+  - "**/*"
+  - "!**/*.map"
+  - "!node_modules{,/**/*}"
+asar: true
+compression: maximum
+npmRebuild: false
+nodeGypRebuild: false
+mac:
+  icon: ../../desktop/ciiya-sync/assets/app-icon.icns
+  category: public.app-category.photography
+  entitlements: ../../desktop/ciiya-sync/entitlements.mac.plist
+  entitlementsInherit: ../../desktop/ciiya-sync/entitlements.mac.plist
+  notarize: true
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+  hardenedRuntime: true
+  gatekeeperAssess: false
+win:
+  icon: ../../desktop/ciiya-sync/assets/app-icon.ico
+  signtoolOptions:
+    signingHashAlgorithms:
+      - sha256
+  verifyUpdateCodeSignature: true
+  target:
+    - target: nsis
+      arch:
+        - x64
+        - arm64
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+publish: null

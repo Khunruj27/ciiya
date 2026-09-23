@@ -285,7 +285,7 @@ async function main() {
     cliSource,
     /deleteObject\(|deleteObjects\(|uploadObject\(|\.remove\(/
   )
-  assert.match(uploadRoute, /isR2PhotoUploadEnabledForOwner\(user\.id\)/)
+  assert.match(uploadRoute, /isR2PhotoUploadEnabledForOwner\(ownerId\)/)
   assert.match(albumPage, /isR2PhotoUploadEnabledForOwner\(user\.id\)/)
   assert.match(
     cameraWorker,

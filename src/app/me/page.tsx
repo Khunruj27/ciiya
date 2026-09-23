@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Info,
   LifeBuoy,
+  FolderSync,
   Sparkles,
   Star,
   UserPlus,
@@ -286,6 +287,12 @@ const storageLimitBytes = Number(
         {/* SUPPORT AND COMMUNITY */}
         <section className={`${styles.menu} mt-3 overflow-hidden rounded-panel border border-line bg-surface px-4`}>
           {[
+            {
+              label: 'Ciiya Sync',
+              href: '/me/ciiya-sync',
+              icon: FolderSync,
+              external: false,
+            },
             {
               label: t.me.helpCenter,
               href: `mailto:support@ciiya.app?subject=${encodeURIComponent(

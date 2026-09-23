@@ -7,6 +7,11 @@ import {
 import { getUserStoragePlan } from '@/lib/get-user-storage-plan'
 import crypto from 'crypto'
 import {
+  resolvePhotoUploadPrincipal,
+  type PhotoUploadPrincipal,
+} from '@/lib/photo-upload-principal'
+import { rateLimit, tooManyRequests } from '@/lib/rate-limit'
+import {
   assertOwnedAlbumObjectKey,
   createStorageRef,
   getStorageAdapter,
@@ -23,6 +28,10 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 type RequestedSize = 'sd' | 'hd' | 'uhd' | 'original'
+type CiiyaSyncUploadSource =
+  | 'ciiya-sync'
+  | 'ciiya-sync-live-folder'
+  | 'ciiya-sync-export-selection'
 
 type PhotoRecord = {
   id: string
@@ -82,7 +91,7 @@ function firstRow<T>(value: unknown): T | null {
 
 function finalizationRpcCode(message: string) {
   return message.match(
-    /(?:UPLOAD_SESSION_[A-Z_]+|PHOTO_UPLOAD_BINDING_MISMATCH|CAMERA_[A-Z_]+|CAMERA_UPLOAD_BINDING_MISMATCH)/
+    /(?:SYNC_DEVICE_UNAUTHORIZED|UPLOAD_SESSION_[A-Z_]+|PHOTO_UPLOAD_BINDING_MISMATCH|CAMERA_[A-Z_]+|CAMERA_UPLOAD_BINDING_MISMATCH)/
   )?.[0]
 }
 
@@ -134,6 +143,16 @@ function normalizeRequestedSize(value: string): RequestedSize {
   if (value === 'uhd') return 'uhd'
   if (value === 'original') return 'original'
   return 'hd'
+}
+
+function normalizeCiiyaSyncUploadSource(value: unknown): CiiyaSyncUploadSource {
+  if (value === 'ciiya-sync-live-folder') {
+    return 'ciiya-sync-live-folder'
+  }
+  if (value === 'ciiya-sync-export-selection') {
+    return 'ciiya-sync-export-selection'
+  }
+  return 'ciiya-sync'
 }
 
 function hasUnsafeStoragePath(path: string) {
@@ -453,12 +472,22 @@ async function completeR2UploadFinalization(params: {
   client: SupabaseClient
   uploadSessionId: string
   photoId: string
+  principalKind: 'browser' | 'ciiya-sync' | 'worker'
+  deviceId: string | null
   cameraImportId: string | null
 }) {
-  if (params.cameraImportId) {
+  if (params.principalKind === 'worker' && params.cameraImportId) {
     return params.client.rpc('complete_camera_photo_upload_finalization', {
       p_session_id: params.uploadSessionId,
       p_camera_import_id: params.cameraImportId,
+      p_photo_id: params.photoId,
+    })
+  }
+
+  if (params.principalKind === 'ciiya-sync' && params.deviceId) {
+    return params.client.rpc('complete_ciiya_sync_photo_upload_finalization', {
+      p_device_id: params.deviceId,
+      p_session_id: params.uploadSessionId,
       p_photo_id: params.photoId,
     })
   }
@@ -486,13 +515,48 @@ const isWorkerRequest =
   )
 }
 
-    const {
-  data: { user },
-} = await supabase.auth.getUser()
+    let uploadPrincipal: PhotoUploadPrincipal | null = null
 
-if (!user && !isWorkerRequest) {
-  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-}
+    if (!isWorkerRequest) {
+      const resolved = await resolvePhotoUploadPrincipal({
+        request: req,
+        browserClient: supabase,
+      })
+      uploadPrincipal = resolved.principal
+
+      if (resolved.rolloutDisabled) {
+        return NextResponse.json(
+          {
+            error: 'Ciiya Sync is temporarily paused',
+            code: 'CIIYA_SYNC_ROLLOUT_PAUSED',
+          },
+          {
+            status: 503,
+            headers: {
+              'Cache-Control': 'no-store, max-age=0',
+              'Retry-After': '60',
+            },
+          }
+        )
+      }
+
+      if (!uploadPrincipal) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      if (uploadPrincipal.kind === 'ciiya-sync') {
+        const rate = await rateLimit(req, {
+          bucket: 'ciiya-sync-photo-finalize',
+          identifier: uploadPrincipal.deviceId,
+          limit: 600,
+          windowSeconds: 10 * 60,
+        })
+
+        if (!rate.allowed) {
+          return tooManyRequests(rate, 'Ciiya Sync is finalizing too quickly')
+        }
+      }
+    }
 
     const body = await req.json().catch(() => null)
 
@@ -521,10 +585,28 @@ if (!body) {
     const cameraImportId = body.cameraImportId
       ? String(body.cameraImportId).trim()
       : null
+    const syncUploadSource =
+      uploadPrincipal?.kind === 'ciiya-sync'
+        ? normalizeCiiyaSyncUploadSource(body.uploadSource)
+        : null
+    const finalizationPrincipalKind = isWorkerRequest
+      ? 'worker'
+      : uploadPrincipal!.kind
+    const finalizationDeviceId =
+      uploadPrincipal?.kind === 'ciiya-sync'
+        ? uploadPrincipal.deviceId
+        : null
 
 if (storageProvider !== 'supabase' && storageProvider !== 'r2') {
   return NextResponse.json(
     { error: 'Invalid storage provider' },
+    { status: 400 }
+  )
+}
+
+if (uploadPrincipal?.kind === 'ciiya-sync' && storageProvider !== 'r2') {
+  return NextResponse.json(
+    { error: 'Ciiya Sync uploads require R2 storage' },
     { status: 400 }
   )
 }
@@ -629,18 +711,18 @@ let fileHash = /^[a-f0-9]{64}$/i.test(
   return NextResponse.json({ error: 'Album not found' }, { status: 404 })
 }
 
-if (!isWorkerRequest) {
+if (!isWorkerRequest && uploadPrincipal) {
   const canAccess =
-    album.owner_id === user?.id ||
-    album.user_id === user?.id
+    album.owner_id === uploadPrincipal.ownerId ||
+    album.user_id === uploadPrincipal.ownerId
 
   if (!canAccess) {
     return NextResponse.json({ error: 'Album not found' }, { status: 404 })
   }
 }
     
-    const ownerId =
-  album.owner_id || album.user_id || user?.id || null
+const ownerId =
+  album.owner_id || album.user_id || uploadPrincipal?.ownerId || null
 
 if (!ownerId) {
   return NextResponse.json(
@@ -659,23 +741,34 @@ if (storageProvider === 'r2') {
     )
   }
 
-  const finalizationClient = isWorkerRequest ? supabaseAdmin : supabase
+  const finalizationClient = isWorkerRequest
+    ? supabaseAdmin
+    : uploadPrincipal!.client
   const beginRpc = isWorkerRequest
     ? 'begin_camera_photo_upload_finalization'
-    : 'begin_photo_upload_finalization'
+    : uploadPrincipal?.kind === 'ciiya-sync'
+      ? 'begin_ciiya_sync_photo_upload_finalization'
+      : 'begin_photo_upload_finalization'
   const beginParams = isWorkerRequest
     ? {
         p_session_id: uploadSessionId,
         p_camera_import_id: cameraImportId!,
       }
-    : { p_session_id: uploadSessionId }
+    : uploadPrincipal?.kind === 'ciiya-sync'
+      ? {
+          p_device_id: uploadPrincipal.deviceId,
+          p_session_id: uploadSessionId,
+        }
+      : { p_session_id: uploadSessionId }
   const { data: sessionData, error: sessionError } =
     await finalizationClient.rpc(beginRpc, beginParams)
 
   if (sessionError) {
     const code = finalizationRpcCode(sessionError.message)
     const status =
-      code === 'UPLOAD_SESSION_NOT_FOUND'
+      code === 'SYNC_DEVICE_UNAUTHORIZED'
+        ? 401
+        : code === 'UPLOAD_SESSION_NOT_FOUND'
         ? 404
         : code === 'UPLOAD_SESSION_EXPIRED'
           ? 410
@@ -949,9 +1042,11 @@ if (presetPath && !presetFileExists) {
       if (isSameR2Upload && uploadSessionId) {
         const { error: completeExistingError } =
           await completeR2UploadFinalization({
-            client: isWorkerRequest ? supabaseAdmin : supabase,
+            client: isWorkerRequest ? supabaseAdmin : uploadPrincipal!.client,
             uploadSessionId,
             photoId: existingPhoto.id,
+            principalKind: finalizationPrincipalKind,
+            deviceId: finalizationDeviceId,
             cameraImportId: isWorkerRequest ? cameraImportId : null,
           })
 
@@ -992,7 +1087,9 @@ if (presetPath && !presetFileExists) {
             existingPhoto.public_url ||
             existingPhoto.original_url ||
             publicUrl,
-          source: 'finalize-upload-duplicate-repair',
+          source: syncUploadSource
+            ? `${syncUploadSource}-duplicate-repair`
+            : 'finalize-upload-duplicate-repair',
           storageProvider:
             existingPhoto.storage_provider === 'r2' ? 'r2' : 'supabase',
           storageBucket: existingPhoto.storage_bucket || null,
@@ -1143,7 +1240,7 @@ if (estimatedNextUsage > currentLimit) {
         processing_progress: 0,
 
         metadata: {
-          uploadedVia: 'api/photos/finalize-upload',
+          uploadedVia: syncUploadSource || 'api/photos/finalize-upload',
           requestedSize: size,
           presetPath,
           jobPriority,
@@ -1151,6 +1248,9 @@ if (estimatedNextUsage > currentLimit) {
           storageBucket: storageProvider === 'r2' ? storageBucket : null,
           uploadSessionId,
           cameraImportId: isWorkerRequest ? cameraImportId : null,
+          ...(finalizationDeviceId
+            ? { ciiyaSyncDeviceId: finalizationDeviceId }
+            : {}),
         },
 
         updated_at: new Date().toISOString(),
@@ -1168,9 +1268,11 @@ if (estimatedNextUsage > currentLimit) {
     if (storageProvider === 'r2' && uploadSessionId) {
       const { error: completeSessionError } =
         await completeR2UploadFinalization({
-          client: isWorkerRequest ? supabaseAdmin : supabase,
+          client: isWorkerRequest ? supabaseAdmin : uploadPrincipal!.client,
           uploadSessionId,
           photoId: insertedPhoto.id,
+          principalKind: finalizationPrincipalKind,
+          deviceId: finalizationDeviceId,
           cameraImportId: isWorkerRequest ? cameraImportId : null,
         })
 
@@ -1197,7 +1299,7 @@ if (estimatedNextUsage > currentLimit) {
       fileHash,
       fileName,
       publicUrl,
-      source: 'finalize-upload',
+      source: syncUploadSource || 'finalize-upload',
       storageProvider,
       storageBucket: storageProvider === 'r2' ? storageBucket : null,
     })
@@ -1211,7 +1313,7 @@ if (estimatedNextUsage > currentLimit) {
         processing_progress: 0,
         updated_at: new Date().toISOString(),
         metadata: {
-          uploadedVia: 'api/photos/finalize-upload',
+          uploadedVia: syncUploadSource || 'api/photos/finalize-upload',
           requestedSize: size,
           presetPath,
           jobPriority,
@@ -1220,6 +1322,9 @@ if (estimatedNextUsage > currentLimit) {
           storageBucket: storageProvider === 'r2' ? storageBucket : null,
           uploadSessionId,
           cameraImportId: isWorkerRequest ? cameraImportId : null,
+          ...(finalizationDeviceId
+            ? { ciiyaSyncDeviceId: finalizationDeviceId }
+            : {}),
         },
       })
       .eq('id', insertedPhoto.id)

@@ -16,6 +16,8 @@
 # next.js
 /.next/
 /out/
+/dist/ciiya-sync/
+/release/ciiya-sync/
 
 # production
 /build

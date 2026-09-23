@@ -277,16 +277,18 @@ function hasSupabaseError(value: unknown): value is SupabaseResultLike {
 async function withRetry<T>(
   fn: () => PromiseLike<T>,
   retries = 5,
-  baseDelay = 1200
+  baseDelay = 1200,
+  options: { allowDuringShutdown?: boolean } = {}
 ): Promise<T> {
   let lastError: unknown
+  const allowDuringShutdown = options.allowDuringShutdown === true
 
   for (
     let attempt = 1;
     attempt <= retries;
     attempt += 1
   ) {
-    if (isShuttingDown) {
+    if (isShuttingDown && !allowDuringShutdown) {
       throw new Error('Worker is shutting down')
     }
 
@@ -313,7 +315,7 @@ async function withRetry<T>(
 
       if (
         attempt < retries &&
-        !isShuttingDown
+        (!isShuttingDown || allowDuringShutdown)
       ) {
         await sleep(baseDelay * attempt)
       }
@@ -749,15 +751,19 @@ async function markWorkerOffline() {
   const workerId = WORKER_ID
 
   try {
-    const result = await withRetry(() =>
-      supabase
-        .from('worker_heartbeats')
-        .update({
-          status: 'offline',
-          last_seen: new Date().toISOString(),
-          last_seen_at: new Date().toISOString(),
-        })
-        .eq('worker_id', workerId)
+    const result = await withRetry(
+      () =>
+        supabase
+          .from('worker_heartbeats')
+          .update({
+            status: 'offline',
+            last_seen: new Date().toISOString(),
+            last_seen_at: new Date().toISOString(),
+          })
+          .eq('worker_id', workerId),
+      3,
+      300,
+      { allowDuringShutdown: true }
     )
 
     if (result.error) {
@@ -1718,7 +1724,7 @@ async function pollJobs() {
 async function start() {
   await pruneStaleHeartbeats()
 
-  while (true) {
+  while (!isShuttingDown) {
     try {
       const now = Date.now()
 
@@ -1733,31 +1739,27 @@ async function start() {
       }
 
       if (now - lastMetricsAt > 60 * 1000) {
-  await sendWorkerMetrics()
-  lastMetricsAt = now
-}
+        await sendWorkerMetrics()
+        lastMetricsAt = now
+      }
 
       await pollJobs()
-
-if (isShuttingDown && activeJobsCount === 0) {
-  await markWorkerOffline()
-
-  console.log('[PhotoWorker] graceful shutdown complete')
-  process.exit(0)
-}
-        } catch (error) {
-      console.error(
-        '[PhotoWorker] loop error:',
-        error
-      )
+    } catch (error) {
+      if (!isShuttingDown) {
+        console.error(
+          '[PhotoWorker] loop error:',
+          error
+        )
+      }
     }
 
-    if (isShuttingDown) {
-      continue
+    if (!isShuttingDown) {
+      await sleep(POLL_INTERVAL)
     }
-
-    await sleep(POLL_INTERVAL)
   }
+
+  await markWorkerOffline()
+  console.log('[PhotoWorker] graceful shutdown complete')
 }
 
 

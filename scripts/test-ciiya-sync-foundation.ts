@@ -154,6 +154,15 @@ assert.match(localQueue, /open\(temporaryPath, 'r\+'\)/)
 assert.match(localQueue, /\.corrupt-/)
 assert.doesNotMatch(localQueue, /deviceToken/)
 
+for (const durableDesktopStore of [
+  source('desktop/ciiya-sync/src/settings-store.ts'),
+  source('desktop/ciiya-sync/src/session-telemetry.ts'),
+  source('desktop/ciiya-sync/src/lightroom-plugin.ts'),
+]) {
+  assert.doesNotMatch(durableDesktopStore, /open\([^\n]+, 'r'\)/)
+  assert.match(durableDesktopStore, /open\([^\n]+, 'r\+'\)/)
+}
+
 const localUploader = source('src/lib/ciiya-sync/local/upload-client.ts')
 assert.match(localUploader, /Readable\.toWeb/)
 assert.match(localUploader, /Authorization: `Bearer \$\{this\.deviceToken\}`/)

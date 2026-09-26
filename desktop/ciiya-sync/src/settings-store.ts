@@ -85,7 +85,7 @@ async function atomicWrite(filePath: string, data: string | Uint8Array) {
   await mkdir(path.dirname(filePath), { recursive: true })
   const temporaryPath = `${filePath}.tmp-${process.pid}-${crypto.randomUUID()}`
   await writeFile(temporaryPath, data, { mode: 0o600 })
-  const handle = await open(temporaryPath, 'r')
+  const handle = await open(temporaryPath, 'r+')
   try {
     await handle.sync()
   } finally {

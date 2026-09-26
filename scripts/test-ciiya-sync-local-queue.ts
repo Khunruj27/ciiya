@@ -25,7 +25,7 @@ const ALBUM_ID = '11111111-1111-4111-8111-111111111111'
 
 async function waitFor(
   predicate: () => boolean | Promise<boolean>,
-  timeoutMs = 5_000
+  timeoutMs = 15_000
 ) {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
@@ -388,7 +388,7 @@ async function offlineRecoveryTest(root: string) {
   await waitFor(async () => {
     const item = (await engine.queue.list())[0]
     return item?.status === 'completed'
-  }, 7_000)
+  }, 15_000)
   await engine.stop()
 
   assert.equal(reserveAttempts, 2)

@@ -289,7 +289,10 @@ export class CiiyaSyncQueueStore {
 
     await writeFile(temporaryPath, serialized, { encoding: 'utf8', mode: 0o600 })
 
-    const handle = await open(temporaryPath, 'r')
+    // Windows requires a writable descriptor for FlushFileBuffers/fsync. Opening
+    // the completed temporary file with `r+` preserves the same durability
+    // guarantee on macOS/Linux without changing its contents.
+    const handle = await open(temporaryPath, 'r+')
     try {
       await handle.sync()
     } finally {

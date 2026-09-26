@@ -150,6 +150,7 @@ assert.match(localEngine, /CiiyaSyncSourceChangedError/)
 
 const localQueue = source('src/lib/ciiya-sync/local/queue-store.ts')
 assert.match(localQueue, /mode: 0o600/)
+assert.match(localQueue, /open\(temporaryPath, 'r\+'\)/)
 assert.match(localQueue, /\.corrupt-/)
 assert.doesNotMatch(localQueue, /deviceToken/)
 

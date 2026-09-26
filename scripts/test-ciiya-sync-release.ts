@@ -151,6 +151,9 @@ async function releaseManifestTest(projectRoot: string, root: string) {
   const artifactPath = path.join(releaseDirectory, 'Ciiya-Sync-test.dmg')
   const bytes = Buffer.from('signed-release-fixture')
   await writeFile(artifactPath, bytes)
+  const unpackedDirectory = path.join(releaseDirectory, 'win-unpacked')
+  await mkdir(unpackedDirectory, { recursive: true })
+  await writeFile(path.join(unpackedDirectory, 'Ciiya Sync.exe'), bytes)
   const { manifest, manifestPath } = await buildCiiyaSyncReleaseManifest({
     projectRoot,
     releaseDirectory,
@@ -160,6 +163,7 @@ async function releaseManifestTest(projectRoot: string, root: string) {
 
   assert.equal(manifest.channel, 'canary')
   assert.equal(manifest.artifacts.length, 1)
+  assert.equal(manifest.artifacts[0].path, 'Ciiya-Sync-test.dmg')
   assert.equal(manifest.artifacts[0].sizeBytes, bytes.length)
   assert.equal(
     manifest.artifacts[0].sha256,
@@ -177,6 +181,8 @@ async function releaseContractTest() {
     approvalRoute,
     builder,
     workflow,
+    internalWorkflow,
+    validator,
     docs,
   ] = await Promise.all([
     source('src/lib/photo-upload-principal.ts'),
@@ -186,6 +192,8 @@ async function releaseContractTest() {
     source('src/app/api/ciiya-sync/pairing/approve/route.ts'),
     source('desktop/ciiya-sync/electron-builder.yml'),
     source('.github/workflows/ciiya-sync-release.yml'),
+    source('.github/workflows/ciiya-sync-internal-canary.yml'),
+    source('scripts/validate-ciiya-sync-release.ts'),
     source('docs/ciiya-sync.md'),
   ])
 
@@ -198,6 +206,13 @@ async function releaseContractTest() {
   assert.match(builder, /signingHashAlgorithms:[\s\S]*sha256/)
   assert.match(workflow, /workflow_dispatch/)
   assert.match(workflow, /--require-signing/)
+  assert.match(internalWorkflow, /CIIYA_SYNC_RELEASE_CHANNEL: canary/)
+  assert.match(internalWorkflow, /ciiya-sync-smoke-test/)
+  assert.match(internalWorkflow, /runs-on: windows-2022/)
+  assert.doesNotMatch(internalWorkflow, /secrets\./)
+  assert.match(validator, /extractFile/)
+  assert.match(validator, /validatePackagedReleaseChannel/)
+  assert.match(validator, /development channel/)
   assert.match(docs, /14\.5\.8/)
 }
 

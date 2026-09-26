@@ -149,6 +149,14 @@ export class CiiyaSyncEngine {
   }
 
   async retry(itemId: string) {
+    const current = await this.queue.get(itemId)
+    if (
+      current?.status === 'failed' &&
+      current.reservation &&
+      !current.objectUploadedAt
+    ) {
+      await this.uploader.cancelReservation(current.reservation.uploadSessionId)
+    }
     const item = await this.queue.retry(itemId)
     if (item) this.schedulePump()
     return item

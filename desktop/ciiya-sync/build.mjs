@@ -49,6 +49,16 @@ await Promise.all([
 await cp(path.join(desktopRoot, 'renderer'), path.join(outputRoot, 'renderer'), {
   recursive: true,
 })
+const rendererFontsRoot = path.join(outputRoot, 'renderer/fonts')
+await mkdir(rendererFontsRoot, { recursive: true })
+await Promise.all(
+  ['Regular', 'Medium', 'SemiBold', 'Bold'].map((weight) =>
+    cp(
+      path.join(projectRoot, `src/app/fonts/FCMittraphap-${weight}.ttf`),
+      path.join(rendererFontsRoot, `FCMittraphap-${weight}.ttf`)
+    )
+  )
+)
 await cp(path.join(desktopRoot, 'lightroom'), path.join(outputRoot, 'lightroom'), {
   recursive: true,
 })

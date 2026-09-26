@@ -76,9 +76,10 @@
 
         <section class="workspace" id="workspace" hidden>
           <div class="workspace-hero">
-            <div>
+            <div class="workspace-title">
               <p class="eyebrow gold">LIVE FOLDER</p>
-              <h2>Lightroom export,<br />Ciiya delivers.</h2>
+              <h2>ส่งภาพจาก Lightroom เข้า Ciiya</h2>
+              <p>เลือกอัลบั้มและโฟลเดอร์ครั้งเดียว จากนั้นปล่อยให้ Ciiya Sync ทำงานต่อ</p>
             </div>
             <div class="hero-status">
               <span class="pulse-dot" id="hero-dot"></span>
@@ -142,9 +143,16 @@
 
               <label class="field-label" for="album-select">อัลบั้มปลายทาง</label>
               <div class="select-wrap">
-                <select id="album-select">
+                <select id="album-select" aria-describedby="selected-album-meta">
                   <option value="">เลือกอัลบั้ม</option>
                 </select>
+              </div>
+              <div class="album-selection" id="album-selection" hidden>
+                <span class="album-selection-mark" aria-hidden="true">✓</span>
+                <span>
+                  <strong id="selected-album-title">อัลบั้มที่เลือก</strong>
+                  <small id="selected-album-meta">พร้อมรับภาพจาก Ciiya Sync</small>
+                </span>
               </div>
 
               <span class="field-label">โฟลเดอร์ Lightroom Export</span>
@@ -215,11 +223,42 @@
                 </div>
               </div>
 
+              <div class="offline-banner" id="offline-banner" hidden>
+                <span class="offline-banner-icon" aria-hidden="true">↻</span>
+                <span>
+                  <strong>ออฟไลน์ — คิวถูกเก็บไว้ในเครื่อง</strong>
+                  <small id="offline-message">ระบบจะส่งต่ออัตโนมัติเมื่ออินเทอร์เน็ตกลับมา</small>
+                </span>
+              </div>
+
+              <div class="activity-tabs" role="tablist" aria-label="รายการอัปโหลด">
+                <button
+                  class="activity-tab active"
+                  id="queue-tab"
+                  type="button"
+                  role="tab"
+                  aria-selected="true"
+                  data-view="queue"
+                >
+                  คิวงาน <span id="queue-tab-count">0</span>
+                </button>
+                <button
+                  class="activity-tab"
+                  id="history-tab"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  data-view="history"
+                >
+                  ประวัติ <span id="history-tab-count">0</span>
+                </button>
+              </div>
+
               <div class="activity-feed" id="activity-feed"></div>
               <div class="empty-state" id="empty-state">
                 <div aria-hidden="true">◫</div>
-                <strong>รอภาพแรกจาก Lightroom</strong>
-                <p>เมื่อ Export รูปลงโฟลเดอร์ ภาพจะปรากฏที่นี่</p>
+                <strong id="empty-state-title">รอภาพแรกจาก Lightroom</strong>
+                <p id="empty-state-copy">เมื่อ Export รูปลงโฟลเดอร์ ภาพจะปรากฏที่นี่</p>
               </div>
             </section>
           </div>

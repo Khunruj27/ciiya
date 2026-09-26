@@ -1,0 +1,85 @@
+name: Ciiya Sync Internal Canary
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ciiya-sync-internal-canary
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    runs-on: macos-14
+    timeout-minutes: 45
+    env:
+      CIIYA_SYNC_RELEASE_CHANNEL: canary
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run test:ciiya-sync
+      - run: npm run typecheck
+      - run: npm run dist:ciiya-sync:mac
+      - name: Smoke packaged Apple Silicon app and graceful shutdown
+        run: |
+          "release/ciiya-sync/mac-arm64/Ciiya Sync.app/Contents/MacOS/Ciiya Sync" \
+            --user-data-dir="$RUNNER_TEMP/ciiya-sync-smoke" \
+            --ciiya-sync-smoke-test
+      - run: npm run manifest:ciiya-sync
+      - run: npm run validate:ciiya-sync:release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ciiya-sync-canary-macos-unsigned
+          path: |
+            release/ciiya-sync/*.dmg
+            release/ciiya-sync/*.blockmap
+            release/ciiya-sync/release-manifest.json
+          if-no-files-found: error
+          retention-days: 14
+
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      CIIYA_SYNC_RELEASE_CHANNEL: canary
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run test:ciiya-sync
+      - run: npm run typecheck
+      - run: npm run dist:ciiya-sync:win
+      - name: Smoke packaged Windows app and graceful shutdown
+        shell: pwsh
+        run: |
+          $app = Resolve-Path "release/ciiya-sync/win-unpacked/Ciiya Sync.exe"
+          $profile = Join-Path $env:RUNNER_TEMP "ciiya-sync-smoke"
+          $process = Start-Process -FilePath $app -ArgumentList @(
+            "--user-data-dir=$profile",
+            "--ciiya-sync-smoke-test"
+          ) -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+            throw "Ciiya Sync Windows smoke test failed with exit code $($process.ExitCode)"
+          }
+      - run: npm run manifest:ciiya-sync
+      - run: npm run validate:ciiya-sync:release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ciiya-sync-canary-windows-unsigned
+          path: |
+            release/ciiya-sync/*.exe
+            release/ciiya-sync/*.blockmap
+            release/ciiya-sync/release-manifest.json
+          if-no-files-found: error
+          retention-days: 14

@@ -161,6 +161,7 @@ class CiiyaSyncDesktopController {
   private networkChangedAt = new Date().toISOString()
   private networkMonitor: ReturnType<typeof setInterval> | null = null
   private emitTimer: ReturnType<typeof setTimeout> | null = null
+  private albumRefreshTimer: ReturnType<typeof setTimeout> | null = null
   private emitOperation = Promise.resolve<CiiyaSyncDesktopState | null>(null)
   private listeners = new Set<(state: CiiyaSyncDesktopState) => void>()
 
@@ -236,7 +237,10 @@ class CiiyaSyncDesktopController {
         this.lastError = this.message(error)
       }
     }
-    return this.state()
+    // The renderer may request its first snapshot while albums are still
+    // loading. Always publish the completed initialization snapshot so it
+    // cannot remain stuck on the transient loading state.
+    return this.emit()
   }
 
   subscribe(listener: (state: CiiyaSyncDesktopState) => void) {
@@ -551,6 +555,8 @@ class CiiyaSyncDesktopController {
     this.networkMonitor = null
     if (this.emitTimer) clearTimeout(this.emitTimer)
     this.emitTimer = null
+    if (this.albumRefreshTimer) clearTimeout(this.albumRefreshTimer)
+    this.albumRefreshTimer = null
     await this.lightroomBridge?.stop()
     this.lightroomBridge = null
   }
@@ -691,9 +697,26 @@ class CiiyaSyncDesktopController {
   private async handleQueueEvent(event: CiiyaSyncQueueEvent) {
     try {
       await this.sessionTelemetry.recordQueueEvent(event)
+      if (
+        event.type === 'updated' &&
+        (event.item.status === 'completed' || event.item.status === 'duplicate')
+      ) {
+        this.scheduleAlbumRefresh()
+      }
     } finally {
       this.scheduleEmit()
     }
+  }
+
+  private scheduleAlbumRefresh(delayMs = 750) {
+    if (this.albumRefreshTimer) clearTimeout(this.albumRefreshTimer)
+    this.albumRefreshTimer = setTimeout(() => {
+      this.albumRefreshTimer = null
+      if (!this.deviceToken) return
+      void this.refreshAlbums(false)
+        .catch(() => undefined)
+        .finally(() => this.scheduleEmit(0))
+    }, delayMs)
   }
 
   private startNetworkMonitor() {
@@ -760,9 +783,30 @@ let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let controller: CiiyaSyncDesktopController | null = null
 let allowQuit = false
+let quitOperation: Promise<void> | null = null
+
+const DESKTOP_SHUTDOWN_DEADLINE_MS = 5_000
+
+async function shutdownForQuit(sync: CiiyaSyncDesktopController) {
+  let deadline: ReturnType<typeof setTimeout> | null = null
+  try {
+    await Promise.race([
+      sync.shutdown(),
+      new Promise<void>((resolve) => {
+        deadline = setTimeout(resolve, DESKTOP_SHUTDOWN_DEADLINE_MS)
+      }),
+    ])
+  } finally {
+    if (deadline) clearTimeout(deadline)
+  }
+}
 
 function showWindow() {
-  if (!mainWindow) return
+  if (allowQuit) return
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    mainWindow = createWindow()
+    return
+  }
   mainWindow.show()
   mainWindow.focus()
 }
@@ -848,10 +892,13 @@ if (!app.requestSingleInstanceLock()) {
   app.on('before-quit', (event) => {
     if (allowQuit || !controller) return
     event.preventDefault()
-    void controller.shutdown().finally(() => {
-      allowQuit = true
-      app.quit()
-    })
+    if (quitOperation) return
+    quitOperation = shutdownForQuit(controller)
+      .catch((error) => console.error('Ciiya Sync shutdown failed', error))
+      .finally(() => {
+        allowQuit = true
+        app.quit()
+      })
   })
 
   void app.whenReady().then(async () => {

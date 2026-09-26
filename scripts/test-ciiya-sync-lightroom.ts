@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
+import net from 'node:net'
+import { once } from 'node:events'
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -72,6 +74,30 @@ async function bridgeTest(root: string) {
   } finally {
     await bridge.stop()
   }
+}
+
+async function bridgeShutdownDeadlineTest() {
+  const bridge = new CiiyaSyncLightroomBridge({
+    secret: crypto.randomBytes(32).toString('base64url'),
+    port: 0,
+    async albums() {
+      return []
+    },
+    async enqueue() {
+      return { id: crypto.randomUUID(), created: true }
+    },
+  })
+  const port = await bridge.start()
+  const socket = net.createConnection({ host: '127.0.0.1', port })
+  await once(socket, 'connect')
+
+  const startedAt = Date.now()
+  await bridge.stop()
+  assert.ok(
+    Date.now() - startedAt < 2_500,
+    'Lightroom bridge shutdown must not hang on an open local socket'
+  )
+  socket.destroy()
 }
 
 async function pluginInstallerTest(root: string) {
@@ -207,6 +233,7 @@ async function main() {
   const root = await mkdtemp(path.join(os.tmpdir(), 'ciiya-sync-lightroom-'))
   try {
     await bridgeTest(root)
+    await bridgeShutdownDeadlineTest()
     await pluginInstallerTest(root)
     await processingOnlyEngineTest(root)
     await pluginContractTest()

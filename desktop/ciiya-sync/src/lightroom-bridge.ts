@@ -3,6 +3,7 @@ import http, { type IncomingMessage, type ServerResponse } from 'node:http'
 
 export const CIIYA_SYNC_LIGHTROOM_BRIDGE_PORT = 51_673
 const MAX_BODY_BYTES = 32 * 1024
+const BRIDGE_SHUTDOWN_GRACE_MS = 1_000
 
 export type CiiyaSyncLightroomAlbum = {
   id: string
@@ -122,7 +123,26 @@ export class CiiyaSyncLightroomBridge {
     this.server = null
     this.listeningPort = null
     if (!server) return
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await new Promise<void>((resolve) => {
+      let settled = false
+      const finish = () => {
+        if (settled) return
+        settled = true
+        clearTimeout(forceClose)
+        resolve()
+      }
+      const forceClose = setTimeout(() => {
+        // A Lightroom request may still own a keep-alive socket while the user
+        // quits Ciiya Sync. Do not let that local connection trap the app in an
+        // endless shutdown; queued work is already durable on disk.
+        server.closeAllConnections?.()
+        finish()
+      }, BRIDGE_SHUTDOWN_GRACE_MS)
+      forceClose.unref()
+
+      server.close(finish)
+      server.closeIdleConnections?.()
+    })
   }
 
   private async handle(request: IncomingMessage, response: ServerResponse) {

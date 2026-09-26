@@ -91,6 +91,15 @@ async function queuePersistenceTest(root: string) {
   const resumed = new CiiyaSyncQueueStore(stateFilePath)
   assert.equal(await resumed.recoverInterrupted(), 1)
   assert.equal((await resumed.get(first.item.id))?.status, 'finalizing')
+
+  const beforeCancel = await resumed.get(first.item.id)
+  await resumed.cancel(first.item.id)
+  const retried = await resumed.retry(first.item.id)
+  assert.equal(retried?.status, 'queued')
+  assert.notEqual(retried?.clientUploadId, beforeCancel?.clientUploadId)
+  assert.equal(retried?.reservation, null)
+  assert.equal(retried?.objectUploadedAt, null)
+  assert.equal(retried?.completedAt, null)
 }
 
 async function stableWatcherTest(root: string) {
@@ -157,7 +166,9 @@ async function uploadClientTest(root: string) {
     }
 
     if (url === 'https://r2.test/signed-object') {
-      assert.equal(new Headers(init?.headers).has('authorization'), false)
+      const headers = new Headers(init?.headers)
+      assert.equal(headers.has('authorization'), false)
+      assert.equal(headers.get('content-length'), String(bytes.byteLength))
       const uploaded = Buffer.from(
         await new Response(init?.body as BodyInit).arrayBuffer()
       )
@@ -386,6 +397,105 @@ async function offlineRecoveryTest(root: string) {
   assert.doesNotMatch(persisted, /ciiya_sync_/)
 }
 
+async function offlineRestartRecoveryTest(root: string) {
+  const stateFilePath = path.join(root, 'restart-state', 'queue.json')
+  const photoPath = path.join(root, 'restart-offline.jpg')
+  const bytes = Buffer.from('offline-restart-recovery-photo')
+  await writeFile(photoPath, bytes)
+  const photoStat = await stat(photoPath)
+
+  const firstQueue = new CiiyaSyncQueueStore(stateFilePath)
+  const firstEngine = new CiiyaSyncEngine({
+    apiBaseUrl: 'https://ciiya.test',
+    deviceToken: DEVICE_TOKEN,
+    stateFilePath,
+    queueStore: firstQueue,
+    watchFolder: false,
+    retryBaseMs: 100,
+    retryMaxMs: 100,
+    retryJitter: 0,
+    fetchImplementation: async () => {
+      throw new TypeError('fetch failed while offline')
+    },
+  })
+
+  await firstEngine.start()
+  const queued = await firstEngine.enqueueFile(
+    {
+      sourcePath: photoPath,
+      fileName: path.basename(photoPath),
+      contentType: 'image/jpeg',
+      fileSizeBytes: photoStat.size,
+      lastModifiedMs: photoStat.mtimeMs,
+    },
+    'ciiya-sync-live-folder',
+    ALBUM_ID
+  )
+  await waitFor(
+    async () => (await firstQueue.get(queued.item.id))?.status === 'retry_wait'
+  )
+  await firstEngine.stop()
+
+  const sessionId = crypto.randomUUID()
+  const secondQueue = new CiiyaSyncQueueStore(stateFilePath)
+  const secondEngine = new CiiyaSyncEngine({
+    apiBaseUrl: 'https://ciiya.test',
+    deviceToken: DEVICE_TOKEN,
+    stateFilePath,
+    queueStore: secondQueue,
+    watchFolder: false,
+    retryBaseMs: 20,
+    retryMaxMs: 20,
+    retryJitter: 0,
+    fetchImplementation: async (input, init) => {
+      const url = String(input)
+      if (url.endsWith('/api/photos/upload-url')) {
+        const body = JSON.parse(String(init?.body))
+        return Response.json({
+          success: true,
+          provider: 'r2',
+          bucket: 'ciiya-app',
+          storagePath: `${ALBUM_ID}/${ALBUM_ID}/original/${crypto.randomUUID()}.jpg`,
+          uploadSessionId: sessionId,
+          uploadUrl: 'https://r2.test/restart-object',
+          method: 'PUT',
+          headers: { 'Content-Type': 'image/jpeg' },
+          fileHash: body.fileHash,
+        })
+      }
+      if (url === 'https://r2.test/restart-object') {
+        assert.equal(
+          new Headers(init?.headers).get('content-length'),
+          String(bytes.byteLength)
+        )
+        await new Response(init?.body as BodyInit).arrayBuffer()
+        return new Response(null, { status: 200 })
+      }
+      if (url.endsWith('/api/photos/finalize-upload')) {
+        return Response.json({
+          success: true,
+          photoId: crypto.randomUUID(),
+          processingStatus: 'pending',
+        })
+      }
+      throw new Error(`Unexpected restart request: ${url}`)
+    },
+  })
+
+  await secondEngine.start()
+  try {
+    await waitFor(
+      async () => (await secondQueue.get(queued.item.id))?.status === 'completed'
+    )
+    const completed = await secondQueue.get(queued.item.id)
+    assert.equal(completed?.attempts, 1)
+    assert.equal(completed?.status, 'completed')
+    assert.equal((await stat(photoPath)).isFile(), true)
+  } finally {
+    await secondEngine.stop()
+  }
+}
+
 async function main() {
   const root = await mkdtemp(path.join(os.tmpdir(), 'ciiya-sync-'))
 
@@ -395,6 +505,7 @@ async function main() {
     await uploadClientTest(root)
     await sourceMutationTest(root)
     await offlineRecoveryTest(root)
+    await offlineRestartRecoveryTest(root)
     console.log('Ciiya Sync local queue and offline recovery checks passed.')
   } finally {
     await rm(root, { recursive: true, force: true })

@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
+import { extractFile } from '@electron/asar'
 import { createHash } from 'node:crypto'
 import { execFile as execFileCallback } from 'node:child_process'
 import { createReadStream } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
@@ -64,6 +65,45 @@ async function validateManifest(releaseDirectory: string) {
   return manifest
 }
 
+async function findPackagedAsars(directory: string): Promise<string[]> {
+  const entries = await readdir(directory, { withFileTypes: true })
+  const matches: string[] = []
+  for (const entry of entries) {
+    const absolutePath = path.join(directory, entry.name)
+    if (entry.isDirectory()) {
+      matches.push(...(await findPackagedAsars(absolutePath)))
+    } else if (entry.isFile() && entry.name === 'app.asar') {
+      matches.push(absolutePath)
+    }
+  }
+  return matches
+}
+
+async function validatePackagedReleaseChannel(
+  releaseDirectory: string,
+  channel: CiiyaSyncReleaseManifest['channel']
+) {
+  const packagedAsars = await findPackagedAsars(releaseDirectory)
+  assert.ok(
+    packagedAsars.length > 0,
+    'No packaged app.asar found for release-channel validation'
+  )
+
+  for (const asarPath of packagedAsars) {
+    const main = extractFile(asarPath, 'main.cjs').toString('utf8')
+    assert.match(
+      main,
+      new RegExp(`releaseChannel\\s*:\\s*["']${channel}["']`),
+      `Packaged release channel does not match manifest: ${asarPath}`
+    )
+    assert.doesNotMatch(
+      main,
+      /releaseChannel\s*:\s*["']development["']/,
+      `Release artifact still contains the development channel: ${asarPath}`
+    )
+  }
+}
+
 async function validateMacSigning(releaseDirectory: string) {
   const manifest = await validateManifest(releaseDirectory)
   const diskImages = manifest.artifacts.filter((artifact) =>
@@ -121,6 +161,8 @@ async function main() {
   const requireSigning = process.argv.includes('--require-signing')
 
   await validateStaticConfiguration(projectRoot)
+  const manifest = await validateManifest(releaseDirectory)
+  await validatePackagedReleaseChannel(releaseDirectory, manifest.channel)
   if (requireSigning) {
     if (process.platform === 'darwin') {
       await validateMacSigning(releaseDirectory)

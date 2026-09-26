@@ -158,25 +158,49 @@ async function desktopApiTest() {
 }
 
 async function desktopSecurityContractTest() {
-  const [main, preload, renderer, html, buildConfig, packageJson] = await Promise.all([
-    source('desktop/ciiya-sync/src/main.ts'),
-    source('desktop/ciiya-sync/src/preload.ts'),
-    source('desktop/ciiya-sync/renderer/renderer.js'),
-    source('desktop/ciiya-sync/renderer/index.html'),
-    source('desktop/ciiya-sync/electron-builder.yml'),
-    source('package.json'),
-  ])
+  const [main, preload, renderer, html, styles, buildScript, buildConfig, packageJson] =
+    await Promise.all([
+      source('desktop/ciiya-sync/src/main.ts'),
+      source('desktop/ciiya-sync/src/preload.ts'),
+      source('desktop/ciiya-sync/renderer/renderer.js'),
+      source('desktop/ciiya-sync/renderer/index.html'),
+      source('desktop/ciiya-sync/renderer/styles.css'),
+      source('desktop/ciiya-sync/build.mjs'),
+      source('desktop/ciiya-sync/electron-builder.yml'),
+      source('package.json'),
+    ])
 
   assert.match(main, /contextIsolation: true/)
   assert.match(main, /nodeIntegration: false/)
   assert.match(main, /sandbox: true/)
   assert.match(main, /safeStorage\.encryptString/)
   assert.match(main, /setWindowOpenHandler\(\(\) => \(\{ action: 'deny' \}\)\)/)
+  assert.match(main, /if \(allowQuit\) return/)
+  assert.match(main, /quitOperation/)
+  assert.match(main, /DESKTOP_SHUTDOWN_DEADLINE_MS/)
+  assert.match(main, /mainWindow\.isDestroyed\(\)/)
   assert.match(main, /CiiyaSyncEngine/)
+  assert.match(
+    main,
+    /async initialize\(\)[\s\S]*?return this\.emit\(\)/,
+    'desktop initialization should publish its final album/loading state'
+  )
   assert.match(preload, /contextBridge\.exposeInMainWorld/)
   assert.doesNotMatch(preload, /deviceToken/)
   assert.doesNotMatch(renderer, /deviceToken|Authorization|SUPABASE|R2_/)
   assert.match(html, /Content-Security-Policy/)
+  assert.match(html, /id="album-selection"/)
+  assert.match(html, /id="queue-tab"/)
+  assert.match(html, /id="history-tab"/)
+  assert.match(html, /id="offline-banner"/)
+  assert.match(styles, /font-family: "Ciiya Thai"/)
+  assert.match(styles, /FCMittraphap-Regular\.ttf/)
+  assert.match(styles, /unicode-range: U\+0E00-0E7F/)
+  assert.match(buildScript, /FCMittraphap-/)
+  assert.match(renderer, /queueStatuses/)
+  assert.match(renderer, /historyStatuses/)
+  assert.match(renderer, /retry_wait/)
+  assert.match(renderer, /ลองตอนนี้/)
   assert.match(buildConfig, /co\.ciiya\.sync/)
   assert.match(buildConfig, /target: dmg/)
   assert.match(buildConfig, /target: nsis/)

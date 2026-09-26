@@ -44,14 +44,14 @@ camera at the same time.
 
 | Subphase | Scope | Status |
 | --- | --- | --- |
-| 14.5.1 | Pairing schema, scoped device identity, album discovery, approval UI | Implemented; deployment verification required |
-| 14.5.2 | Device management and revocation in Me | Implemented; deployment verification required |
-| 14.5.3 | Device-authenticated R2 upload reservation/finalization | Implemented; deployment verification required |
-| 14.5.4 | Local queue, stable-file watcher, retries, offline recovery | Implemented |
-| 14.5.5 | Ciiya Sync desktop shell for macOS and Windows | Implemented |
-| 14.5.6 | Lightroom Export Selection integration and local-copy workflow | Implemented |
-| 14.5.7 | Live Folder session UI, Realtime status, telemetry | Implemented |
-| 14.5.8 | Signed builds, production canary, rollback validation | Implemented; credentialed signed canary pending |
+| 14.5.1 | Pairing schema, scoped device identity, album discovery, approval UI | Complete; verified in Production |
+| 14.5.2 | Device management and revocation in Me | Complete; ownership/revocation contract verified |
+| 14.5.3 | Device-authenticated R2 upload reservation/finalization | Complete; verified in Production |
+| 14.5.4 | Local queue, stable-file watcher, retries, offline recovery | Complete; offline restart recovery verified |
+| 14.5.5 | Ciiya Sync desktop shell for macOS and Windows | Complete for internal canary |
+| 14.5.6 | Lightroom Export Selection integration and local-copy workflow | Complete; verified in Production |
+| 14.5.7 | Live Folder session UI, Realtime status, telemetry | Complete; verified locally |
+| 14.5.8 | Release channels, canary, rollback, and installers | Complete for unsigned internal canary; public signing remains optional/deferred |
 
 ## Subphase 14.5.1
 
@@ -544,6 +544,9 @@ pumps never consume the same queue concurrently.
 - The bridge caps request bodies, disables caching, performs constant-time
   secret comparison, and returns a minimal URL-encoded line protocol so the
   Lightroom Lua runtime needs no third-party JSON dependency.
+- Desktop shutdown is bounded: the bridge closes idle connections immediately,
+  force-closes any remaining loopback sockets after one second, and the app
+  finishes its quit sequence within five seconds even if a local client stalls.
 
 ### Risks and rollback
 
@@ -729,6 +732,13 @@ Run `Ciiya Sync Signed Release` manually with channel `canary` first. The
 workflow refuses to upload a release when signing, notarization/stapling,
 Authenticode, checksum, typecheck, or Ciiya Sync validation fails.
 
+For internal testing without Apple or Windows certificates, run
+`Ciiya Sync Internal Canary`. It builds unsigned macOS and Windows installers,
+runs packaged-app smoke tests on the matching native runner, verifies that the
+embedded channel is `canary`, validates every checksum, and retains the
+artifacts for 14 days. Unsigned artifacts remain internal-only and follow the
+platform-specific manual-open instructions in `release/ciiya-sync/INTERNAL-TEST.md`.
+
 ### Canary runbook
 
 1. In Vercel Production set `CIIYA_SYNC_ROLLOUT_MODE=canary` and add only the
@@ -760,12 +770,32 @@ the source of truth.
 - Paused API response → durable `retry_wait` with source file retained: passed
 - Browser/worker paths remain outside the desktop rollout gate: contract passed
 - Release manifest path, byte size, SHA-256, and secret-exclusion checks: passed
+- Packaged `app.asar` channel matches the `canary` manifest: passed
 - macOS entitlements/notarization and Windows SHA-256 signing config: passed
-- Dedicated release workflow/static secret boundary: passed
-- Development desktop build and unsigned packaged smoke test: local validation
+- Dedicated signed and unsigned internal release workflows/static secret
+  boundary: passed
+- macOS arm64/x64 DMG and Windows x64/arm64/combined NSIS installers: built
+- Packaged macOS canary app launch and graceful-shutdown smoke test: passed
+- Production Export Selection → R2 → Photo Worker → Face Worker with retained
+  local copy: passed
+- Offline retry followed by restart recovery from the same durable queue: passed
 - Real Developer ID notarization and Windows Authenticode: pending the first
   credentialed GitHub `canary` workflow run; the workflow is intentionally
   fail-closed and cannot be truthfully marked passed without those certificates
+
+## Phase 14.5 closeout — 2026-09-26
+
+All eight subphases are complete for the unsigned internal canary. Production
+validation covers pairing, device-scoped album discovery, direct R2 upload,
+finalization, Photo Worker, Face Worker, Gallery delivery, Live Folder, and
+Lightroom Export Selection while retaining the exported local file. Offline and
+restart recovery, bounded app shutdown, release-channel integrity, installer
+checksums, and macOS packaged-app launch were also verified.
+
+The application remains in owner-scoped canary mode. Public distribution
+signing/notarization is deliberately deferred and does not block internal use.
+The native Windows packaged smoke test is enforced by the internal-canary GitHub
+workflow because the local development machine is macOS.
 
 ## Phase 15 boundary
 

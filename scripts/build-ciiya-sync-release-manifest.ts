@@ -25,18 +25,14 @@ const RELEASE_ARTIFACT_PATTERN = /\.(?:dmg|exe|msi|zip)$/i
 
 async function filesIn(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true })
-  const files: string[] = []
-
-  for (const entry of entries) {
-    const absolutePath = path.join(directory, entry.name)
-    if (entry.isDirectory()) {
-      files.push(...(await filesIn(absolutePath)))
-    } else if (entry.isFile() && RELEASE_ARTIFACT_PATTERN.test(entry.name)) {
-      files.push(absolutePath)
-    }
-  }
-
-  return files
+  // electron-builder keeps unpacked application directories beside the final
+  // installers. Only top-level distributable artifacts belong in the public
+  // manifest; nested helper executables such as elevate.exe must never appear.
+  return entries
+    .filter(
+      (entry) => entry.isFile() && RELEASE_ARTIFACT_PATTERN.test(entry.name)
+    )
+    .map((entry) => path.join(directory, entry.name))
 }
 
 async function sha256(filePath: string) {

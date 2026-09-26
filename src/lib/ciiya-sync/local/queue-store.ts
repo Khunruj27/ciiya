@@ -176,13 +176,31 @@ export class CiiyaSyncQueueStore {
   }
 
   async retry(itemId: string) {
-    return this.update(itemId, (item) => ({
-      ...item,
-      status: item.objectUploadedAt && item.reservation ? 'finalizing' : 'queued',
-      nextAttemptAt: null,
-      error: null,
-      completedAt: null,
-    }))
+    return this.update(itemId, (item) => {
+      if (!['retry_wait', 'failed', 'cancelled'].includes(item.status)) {
+        return item
+      }
+
+      const restartUpload =
+        item.status === 'cancelled' ||
+        (item.status === 'failed' && !item.objectUploadedAt)
+
+      return {
+        ...item,
+        clientUploadId: restartUpload ? crypto.randomUUID() : item.clientUploadId,
+        status:
+          !restartUpload && item.objectUploadedAt && item.reservation
+            ? 'finalizing'
+            : 'queued',
+        reservation: restartUpload ? null : item.reservation,
+        objectUploadedAt: restartUpload ? null : item.objectUploadedAt,
+        photoId: restartUpload ? null : item.photoId,
+        processingStatus: restartUpload ? null : item.processingStatus,
+        nextAttemptAt: null,
+        error: null,
+        completedAt: null,
+      }
+    })
   }
 
   async cancel(itemId: string) {

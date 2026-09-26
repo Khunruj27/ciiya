@@ -178,7 +178,12 @@ export class CiiyaSyncUploadClient {
     await hooks.onUploading?.()
     try {
       await this.assertSourceMatches(item)
-      await this.putObject(item.sourcePath, reserved, signal)
+      await this.putObject(
+        item.sourcePath,
+        item.fileSizeBytes,
+        reserved,
+        signal
+      )
       await this.assertSourceMatches(item)
     } catch (error) {
       if (error instanceof CiiyaSyncSourceChangedError) {
@@ -326,6 +331,7 @@ export class CiiyaSyncUploadClient {
 
   private async putObject(
     sourcePath: string,
+    contentLength: number,
     reservation: SignedReservation,
     signal?: AbortSignal
   ) {
@@ -337,7 +343,13 @@ export class CiiyaSyncUploadClient {
         reservation.uploadUrl,
         {
           method: reservation.method,
-          headers: reservation.headers,
+          headers: {
+            ...reservation.headers,
+            // R2 signs PUT requests with ContentLength. Node fetch streams use
+            // chunked transfer encoding unless the exact size is provided,
+            // which makes the signed request fail with HTTP 403.
+            'Content-Length': String(contentLength),
+          },
           body,
           // Required by Node fetch for a streamed request body.
           duplex: 'half',

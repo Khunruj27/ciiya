@@ -13,6 +13,9 @@ const elements = {
   openPairingButton: document.querySelector('#open-pairing-button'),
   restartPairingButton: document.querySelector('#restart-pairing-button'),
   albumSelect: document.querySelector('#album-select'),
+  albumSelection: document.querySelector('#album-selection'),
+  selectedAlbumTitle: document.querySelector('#selected-album-title'),
+  selectedAlbumMeta: document.querySelector('#selected-album-meta'),
   refreshAlbumsButton: document.querySelector('#refresh-albums-button'),
   folderButton: document.querySelector('#folder-button'),
   folderName: document.querySelector('#folder-name'),
@@ -42,8 +45,16 @@ const elements = {
   completedCount: document.querySelector('#completed-count'),
   retryCount: document.querySelector('#retry-count'),
   failedCount: document.querySelector('#failed-count'),
+  offlineBanner: document.querySelector('#offline-banner'),
+  offlineMessage: document.querySelector('#offline-message'),
+  queueTab: document.querySelector('#queue-tab'),
+  historyTab: document.querySelector('#history-tab'),
+  queueTabCount: document.querySelector('#queue-tab-count'),
+  historyTabCount: document.querySelector('#history-tab-count'),
   activityFeed: document.querySelector('#activity-feed'),
   emptyState: document.querySelector('#empty-state'),
+  emptyStateTitle: document.querySelector('#empty-state-title'),
+  emptyStateCopy: document.querySelector('#empty-state-copy'),
   disconnectButton: document.querySelector('#disconnect-button'),
   releaseVersion: document.querySelector('#release-version'),
   toast: document.querySelector('#toast'),
@@ -71,6 +82,21 @@ const liveStatusLabels = {
 }
 let currentState = null
 let toastTimer = null
+let activityView = 'queue'
+let activityViewInitialized = false
+let previousQueueCount = 0
+
+const queueStatuses = new Set([
+  'queued',
+  'hashing',
+  'reserving',
+  'uploading',
+  'finalizing',
+  'retry_wait',
+  'failed',
+])
+
+const historyStatuses = new Set(['completed', 'duplicate', 'cancelled'])
 
 function showToast(message) {
   clearTimeout(toastTimer)
@@ -137,6 +163,29 @@ function relativeActivity(value) {
   })}`
 }
 
+function formatHistoryTime(value) {
+  if (!value) return 'ไม่ทราบเวลา'
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return 'ไม่ทราบเวลา'
+  return date.toLocaleString('th-TH', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function formatRetryTime(value) {
+  if (!value) return 'พร้อมลองใหม่'
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return 'พร้อมลองใหม่'
+  return `ลองใหม่ ${date.toLocaleTimeString('th-TH', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })}`
+}
+
 function renderSessionTiming(state) {
   const summary = state.session.summary
   elements.sessionDuration.textContent = summary
@@ -189,24 +238,84 @@ function renderAlbums(state) {
   elements.albumSelect.value = selected
   elements.albumSelect.disabled = state.sync.running || state.albumsLoading
   elements.refreshAlbumsButton.disabled = state.albumsLoading
+
+  const selectedAlbum = state.albums.find((album) => album.id === selected)
+  elements.albumSelection.hidden = !selectedAlbum
+  if (selectedAlbum) {
+    elements.selectedAlbumTitle.textContent = selectedAlbum.title
+    elements.selectedAlbumMeta.textContent = `${selectedAlbum.photoCount} รูป · พร้อมรับภาพใหม่`
+  }
 }
 
-function queueActionButton(item) {
+function miniAction(label, title, operation, className = '') {
   const button = document.createElement('button')
-  button.className = 'mini-button'
-  if (item.status === 'failed' || item.status === 'cancelled') {
-    button.textContent = '↻'
-    button.title = 'ลองใหม่'
-    button.addEventListener('click', () => action(() => bridge.retryItem(item.id), button))
-    return button
+  button.className = `mini-button ${className}`.trim()
+  button.type = 'button'
+  button.textContent = label
+  button.title = title
+  button.setAttribute('aria-label', title)
+  button.addEventListener('click', () => action(operation, button))
+  return button
+}
+
+function queueActionButtons(item) {
+  const actions = document.createElement('div')
+  actions.className = 'mini-actions'
+
+  if (['retry_wait', 'failed', 'cancelled'].includes(item.status)) {
+    actions.append(
+      miniAction(
+        '↻ ลองตอนนี้',
+        `ลองส่ง ${item.fileName} ใหม่ตอนนี้`,
+        () => bridge.retryItem(item.id),
+        'retry-button'
+      )
+    )
   }
-  if (!['completed', 'duplicate'].includes(item.status)) {
-    button.textContent = '×'
-    button.title = 'ยกเลิกรายการ'
-    button.addEventListener('click', () => action(() => bridge.cancelItem(item.id), button))
-    return button
+
+  if (!['completed', 'duplicate', 'failed', 'cancelled'].includes(item.status)) {
+    actions.append(
+      miniAction('×', `ยกเลิก ${item.fileName}`, () => bridge.cancelItem(item.id))
+    )
   }
-  return null
+
+  return actions.childElementCount > 0 ? actions : null
+}
+
+function queueItemDetail(item, state, view) {
+  if (view === 'history') {
+    const album = state.albums.find((candidate) => candidate.id === item.albumId)
+    return [
+      album?.title || 'อัลบั้มเดิม',
+      formatHistoryTime(item.completedAt || item.updatedAt),
+      formatBytes(item.fileSizeBytes),
+    ].join(' · ')
+  }
+
+  if (item.status === 'retry_wait') {
+    return [item.error?.message, formatRetryTime(item.nextAttemptAt)]
+      .filter(Boolean)
+      .join(' · ')
+  }
+
+  return (
+    item.error?.message ||
+    `${formatBytes(item.fileSizeBytes)} · ${
+      item.attempts ? `ลอง ${item.attempts} ครั้ง` : 'พร้อม'
+    }`
+  )
+}
+
+function setActivityView(view) {
+  activityView = view === 'history' ? 'history' : 'queue'
+  for (const [name, tab] of [
+    ['queue', elements.queueTab],
+    ['history', elements.historyTab],
+  ]) {
+    const active = name === activityView
+    tab.classList.toggle('active', active)
+    tab.setAttribute('aria-selected', String(active))
+  }
 }
 
 function renderQueue(state) {
@@ -220,9 +329,33 @@ function renderQueue(state) {
   )
   elements.retryCount.textContent = String(summary?.retryCount || 0)
   elements.failedCount.textContent = String(summary?.failedCount || 0)
+
+  const queuedItems = state.queue.filter((item) => queueStatuses.has(item.status))
+  const historyItems = state.queue.filter((item) => historyStatuses.has(item.status))
+
+  if (!activityViewInitialized) {
+    activityView = queuedItems.length > 0 ? 'queue' : 'history'
+    activityViewInitialized = true
+  } else if (previousQueueCount === 0 && queuedItems.length > 0) {
+    activityView = 'queue'
+  } else if (previousQueueCount > 0 && queuedItems.length === 0) {
+    activityView = 'history'
+  }
+  previousQueueCount = queuedItems.length
+  setActivityView(activityView)
+
+  elements.queueTabCount.textContent = String(queuedItems.length)
+  elements.historyTabCount.textContent = String(historyItems.length)
+  elements.offlineBanner.hidden = state.session.networkOnline
+  elements.offlineMessage.textContent = queuedItems.length
+    ? `${queuedItems.length} รายการจะส่งต่ออัตโนมัติเมื่ออินเทอร์เน็ตกลับมา`
+    : 'ระบบพร้อมรับภาพและจะส่งต่อเมื่ออินเทอร์เน็ตกลับมา'
+
+  const visibleItems = activityView === 'history' ? historyItems : queuedItems
+  elements.totalCount.textContent = String(visibleItems.length)
   elements.activityFeed.replaceChildren()
 
-  for (const item of state.queue.slice(0, 30)) {
+  for (const item of visibleItems.slice(0, 50)) {
     const row = document.createElement('article')
     row.className = 'queue-item'
 
@@ -235,7 +368,7 @@ function renderQueue(state) {
     const name = document.createElement('strong')
     name.textContent = item.fileName
     const detail = document.createElement('small')
-    detail.textContent = item.error?.message || `${formatBytes(item.fileSizeBytes)} · ${item.attempts ? `ลอง ${item.attempts} ครั้ง` : 'พร้อม'}`
+    detail.textContent = queueItemDetail(item, state, activityView)
     copy.append(name, detail)
 
     const status = document.createElement('div')
@@ -244,15 +377,24 @@ function renderQueue(state) {
     badge.className = `status-badge ${item.status}`
     badge.textContent = statusLabels[item.status] || item.status
     status.append(badge)
-    const actionButton = queueActionButton(item)
-    if (actionButton) status.append(actionButton)
+    const actionButtons = queueActionButtons(item)
+    if (actionButtons) status.append(actionButtons)
 
     row.append(thumb, copy, status)
     elements.activityFeed.append(row)
   }
 
-  elements.emptyState.hidden = state.queue.length > 0
-  elements.activityFeed.hidden = state.queue.length === 0
+  const empty = visibleItems.length === 0
+  elements.emptyState.hidden = !empty
+  elements.activityFeed.hidden = empty
+  elements.emptyStateTitle.textContent =
+    activityView === 'history' ? 'ยังไม่มีประวัติการอัปโหลด' : 'ไม่มีงานค้างในคิว'
+  elements.emptyStateCopy.textContent =
+    activityView === 'history'
+      ? 'ภาพที่ส่งสำเร็จหรือยกเลิกแล้วจะแสดงที่นี่'
+      : state.session.networkOnline
+        ? 'เมื่อ Export รูปใหม่ รายการจะปรากฏที่นี่อัตโนมัติ'
+        : 'คิวใหม่จะถูกเก็บไว้ในเครื่องจนกว่าอินเทอร์เน็ตจะกลับมา'
 }
 
 function render(state) {
@@ -339,7 +481,16 @@ elements.pairCode.addEventListener('click', async () => {
   }
 })
 elements.albumSelect.addEventListener('change', () =>
-  action(() => bridge.savePreferences({ albumId: elements.albumSelect.value || null }), elements.albumSelect)
+  action(async () => {
+    const state = await bridge.savePreferences({
+      albumId: elements.albumSelect.value || null,
+    })
+    const album = state.albums.find(
+      (candidate) => candidate.id === state.settings.albumId
+    )
+    if (album) showToast(`เลือกอัลบั้ม “${album.title}” แล้ว`)
+    return state
+  }, elements.albumSelect)
 )
 elements.refreshAlbumsButton.addEventListener('click', () =>
   action(() => bridge.refreshAlbums(), elements.refreshAlbumsButton)
@@ -363,6 +514,14 @@ elements.syncButton.addEventListener('click', () =>
     elements.syncButton
   )
 )
+elements.queueTab.addEventListener('click', () => {
+  setActivityView('queue')
+  if (currentState) renderQueue(currentState)
+})
+elements.historyTab.addEventListener('click', () => {
+  setActivityView('history')
+  if (currentState) renderQueue(currentState)
+})
 elements.disconnectButton.addEventListener('click', () => {
   if (!window.confirm('ยกเลิกการเชื่อมต่อคอมพิวเตอร์เครื่องนี้กับ Ciiya?')) return
   action(() => bridge.disconnect(), elements.disconnectButton)

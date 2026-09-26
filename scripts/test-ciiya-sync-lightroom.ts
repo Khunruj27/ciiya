@@ -32,7 +32,11 @@ async function bridgeTest(root: string) {
   const secret = await secretStore.loadOrCreate()
   assert.match(secret, /^[A-Za-z0-9_-]{43}$/)
   assert.equal(await secretStore.loadOrCreate(), secret)
-  assert.equal((await stat(secretPath)).mode & 0o777, 0o600)
+  const secretStat = await stat(secretPath)
+  assert.equal(secretStat.isFile(), true)
+  if (process.platform !== 'win32') {
+    assert.equal(secretStat.mode & 0o777, 0o600)
+  }
 
   const enqueued: CiiyaSyncLightroomEnqueueInput[] = []
   const bridge = new CiiyaSyncLightroomBridge({
@@ -125,7 +129,11 @@ async function pluginInstallerTest(root: string) {
   const config = await readFile(configPath, 'utf8')
   assert.match(config, /http:\/\/127\.0\.0\.1:51673/)
   assert.match(config, new RegExp(secret))
-  assert.equal((await stat(configPath)).mode & 0o777, 0o600)
+  const configStat = await stat(configPath)
+  assert.equal(configStat.isFile(), true)
+  if (process.platform !== 'win32') {
+    assert.equal(configStat.mode & 0o777, 0o600)
+  }
   assert.match(
     await readFile(path.join(status.pluginPath!, 'Info.lua'), 'utf8'),
     /LrExportServiceProvider/

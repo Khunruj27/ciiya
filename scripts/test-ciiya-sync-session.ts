@@ -104,7 +104,11 @@ async function telemetryStoreTest(root: string) {
 
   const serialized = await readFile(filePath, 'utf8')
   assert.doesNotMatch(serialized, /photo-secret|private-|ciiya_sync_|sourcePath|fileName/)
-  assert.equal((await stat(filePath)).mode & 0o777, 0o600)
+  const telemetryStat = await stat(filePath)
+  assert.equal(telemetryStat.isFile(), true)
+  if (process.platform !== 'win32') {
+    assert.equal(telemetryStat.mode & 0o777, 0o600)
+  }
 
   await store.stopSession('paused')
   snapshot = await store.snapshot()

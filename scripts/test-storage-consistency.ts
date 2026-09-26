@@ -226,6 +226,12 @@ assert.doesNotMatch(consistencySource, /select\([^)]*cover_path/)
 assert.doesNotMatch(consistencySource, /profiles'\)\.select\('avatar_path/)
 assert.match(consistencySource, /normalized\.includes\('\/profile\/'\)/)
 
+const auditSource = await readFile(
+  'scripts/audit-storage-consistency.ts',
+  'utf8'
+)
+assert.match(auditSource, /transport: WebSocket/)
+
 console.log('Phase 11 storage consistency and cleanup checks passed')
 }
 

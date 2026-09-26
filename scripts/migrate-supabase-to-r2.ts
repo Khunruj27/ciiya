@@ -3,6 +3,7 @@ import { config } from 'dotenv'
 config({ path: '.env.local' })
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import WebSocket from 'ws'
 import {
   buildPhotoStorageMigrationCompletion,
   copyPhotoStorageMigration,
@@ -142,6 +143,9 @@ function getSupabaseAdmin() {
 
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
+    realtime: {
+      transport: WebSocket as unknown as typeof globalThis.WebSocket,
+    },
   })
 }
 

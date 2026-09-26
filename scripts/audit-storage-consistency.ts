@@ -3,6 +3,7 @@ import { config } from 'dotenv'
 config({ path: '.env.local' })
 
 import { createClient } from '@supabase/supabase-js'
+import WebSocket from 'ws'
 import { scanTrackedStorageObjects } from '../src/lib/storage/consistency'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
@@ -20,6 +21,9 @@ function positiveInteger(value: string | undefined, fallback: number) {
 async function main() {
   const supabase = createClient(supabaseUrl!, serviceRoleKey!, {
     auth: { persistSession: false, autoRefreshToken: false },
+    realtime: {
+      transport: WebSocket as unknown as typeof globalThis.WebSocket,
+    },
   })
   const batchSize = Math.min(
     2000,

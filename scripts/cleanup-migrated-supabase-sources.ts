@@ -3,6 +3,7 @@ import { config } from 'dotenv'
 config({ path: '.env.local' })
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import WebSocket from 'ws'
 import {
   deleteVerifiedPhotoSources,
   getR2Config,
@@ -171,6 +172,9 @@ function getSupabaseAdmin() {
 
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
+    realtime: {
+      transport: WebSocket as unknown as typeof globalThis.WebSocket,
+    },
   })
 }
 
@@ -290,6 +294,73 @@ async function loadDryRunRows(
     .slice(0, options.limit)
 }
 
+async function loadRetentionInventory(
+  supabase: SupabaseClient,
+  options: CliOptions
+) {
+  const now = new Date().toISOString()
+  const countRows = async (params: {
+    status?: string
+    dueOnly?: boolean
+  }) => {
+    let query = supabase
+      .from('photos')
+      .select('id', { count: 'exact', head: true })
+      .eq('storage_provider', 'r2')
+      .eq('migration_status', 'completed')
+      .gt('migration_attempts', 0)
+
+    if (params.status) query = query.eq('source_cleanup_status', params.status)
+    if (params.dueOnly) query = query.lte('source_cleanup_after', now)
+    if (options.photoId) query = query.eq('id', options.photoId)
+
+    const { count, error } = await query
+    if (error) {
+      throw new Error(`Unable to count source-cleanup rows: ${error.message}`)
+    }
+    return count || 0
+  }
+
+  let earliestQuery = supabase
+    .from('photos')
+    .select('source_cleanup_after')
+    .eq('storage_provider', 'r2')
+    .eq('migration_status', 'completed')
+    .gt('migration_attempts', 0)
+    .in('source_cleanup_status', ['retained', 'failed'])
+    .not('source_cleanup_after', 'is', null)
+    .order('source_cleanup_after', { ascending: true })
+    .limit(1)
+
+  if (options.photoId) earliestQuery = earliestQuery.eq('id', options.photoId)
+
+  const [retained, deleting, completed, failed, dueNow, earliestResult] =
+    await Promise.all([
+      countRows({ status: 'retained' }),
+      countRows({ status: 'deleting' }),
+      countRows({ status: 'completed' }),
+      countRows({ status: 'failed' }),
+      countRows({ dueOnly: true }),
+      earliestQuery,
+    ])
+
+  if (earliestResult.error) {
+    throw new Error(
+      `Unable to inspect source-cleanup retention: ${earliestResult.error.message}`
+    )
+  }
+
+  return {
+    retained,
+    deleting,
+    completed,
+    failed,
+    dueNow,
+    earliestCleanupAfter:
+      earliestResult.data?.[0]?.source_cleanup_after || null,
+  }
+}
+
 async function claimRows(supabase: SupabaseClient, options: CliOptions) {
   const { data, error } = await supabase.rpc('claim_photo_source_cleanups', {
     p_limit: options.limit,
@@ -369,6 +440,9 @@ async function main() {
   const photos = options.apply
     ? await claimRows(supabase, options)
     : await loadDryRunRows(supabase, options)
+  const retention = options.apply
+    ? undefined
+    : await loadRetentionInventory(supabase, options)
 
   console.log(
     JSON.stringify({
@@ -377,6 +451,7 @@ async function main() {
       minimumAgeDays: options.minimumAgeDays,
       includeFailed: options.includeFailed,
       recoverStale: options.recoverStale,
+      ...(retention ? { retention } : {}),
       supabaseSourceDeletion: options.apply,
       r2Deletion: false,
     })

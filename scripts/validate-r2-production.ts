@@ -3,6 +3,7 @@ import { config } from 'dotenv'
 config({ path: '.env.local' })
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import WebSocket from 'ws'
 import {
   encodeObjectKey,
   getR2Config,
@@ -109,6 +110,9 @@ function getSupabaseAdmin() {
 
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
+    realtime: {
+      transport: WebSocket as unknown as typeof globalThis.WebSocket,
+    },
   })
 }
 
@@ -473,14 +477,18 @@ async function main() {
       if (options.expectedRollout === 'enabled') {
         const ownerId = photo.owner_id || photo.user_id || ''
         const canaryOwnerIds = getR2UploadCanaryOwnerIds()
+        const isFullRollout = canaryOwnerIds.length === 0
+        const ownerIsEnabled = Boolean(ownerId) && (
+          isFullRollout || canaryOwnerIds.includes(ownerId.toLowerCase())
+        )
         checks.push(
           check(
             'canary.owner-rollout',
-            ownerId && canaryOwnerIds.includes(ownerId.toLowerCase())
-              ? 'pass'
-              : 'fail',
-            ownerId && canaryOwnerIds.includes(ownerId.toLowerCase())
-              ? 'Selected photo belongs to an allowlisted R2 canary owner.'
+            ownerIsEnabled ? 'pass' : 'fail',
+            ownerIsEnabled
+              ? isFullRollout
+                ? 'Selected photo owner is enabled by the full R2 rollout.'
+                : 'Selected photo belongs to an allowlisted R2 canary owner.'
               : 'Selected photo owner is not present in R2_UPLOAD_CANARY_OWNER_IDS.'
           )
         )

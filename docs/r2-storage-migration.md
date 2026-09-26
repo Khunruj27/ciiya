@@ -1460,6 +1460,29 @@ source cleanup.
 - `.env.example` coverage: passed (74 referenced variables documented)
 - `git diff --check`: passed
 
-No remote migration, Production probe, database claim, Supabase object
-deletion, R2 object deletion, rollout-gate change, commit, or deployment was
-performed in this phase.
+### Production cleanup start — 2026-09-27
+
+Phase 15 was started with a non-destructive Production preflight. The cleanup
+and migration apply gates remained disabled throughout the run.
+
+- 12 Phase 13 photos are eligible after retention and all remain `retained`;
+- no migration is `copying`, `verifying`, or `failed`;
+- no Photo Worker job is pending or processing;
+- the first retained source becomes eligible at
+  `2026-10-22T04:25:34.663Z` (11:25 Asia/Bangkok);
+- the bounded cleanup dry-run selected zero rows because none has reached its
+  30-day retention timestamp;
+- the read-only consistency audit checked 238 objects: 238 healthy, zero
+  missing, zero mismatched, and zero open issues;
+- the selected Phase 13 canary passed database state, processing state,
+  Supabase/R2 size parity, public delivery, private original isolation,
+  signed download, active-job, and quota checks;
+- Node.js 20 maintenance CLIs now provide the existing `ws` transport to the
+  Supabase client, and the validator correctly accepts a selected owner during
+  an intentional full R2 rollout.
+
+This is a deliberate No-Go for source deletion until retention expires. No
+database claim, Supabase object deletion, R2 object deletion, or rollout-gate
+change was performed. On or after 2026-10-22, repeat the one-photo dry-run and
+review every reported source/R2 size before temporarily enabling the isolated
+apply gates.

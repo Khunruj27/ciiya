@@ -216,6 +216,7 @@ async function main() {
     'utf8'
   )
   assert.match(cliSource, /STORAGE_MIGRATION_APPLY_ENABLED/)
+  assert.match(cliSource, /transport: WebSocket/)
   assert.match(cliSource, /sourceDeletion: false/)
   assert.doesNotMatch(cliSource, /deleteObject\(|deleteObjects\(|\.remove\(/)
   assert.match(migrationSql, /for update skip locked/)

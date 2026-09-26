@@ -280,6 +280,8 @@ async function main() {
   )
   assert.match(cliSource, /p_limit: 0/)
   assert.match(cliSource, /destructiveActions: false/)
+  assert.match(cliSource, /canaryOwnerIds\.length === 0/)
+  assert.match(cliSource, /transport: WebSocket/)
   assert.doesNotMatch(cliSource, /\.update\(|\.insert\(|\.upsert\(/)
   assert.doesNotMatch(
     cliSource,

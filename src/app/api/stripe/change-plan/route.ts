@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
-import { stripe } from '@/lib/stripe'
+import { stripe, stripeConfig } from '@/lib/stripe'
+import { getStripePriceId } from '@/lib/stripe-config'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -45,7 +46,9 @@ export async function POST(req: NextRequest) {
 
     const { data: plan, error: planError } = await admin
       .from('plans')
-      .select('id, slug, name, price_thb, stripe_price_id, storage_limit_bytes')
+      .select(
+        'id, slug, name, price_thb, stripe_price_id, stripe_live_price_id, storage_limit_bytes'
+      )
       .eq('id', planId)
       .eq('is_active', true)
       .single()
@@ -54,9 +57,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Plan not found' }, { status: 404 })
     }
 
-    if (!plan.stripe_price_id) {
+    const stripePriceId = getStripePriceId(plan, stripeConfig.mode)
+
+    if (!stripePriceId) {
       return NextResponse.json(
-        { error: 'Free plan must be managed from billing portal.' },
+        {
+          error: `This plan is not configured for Stripe ${stripeConfig.mode} mode.`,
+        },
         { status: 400 }
       )
     }
@@ -82,6 +89,7 @@ export async function POST(req: NextRequest) {
       .from('subscriptions')
       .select('id, stripe_subscription_id')
       .eq('user_id', user.id)
+      .eq('stripe_mode', stripeConfig.mode)
       .eq('status', 'active')
       .not('stripe_subscription_id', 'is', null)
       .order('created_at', { ascending: false })
@@ -139,7 +147,7 @@ const updatedSubscription = await stripe.subscriptions.update(
     items: [
       {
         id: itemId,
-        price: String(plan.stripe_price_id),
+        price: stripePriceId,
       },
     ],
 
@@ -154,6 +162,7 @@ const updatedSubscription = await stripe.subscriptions.update(
     metadata: {
       user_id: user.id,
       plan_id: String(plan.id),
+      stripe_mode: stripeConfig.mode,
       pending_plan: isDowngrade ? plan.slug : '',
     },
   }
@@ -171,6 +180,7 @@ const updatedSubscription = await stripe.subscriptions.update(
       .from('subscriptions')
       .update({ status: 'canceled' })
       .eq('user_id', user.id)
+      .eq('stripe_mode', stripeConfig.mode)
       .eq('status', 'active')
       .neq('stripe_subscription_id', updatedSubscription.id)
 
@@ -184,6 +194,7 @@ const updatedSubscription = await stripe.subscriptions.update(
             ? updatedSubscription.customer
             : null,
         stripe_subscription_id: updatedSubscription.id,
+        stripe_mode: stripeConfig.mode,
         current_period_end: currentPeriodEndIso,
       },
       {

@@ -3,12 +3,14 @@ import Link from 'next/link'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import UpgradePlanList from '@/components/upgrade-plan-list'
 import { getServerDictionary } from '@/lib/i18n-server'
+import { getStripeMode } from '@/lib/stripe-config'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default async function PricingPage() {
   const supabase = await createServerSupabaseClient()
+  const stripeMode = getStripeMode()
 
   // Wave 1: independent reads run together — the session, the locale
   // dictionary, and the (user-agnostic) active plan list. Previously these ran
@@ -52,6 +54,7 @@ export default async function PricingPage() {
     )
   `)
       .eq('user_id', user.id)
+      .eq('stripe_mode', stripeMode)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(1)

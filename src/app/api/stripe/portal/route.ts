@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { stripe } from '@/lib/stripe'
+import { stripe, stripeConfig } from '@/lib/stripe'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 
 export async function POST() {
@@ -18,6 +18,7 @@ export async function POST() {
       .from('subscriptions')
       .select('stripe_customer_id,status')
       .eq('user_id', user.id)
+      .eq('stripe_mode', stripeConfig.mode)
       .maybeSingle()
 
     if (error) {

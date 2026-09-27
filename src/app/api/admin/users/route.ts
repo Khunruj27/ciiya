@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { getStripeMode } from '@/lib/stripe-config'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -106,6 +107,7 @@ function formatUserName(email?: string | null) {
 }
 
 export async function GET() {
+  const stripeMode = getStripeMode()
   try {
     const adminCheck = await requireAdmin()
 
@@ -169,6 +171,7 @@ export async function GET() {
         supabase
           .from('subscriptions')
           .select('user_id, status, plan_id, created_at, updated_at')
+          .eq('stripe_mode', stripeMode)
           .in('user_id', userIds),
       ])
 

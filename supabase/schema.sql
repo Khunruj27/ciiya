@@ -33,6 +33,7 @@ create table if not exists public.plans (
   max_albums integer default 9999,
   max_photos integer default 999999,
   stripe_price_id text,
+  stripe_live_price_id text,
   is_active boolean default true,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -42,6 +43,10 @@ drop trigger if exists trg_plans_updated_at on public.plans;
 create trigger trg_plans_updated_at
 before update on public.plans
 for each row execute procedure public.set_updated_at();
+
+create unique index if not exists idx_plans_unique_stripe_live_price_id
+on public.plans(stripe_live_price_id)
+where stripe_live_price_id is not null;
 
 -- =========================================================
 -- SUBSCRIPTIONS
@@ -53,6 +58,8 @@ create table if not exists public.subscriptions (
   plan_id uuid references public.plans(id),
   stripe_customer_id text,
   stripe_subscription_id text,
+  stripe_mode text not null default 'test'
+    check (stripe_mode in ('test', 'live')),
   status text default 'inactive',
   current_period_start timestamptz,
   current_period_end timestamptz,
@@ -63,6 +70,9 @@ create table if not exists public.subscriptions (
 
 create index if not exists idx_subscriptions_user
 on public.subscriptions(user_id);
+
+create index if not exists idx_subscriptions_user_mode_status
+on public.subscriptions(user_id, stripe_mode, status);
 
 alter table public.subscriptions
   drop constraint if exists subscriptions_stripe_subscription_id_key,

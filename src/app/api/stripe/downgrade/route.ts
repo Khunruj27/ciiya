@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { stripe, stripeConfig } from '@/lib/stripe'
+import { getStripePriceId } from '@/lib/stripe-config'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2026-05-27.dahlia',
-})
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,7 +26,9 @@ export async function POST(req: NextRequest) {
 
     const { data: targetPlan, error: planError } = await supabase
       .from('plans')
-      .select('id, name, price_thb, storage_limit_bytes, stripe_price_id')
+      .select(
+        'id, name, price_thb, storage_limit_bytes, stripe_price_id, stripe_live_price_id'
+      )
       .eq('id', targetPlanId)
       .eq('is_active', true)
       .single()
@@ -62,10 +61,13 @@ if (usedBytes > Number(targetPlan.storage_limit_bytes || 0)) {
   )
 }
 
+    const stripePriceId = getStripePriceId(targetPlan, stripeConfig.mode)
+
     const { data: subscription, error: subError } = await supabase
       .from('subscriptions')
       .select('id, stripe_subscription_id, stripe_customer_id, plan_id')
       .eq('user_id', user.id)
+      .eq('stripe_mode', stripeConfig.mode)
       .order('created_at', { ascending: false })
       .limit(1)
       .single()
@@ -75,7 +77,7 @@ if (usedBytes > Number(targetPlan.storage_limit_bytes || 0)) {
     }
 
     // Free plan: not touched yet Stripe first, change it in DB or do cancel_at_period_end later
-    if (!targetPlan.stripe_price_id || targetPlan.price_thb === 0) {
+    if (!stripePriceId || targetPlan.price_thb === 0) {
       await supabase
         .from('subscriptions')
         .update({
@@ -112,7 +114,7 @@ if (usedBytes > Number(targetPlan.storage_limit_bytes || 0)) {
       items: [
         {
           id: item.id,
-          price: targetPlan.stripe_price_id,
+          price: stripePriceId,
         },
       ],
       proration_behavior: 'none',
@@ -128,6 +130,7 @@ if (usedBytes > Number(targetPlan.storage_limit_bytes || 0)) {
       .update({
         plan_id: targetPlan.id,
         stripe_subscription_id: updated.id,
+        stripe_mode: stripeConfig.mode,
         status: updated.status,
         updated_at: new Date().toISOString(),
       })

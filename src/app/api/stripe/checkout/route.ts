@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
-import { stripe } from '@/lib/stripe'
+import { stripe, stripeConfig } from '@/lib/stripe'
+import {
+  getStripePriceId,
+  STRIPE_CHECKOUT_INTEGRATION_IDENTIFIER,
+} from '@/lib/stripe-config'
 
 export const runtime = 'nodejs'
 
@@ -28,7 +32,9 @@ export async function POST(req: NextRequest) {
 
     const { data: plan, error: planError } = await supabase
       .from('plans')
-      .select('*')
+      .select(
+        'id, slug, name, price_thb, storage_limit_bytes, stripe_price_id, stripe_live_price_id'
+      )
       .eq('id', planId)
       .eq('is_active', true)
       .single()
@@ -37,9 +43,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Plan not found' }, { status: 404 })
     }
 
-    if (!plan.stripe_price_id) {
+    const stripePriceId = getStripePriceId(plan, stripeConfig.mode)
+
+    if (!stripePriceId) {
       return NextResponse.json(
-        { error: 'This plan is not connected to Stripe yet' },
+        {
+          error: `This plan is not connected to Stripe ${stripeConfig.mode} mode yet`,
+        },
         { status: 400 }
       )
     }
@@ -48,6 +58,7 @@ export async function POST(req: NextRequest) {
   .from('subscriptions')
   .select('id')
   .eq('user_id', user.id)
+  .eq('stripe_mode', stripeConfig.mode)
   .eq('status', 'active')
   .maybeSingle()
 
@@ -71,6 +82,7 @@ if (activeSubscription) {
       .from('subscriptions')
       .select('stripe_customer_id')
       .eq('user_id', user.id)
+      .eq('stripe_mode', stripeConfig.mode)
       .not('stripe_customer_id', 'is', null)
       .limit(1)
       .maybeSingle()
@@ -104,6 +116,7 @@ if (activeSubscription) {
     .from('subscriptions')
     .select('id')
     .eq('user_id', user.id)
+    .eq('stripe_mode', stripeConfig.mode)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -119,6 +132,7 @@ if (activeSubscription) {
         await supabase.from('subscriptions').insert({
           user_id: user.id,
           stripe_customer_id: customerId,
+          stripe_mode: stripeConfig.mode,
           status: 'inactive',
         })
       ).error
@@ -133,12 +147,13 @@ if (activeSubscription) {
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
+      integration_identifier: STRIPE_CHECKOUT_INTEGRATION_IDENTIFIER,
 
       ...(customerId ? { customer: customerId } : {}),
 
       line_items: [
         {
-          price: String(plan.stripe_price_id),
+          price: stripePriceId,
           quantity: 1,
         },
       ],
@@ -149,12 +164,14 @@ if (activeSubscription) {
       metadata: {
         user_id: user.id,
         plan_id: String(plan.id),
+        stripe_mode: stripeConfig.mode,
       },
 
       subscription_data: {
         metadata: {
           user_id: user.id,
           plan_id: String(plan.id),
+          stripe_mode: stripeConfig.mode,
         },
       },
     })

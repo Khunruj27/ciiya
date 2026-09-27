@@ -61,6 +61,8 @@
     "storage:audit": "tsx scripts/audit-storage-consistency.ts",
     "storage:validate:r2": "tsx scripts/validate-r2-production.ts",
     "storage:cleanup:supabase-sources": "tsx scripts/cleanup-migrated-supabase-sources.ts",
+    "stripe:preflight:live": "node --import tsx scripts/stripe-live-preflight.ts",
+    "test:stripe": "node --import tsx scripts/test-stripe-live-readiness.ts",
     "billing:cron": "tsx scripts/billing-cron.ts",
     "health:check": "tsx scripts/system-health-check.ts",
     "retry:failed": "tsx scripts/retry-failed-jobs.ts",
@@ -100,7 +102,7 @@
     "react-virtualized-auto-sizer": "^1.0.26",
     "react-window": "^1.8.11",
     "sharp": "^0.35.4",
-    "stripe": "^22.0.2",
+    "stripe": "^22.6.2",
     "tsx": "^4.21.0",
     "ws": "^8.21.0"
   },

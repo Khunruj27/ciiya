@@ -1,3 +1,5 @@
 import Stripe from 'stripe'
+import { getStripeRuntimeConfig } from '@/lib/stripe-config'
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+export const stripeConfig = getStripeRuntimeConfig()
+export const stripe = new Stripe(stripeConfig.secretKey)

@@ -20,15 +20,16 @@ if (!sk) {
   process.exit(1)
 }
 
-const isLive = sk.startsWith('sk_live_')
-const isTest = sk.startsWith('sk_test_')
+// Accept both standard (sk_) and restricted (rk_) keys.
+const isLive = sk.startsWith('sk_live_') || sk.startsWith('rk_live_')
+const isTest = sk.startsWith('sk_test_') || sk.startsWith('rk_test_')
 
 console.log(`Stripe mode: ${isLive ? '🔴 LIVE' : isTest ? '🧪 TEST' : '(unknown)'}`)
 
 if (!isLive && process.env.ALLOW_TEST !== '1') {
   console.error(
-    '✗ Key is not sk_live_. Refusing so you do not accidentally create test prices.\n' +
-      '  If that is intentional, re-run with ALLOW_TEST=1.'
+    '✗ Key is not a live key (sk_live_ / rk_live_). Refusing so you do not\n' +
+      '  accidentally create test prices. If that is intentional, re-run with ALLOW_TEST=1.'
   )
   process.exit(1)
 }

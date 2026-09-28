@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { stripe, stripeConfig } from '@/lib/stripe'
+import { getStripeSiteUrl } from '@/lib/stripe-config'
+import { rateLimit, tooManyRequests } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     const supabase = await createServerSupabaseClient()
 
@@ -17,7 +19,16 @@ export async function POST() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { data: subscription } = await supabase
+    const rate = await rateLimit(request, {
+      bucket: 'stripe-billing-portal',
+      identifier: user.id,
+      limit: 20,
+      windowSeconds: 60 * 60,
+    })
+
+    if (!rate.allowed) return tooManyRequests(rate)
+
+    const { data: subscription, error: subscriptionError } = await supabase
       .from('subscriptions')
       .select('stripe_customer_id')
       .eq('user_id', user.id)
@@ -27,6 +38,12 @@ export async function POST() {
       .limit(1)
       .maybeSingle()
 
+    if (subscriptionError) {
+      throw new Error(
+        `Read Stripe customer mapping failed: ${subscriptionError.message}`
+      )
+    }
+
     if (!subscription?.stripe_customer_id) {
       return NextResponse.json(
         { error: 'No Stripe customer found' },
@@ -34,8 +51,7 @@ export async function POST() {
       )
     }
 
-    const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const siteUrl = getStripeSiteUrl()
 
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: subscription.stripe_customer_id,
@@ -48,10 +64,7 @@ export async function POST() {
 
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Billing portal failed',
+        error: 'Unable to open billing management. Please try again.',
       },
       { status: 500 }
     )

@@ -7,6 +7,7 @@ import { useI18n } from '@/components/i18n-provider'
 
 type Plan = {
   id: string
+  slug: string
   name: string
   price_thb: number
   storage_limit_bytes: number
@@ -14,7 +15,6 @@ type Plan = {
 }
 
 type CurrentSubscription = {
-  plan_id: string | null
   storage_limit_bytes?: number
   stripe_subscription_id?: string | null
 }
@@ -22,12 +22,14 @@ type CurrentSubscription = {
 type Props = {
   plans: Plan[]
   currentSubscription: CurrentSubscription | null
+  currentPlanSlug: string
   totalBytes?: number
 }
 
 export default function UpgradePlanList({
   plans,
   currentSubscription,
+  currentPlanSlug,
   totalBytes = 0,
 }: Props) {
   const { t } = useI18n()
@@ -55,46 +57,47 @@ export default function UpgradePlanList({
   }, [plans])
 
   async function handleCheckout(planId: string) {
-  try {
-    setLoadingPlanId(planId)
+    try {
+      setLoadingPlanId(planId)
 
-    const endpoint =
-      currentSubscription?.stripe_subscription_id
-        ? '/api/stripe/change-plan'
+      const hasStripeSubscription = Boolean(
+        currentSubscription?.stripe_subscription_id
+      )
+      const endpoint = hasStripeSubscription
+        ? '/api/stripe/billing-portal'
         : '/api/stripe/checkout'
 
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        planId,
-      }),
-    })
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        ...(hasStripeSubscription
+          ? {}
+          : {
+              body: JSON.stringify({
+                planId,
+              }),
+            }),
+      })
 
-    const data = await res.json().catch(() => null)
+      const data = await res.json().catch(() => null)
 
-    if (!res.ok) {
-      throw new Error(data?.error || t.pricing.checkoutFailed)
+      if (!res.ok) {
+        throw new Error(data?.error || t.pricing.checkoutFailed)
+      }
+
+      if (!data?.url) {
+        throw new Error(t.pricing.missingCheckoutUrl)
+      }
+
+      window.location.assign(data.url)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : t.pricing.checkoutError)
+    } finally {
+      setLoadingPlanId(null)
     }
-
-    if (endpoint === '/api/stripe/change-plan') {
-      window.location.reload()
-      return
-    }
-
-    if (!data?.url) {
-      throw new Error(t.pricing.missingCheckoutUrl)
-    }
-
-    window.location.assign(data.url)
-  } catch (err) {
-    alert(err instanceof Error ? err.message : t.pricing.checkoutError)
-  } finally {
-    setLoadingPlanId(null)
   }
-}
 
   if (!plans || plans.length === 0) {
     return (
@@ -118,7 +121,7 @@ export default function UpgradePlanList({
     <div className="space-y-2.5">
       {isSuccess ? (
         <div className="rounded-panel border border-green-200 bg-green-50 px-4 py-3 text-xs font-bold leading-5 text-green-700">
-          Payment successful. Your plan has been updated
+          Checkout returned successfully. Your plan updates after Stripe confirms payment
         </div>
       ) : null}
 
@@ -129,7 +132,7 @@ export default function UpgradePlanList({
       ) : null}
 
       {plans.map((plan) => {
-        const isCurrent = currentSubscription?.plan_id === plan.id
+        const isCurrent = currentPlanSlug === plan.slug
         const isPopular = plan.id === mostPopularPlanId
 
         const isDowngrade = Boolean(

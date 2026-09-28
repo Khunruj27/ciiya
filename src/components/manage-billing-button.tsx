@@ -9,7 +9,7 @@ export default function ManageBillingButton() {
     try {
       setLoading(true)
 
-      const res = await fetch('/api/stripe/portal', {
+      const res = await fetch('/api/stripe/billing-portal', {
         method: 'POST',
       })
 

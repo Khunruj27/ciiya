@@ -1,152 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
-import { stripe, stripeConfig } from '@/lib/stripe'
-import { getStripePriceId } from '@/lib/stripe-config'
+import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export async function POST(req: NextRequest) {
-  try {
-    const { targetPlanId } = await req.json()
-
-    if (!targetPlanId) {
-      return NextResponse.json({ error: 'Missing targetPlanId' }, { status: 400 })
-    }
-
-    const supabase = await createServerSupabaseClient()
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: targetPlan, error: planError } = await supabase
-      .from('plans')
-      .select(
-        'id, name, price_thb, storage_limit_bytes, stripe_price_id, stripe_live_price_id'
-      )
-      .eq('id', targetPlanId)
-      .eq('is_active', true)
-      .single()
-
-    if (planError || !targetPlan) {
-      return NextResponse.json({ error: 'Target plan not found' }, { status: 404 })
-    }
-
-    const { data: usage } = await supabase
-  .from('user_storage_usage')
-  .select('storage_used_bytes, used_bytes')
-  .eq('user_id', user.id)
-  .maybeSingle()
-
-const usedBytes = Number(
-  usage?.storage_used_bytes ??
-  usage?.used_bytes ??
-  0
-)
-
-if (usedBytes > Number(targetPlan.storage_limit_bytes || 0)) {
+/**
+ * Retired: the legacy Free branch changed the database without canceling the
+ * Stripe subscription. Cancellation and downgrades now belong to the Stripe
+ * Customer Portal so a customer can never be shown as Free while still billed.
+ */
+export async function POST() {
   return NextResponse.json(
     {
       error:
-        'Storage usage exceeds target plan capacity.',
+        'Direct downgrades are retired. Open billing management to change or cancel your subscription.',
     },
-    {
-      status: 400,
-    }
+    { status: 410 }
   )
-}
-
-    const stripePriceId = getStripePriceId(targetPlan, stripeConfig.mode)
-
-    const { data: subscription, error: subError } = await supabase
-      .from('subscriptions')
-      .select('id, stripe_subscription_id, stripe_customer_id, plan_id')
-      .eq('user_id', user.id)
-      .eq('stripe_mode', stripeConfig.mode)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
-
-    if (subError || !subscription) {
-      return NextResponse.json({ error: 'Subscription not found' }, { status: 404 })
-    }
-
-    // Free plan: not touched yet Stripe first, change it in DB or do cancel_at_period_end later
-    if (!stripePriceId || targetPlan.price_thb === 0) {
-      await supabase
-        .from('subscriptions')
-        .update({
-          plan_id: targetPlan.id,
-          status: 'active',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', subscription.id)
-
-      return NextResponse.json({
-        success: true,
-        message: 'Downgraded to free plan',
-      })
-    }
-
-    if (!subscription.stripe_subscription_id) {
-      return NextResponse.json(
-        { error: 'Missing stripe_subscription_id' },
-        { status: 400 }
-      )
-    }
-
-    const stripeSub = await stripe.subscriptions.retrieve(
-      subscription.stripe_subscription_id
-    )
-
-    const item = stripeSub.items.data[0]
-
-    if (!item) {
-      return NextResponse.json({ error: 'Subscription item not found' }, { status: 400 })
-    }
-
-    const updated = await stripe.subscriptions.update(stripeSub.id, {
-      items: [
-        {
-          id: item.id,
-          price: stripePriceId,
-        },
-      ],
-      proration_behavior: 'none',
-      metadata: {
-        app_user_id: user.id,
-        target_plan_id: targetPlan.id,
-        change_type: 'downgrade',
-      },
-    })
-
-    await supabase
-      .from('subscriptions')
-      .update({
-        plan_id: targetPlan.id,
-        stripe_subscription_id: updated.id,
-        stripe_mode: stripeConfig.mode,
-        status: updated.status,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', subscription.id)
-
-    return NextResponse.json({
-      success: true,
-      subscriptionId: updated.id,
-      plan: targetPlan.name,
-    })
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : 'Downgrade failed',
-      },
-      { status: 500 }
-    )
-  }
 }

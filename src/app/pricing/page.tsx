@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase-server'
 import UpgradePlanList from '@/components/upgrade-plan-list'
 import { getServerDictionary } from '@/lib/i18n-server'
 import { getStripeMode } from '@/lib/stripe-config'
+import { STRIPE_MANAGED_SUBSCRIPTION_STATUSES } from '@/lib/stripe-billing'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -46,16 +47,10 @@ export default async function PricingPage() {
       .maybeSingle(),
     supabase
       .from('subscriptions')
-      .select(`
-    plan_id,
-    stripe_subscription_id,
-    plan:plans (
-      storage_limit_bytes
-    )
-  `)
+      .select('stripe_subscription_id')
       .eq('user_id', user.id)
       .eq('stripe_mode', stripeMode)
-      .eq('status', 'active')
+      .in('status', [...STRIPE_MANAGED_SUBSCRIPTION_STATUSES])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
@@ -63,17 +58,12 @@ export default async function PricingPage() {
 
   if (storageUsageError) throw new Error(storageUsageError.message)
 
-const activePlan = Array.isArray(activeSubscription?.plan)
-  ? activeSubscription?.plan[0]
-  : activeSubscription?.plan
-
-const currentSubscription = activeSubscription
-  ? {
-      plan_id: activeSubscription.plan_id,
-      stripe_subscription_id: activeSubscription.stripe_subscription_id,
-      storage_limit_bytes: Number(activePlan?.storage_limit_bytes || 0),
-    }
-  : null
+  const currentSubscription = activeSubscription
+    ? {
+        stripe_subscription_id: activeSubscription.stripe_subscription_id,
+        storage_limit_bytes: Number(storageUsage?.storage_limit_bytes || 0),
+      }
+    : null
 
   const totalBytes = Number(
     storageUsage?.storage_used_bytes ?? storageUsage?.used_bytes ?? 0
@@ -123,6 +113,7 @@ const currentSubscription = activeSubscription
             <UpgradePlanList
               plans={plans}
               currentSubscription={currentSubscription}
+              currentPlanSlug={storageUsage?.current_plan || 'free'}
               totalBytes={totalBytes}
             />
           ) : (

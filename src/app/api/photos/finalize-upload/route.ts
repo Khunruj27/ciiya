@@ -1147,7 +1147,7 @@ if (duplicateRepairUpdateError) {
 
     await safeRecalculateStorage(supabaseAdmin, ownerId)
 
-const storagePlan = await getUserStoragePlan(ownerId)
+const storagePlan = await getUserStoragePlan(ownerId, supabaseAdmin)
 
 const currentUsed = Number(storagePlan.usedBytes)
 const currentLimit = Number(storagePlan.storageLimitBytes)

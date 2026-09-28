@@ -64,6 +64,11 @@ create table if not exists public.subscriptions (
   current_period_start timestamptz,
   current_period_end timestamptz,
   cancel_at_period_end boolean default false,
+  stripe_state_event_created_at timestamptz,
+  stripe_state_event_id text,
+  entitlement_plan_id uuid references public.plans(id) on delete restrict,
+  entitlement_event_created_at timestamptz,
+  entitlement_event_id text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -85,6 +90,828 @@ before update on public.subscriptions
 for each row execute procedure public.set_updated_at();
 
 -- =========================================================
+-- PRIVATE STRIPE WEBHOOK LEDGER
+-- =========================================================
+
+create table if not exists public.stripe_webhook_events (
+  event_id text primary key,
+  event_type text not null,
+  livemode boolean not null,
+  status text not null default 'processing',
+  attempt_count integer not null default 1,
+  processing_started_at timestamptz not null default now(),
+  completed_at timestamptz,
+  failed_at timestamptz,
+  last_error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint stripe_webhook_events_event_id_check
+    check (char_length(event_id) between 1 and 255),
+  constraint stripe_webhook_events_event_type_check
+    check (char_length(event_type) between 1 and 255),
+  constraint stripe_webhook_events_status_check
+    check (status in ('processing', 'completed', 'failed')),
+  constraint stripe_webhook_events_attempt_count_check
+    check (attempt_count > 0)
+);
+
+create index if not exists idx_stripe_webhook_events_retry
+on public.stripe_webhook_events(status, processing_started_at)
+where status in ('processing', 'failed');
+
+alter table public.stripe_webhook_events enable row level security;
+
+revoke all on table public.stripe_webhook_events
+from public, anon, authenticated;
+grant all privileges on table public.stripe_webhook_events
+to service_role;
+
+create or replace function public.claim_stripe_webhook_event(
+  p_event_id text,
+  p_event_type text,
+  p_livemode boolean,
+  p_stale_after interval default interval '10 minutes'
+)
+returns table (
+  claimed boolean,
+  event_status text,
+  attempt_count integer
+)
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $function$
+declare
+  v_attempt_count integer;
+  v_event_type text;
+  v_livemode boolean;
+  v_status text;
+begin
+  if p_event_id is null
+    or char_length(p_event_id) not between 1 and 255
+    or p_event_type is null
+    or char_length(p_event_type) not between 1 and 255
+    or p_livemode is null
+  then
+    raise exception using
+      errcode = '22023',
+      message = 'INVALID_STRIPE_WEBHOOK_EVENT';
+  end if;
+
+  if p_stale_after is null or p_stale_after <= interval '0 seconds' then
+    raise exception using
+      errcode = '22023',
+      message = 'INVALID_STRIPE_WEBHOOK_STALE_AFTER';
+  end if;
+
+  insert into public.stripe_webhook_events as e (
+    event_id,
+    event_type,
+    livemode,
+    status,
+    attempt_count,
+    processing_started_at,
+    completed_at,
+    failed_at,
+    last_error,
+    created_at,
+    updated_at
+  )
+  values (
+    p_event_id,
+    p_event_type,
+    p_livemode,
+    'processing',
+    1,
+    now(),
+    null,
+    null,
+    null,
+    now(),
+    now()
+  )
+  on conflict (event_id) do nothing
+  returning e.attempt_count into v_attempt_count;
+
+  if found then
+    return query select true, 'processing'::text, v_attempt_count;
+    return;
+  end if;
+
+  update public.stripe_webhook_events as e
+  set
+    status = 'processing',
+    attempt_count = e.attempt_count + 1,
+    processing_started_at = now(),
+    completed_at = null,
+    failed_at = null,
+    last_error = null,
+    updated_at = now()
+  where e.event_id = p_event_id
+    and e.event_type = p_event_type
+    and e.livemode = p_livemode
+    and (
+      e.status = 'failed'
+      or (
+        e.status = 'processing'
+        and e.processing_started_at <= now() - p_stale_after
+      )
+    )
+  returning e.attempt_count into v_attempt_count;
+
+  if found then
+    return query select true, 'processing'::text, v_attempt_count;
+    return;
+  end if;
+
+  select e.event_type, e.livemode, e.status, e.attempt_count
+  into v_event_type, v_livemode, v_status, v_attempt_count
+  from public.stripe_webhook_events as e
+  where e.event_id = p_event_id;
+
+  if not found then
+    raise exception using
+      errcode = 'P0001',
+      message = 'STRIPE_WEBHOOK_EVENT_NOT_FOUND';
+  end if;
+
+  if v_event_type is distinct from p_event_type
+    or v_livemode is distinct from p_livemode
+  then
+    raise exception using
+      errcode = 'P0001',
+      message = 'STRIPE_WEBHOOK_EVENT_MISMATCH';
+  end if;
+
+  return query select false, v_status, v_attempt_count;
+end;
+$function$;
+
+create or replace function public.complete_stripe_webhook_event(
+  p_event_id text,
+  p_attempt_count integer
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $function$
+declare
+  v_row_count bigint;
+begin
+  update public.stripe_webhook_events as e
+  set
+    status = 'completed',
+    completed_at = now(),
+    failed_at = null,
+    last_error = null,
+    updated_at = now()
+  where e.event_id = p_event_id
+    and e.status = 'processing'
+    and e.attempt_count = p_attempt_count;
+
+  get diagnostics v_row_count = row_count;
+  return v_row_count > 0;
+end;
+$function$;
+
+create or replace function public.fail_stripe_webhook_event(
+  p_event_id text,
+  p_attempt_count integer,
+  p_error text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $function$
+declare
+  v_row_count bigint;
+begin
+  update public.stripe_webhook_events as e
+  set
+    status = 'failed',
+    completed_at = null,
+    failed_at = now(),
+    last_error = left(coalesce(p_error, 'Unknown webhook error'), 4000),
+    updated_at = now()
+  where e.event_id = p_event_id
+    and e.status = 'processing'
+    and e.attempt_count = p_attempt_count;
+
+  get diagnostics v_row_count = row_count;
+  return v_row_count > 0;
+end;
+$function$;
+
+revoke all on function public.claim_stripe_webhook_event(
+  text,
+  text,
+  boolean,
+  interval
+) from public, anon, authenticated;
+revoke all on function public.complete_stripe_webhook_event(text, integer)
+from public, anon, authenticated;
+revoke all on function public.fail_stripe_webhook_event(text, integer, text)
+from public, anon, authenticated;
+
+grant execute on function public.claim_stripe_webhook_event(
+  text,
+  text,
+  boolean,
+  interval
+) to service_role;
+grant execute on function public.complete_stripe_webhook_event(text, integer)
+to service_role;
+grant execute on function public.fail_stripe_webhook_event(text, integer, text)
+to service_role;
+
+-- =========================================================
+-- PRIVATE STRIPE WEBHOOK ORIGIN VERIFICATION
+-- =========================================================
+
+create table if not exists public.stripe_webhook_origin_verifications (
+  config_fingerprint text primary key,
+  stripe_account_id text not null,
+  webhook_endpoint text not null,
+  event_id text not null,
+  event_type text not null,
+  event_created_at timestamptz not null,
+  verified_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint stripe_webhook_origin_fingerprint_check
+    check (config_fingerprint ~ '^[a-f0-9]{64}$'),
+  constraint stripe_webhook_origin_account_check
+    check (stripe_account_id ~ '^acct_[A-Za-z0-9]+$'),
+  constraint stripe_webhook_origin_endpoint_check
+    check (
+      char_length(webhook_endpoint) between 1 and 2048
+      and webhook_endpoint ~ '^https://'
+    ),
+  constraint stripe_webhook_origin_event_id_check
+    check (char_length(event_id) between 1 and 255),
+  constraint stripe_webhook_origin_event_type_check
+    check (
+      event_type in (
+        'checkout.session.completed',
+        'checkout.session.async_payment_succeeded',
+        'invoice.paid'
+      )
+    )
+);
+
+create unique index if not exists idx_stripe_webhook_origin_event
+on public.stripe_webhook_origin_verifications(event_id);
+
+alter table public.stripe_webhook_origin_verifications enable row level security;
+
+revoke all on table public.stripe_webhook_origin_verifications
+from public, anon, authenticated;
+grant all privileges on table public.stripe_webhook_origin_verifications
+to service_role;
+
+create or replace function public.complete_stripe_webhook_event_with_origin_verification(
+  p_event_id text,
+  p_attempt_count integer,
+  p_config_fingerprint text,
+  p_stripe_account_id text,
+  p_webhook_endpoint text,
+  p_event_type text,
+  p_event_created_at timestamptz
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $function$
+declare
+  v_existing_account_id text;
+  v_existing_endpoint text;
+  v_row_count bigint;
+begin
+  if p_event_id is null
+    or char_length(p_event_id) not between 1 and 255
+    or p_attempt_count is null
+    or p_attempt_count <= 0
+    or p_config_fingerprint is null
+    or p_config_fingerprint !~ '^[a-f0-9]{64}$'
+    or p_stripe_account_id is null
+    or p_stripe_account_id !~ '^acct_[A-Za-z0-9]+$'
+    or p_webhook_endpoint is null
+    or char_length(p_webhook_endpoint) not between 1 and 2048
+    or p_webhook_endpoint !~ '^https://'
+    or p_event_type not in (
+      'checkout.session.completed',
+      'checkout.session.async_payment_succeeded',
+      'invoice.paid'
+    )
+    or p_event_created_at is null
+    or p_event_created_at > now() + interval '5 minutes'
+  then
+    raise exception using
+      errcode = '22023',
+      message = 'INVALID_STRIPE_WEBHOOK_ORIGIN_VERIFICATION';
+  end if;
+
+  perform pg_advisory_xact_lock(
+    hashtextextended('stripe-webhook-origin:' || p_config_fingerprint, 0)
+  );
+
+  select v.stripe_account_id, v.webhook_endpoint
+  into v_existing_account_id, v_existing_endpoint
+  from public.stripe_webhook_origin_verifications as v
+  where v.config_fingerprint = p_config_fingerprint
+  for update;
+
+  if found
+    and (
+      v_existing_account_id is distinct from p_stripe_account_id
+      or v_existing_endpoint is distinct from p_webhook_endpoint
+    )
+  then
+    raise exception using
+      errcode = '23514',
+      message = 'STRIPE_WEBHOOK_ORIGIN_CONFIG_MISMATCH';
+  end if;
+
+  update public.stripe_webhook_events as e
+  set
+    status = 'completed',
+    completed_at = now(),
+    failed_at = null,
+    last_error = null,
+    updated_at = now()
+  where e.event_id = p_event_id
+    and e.event_type = p_event_type
+    and e.livemode is true
+    and e.status = 'processing'
+    and e.attempt_count = p_attempt_count;
+
+  get diagnostics v_row_count = row_count;
+
+  if v_row_count = 0 then
+    return false;
+  end if;
+
+  insert into public.stripe_webhook_origin_verifications as v (
+    config_fingerprint,
+    stripe_account_id,
+    webhook_endpoint,
+    event_id,
+    event_type,
+    event_created_at,
+    verified_at,
+    created_at,
+    updated_at
+  ) values (
+    p_config_fingerprint,
+    p_stripe_account_id,
+    p_webhook_endpoint,
+    p_event_id,
+    p_event_type,
+    p_event_created_at,
+    now(),
+    now(),
+    now()
+  )
+  on conflict (config_fingerprint) do update
+  set event_id = excluded.event_id,
+      event_type = excluded.event_type,
+      event_created_at = excluded.event_created_at,
+      verified_at = now(),
+      updated_at = now()
+  where excluded.event_created_at >= v.event_created_at;
+
+  return true;
+end;
+$function$;
+
+revoke all on function public.complete_stripe_webhook_event_with_origin_verification(
+  text,
+  integer,
+  text,
+  text,
+  text,
+  text,
+  timestamptz
+) from public, anon, authenticated;
+
+grant execute on function public.complete_stripe_webhook_event_with_origin_verification(
+  text,
+  integer,
+  text,
+  text,
+  text,
+  text,
+  timestamptz
+) to service_role;
+
+-- =========================================================
+-- PRIVATE STRIPE CHECKOUT LOCK
+-- =========================================================
+
+create table if not exists public.stripe_checkout_attempts (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  stripe_mode text not null check (stripe_mode in ('test', 'live')),
+  plan_id uuid not null references public.plans(id),
+  attempt_token uuid not null default gen_random_uuid(),
+  status text not null default 'processing'
+    check (status in ('processing', 'open', 'completed', 'failed')),
+  stripe_checkout_session_id text,
+  processing_started_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, stripe_mode)
+);
+
+create unique index if not exists idx_stripe_checkout_attempt_session
+on public.stripe_checkout_attempts(stripe_checkout_session_id)
+where stripe_checkout_session_id is not null;
+
+alter table public.stripe_checkout_attempts enable row level security;
+
+revoke all on table public.stripe_checkout_attempts
+from public, anon, authenticated;
+grant all privileges on table public.stripe_checkout_attempts
+to service_role;
+
+create or replace function public.claim_stripe_checkout_attempt(
+  p_user_id uuid,
+  p_stripe_mode text,
+  p_plan_id uuid,
+  p_expires_at timestamptz,
+  p_stale_after interval default interval '10 minutes'
+)
+returns table (
+  claimed boolean,
+  attempt_token uuid,
+  attempt_status text,
+  existing_plan_id uuid,
+  stripe_checkout_session_id text,
+  expires_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $function$
+declare
+  v_token uuid;
+  v_status text;
+  v_plan_id uuid;
+  v_session_id text;
+  v_expires_at timestamptz;
+begin
+  if p_user_id is null
+    or p_plan_id is null
+    or p_stripe_mode not in ('test', 'live')
+    or p_expires_at is null
+    or p_expires_at <= now() + interval '30 minutes'
+    or p_expires_at > now() + interval '24 hours'
+    or p_stale_after is null
+    or p_stale_after <= interval '0 seconds'
+  then
+    raise exception using
+      errcode = '22023',
+      message = 'INVALID_STRIPE_CHECKOUT_ATTEMPT';
+  end if;
+
+  insert into public.stripe_checkout_attempts as a (
+    user_id,
+    stripe_mode,
+    plan_id,
+    attempt_token,
+    status,
+    processing_started_at,
+    expires_at,
+    created_at,
+    updated_at
+  )
+  values (
+    p_user_id,
+    p_stripe_mode,
+    p_plan_id,
+    gen_random_uuid(),
+    'processing',
+    now(),
+    p_expires_at,
+    now(),
+    now()
+  )
+  on conflict (user_id, stripe_mode) do nothing
+  returning a.attempt_token, a.expires_at into v_token, v_expires_at;
+
+  if found then
+    return query
+      select true, v_token, 'processing'::text, p_plan_id, null::text,
+        v_expires_at;
+    return;
+  end if;
+
+  -- A failed attempt can start over with a new immutable request fingerprint.
+  -- Open Sessions are never replaced here, even if the database expiry passed:
+  -- the application must retrieve and reconcile the exact Stripe Session first.
+  update public.stripe_checkout_attempts as a
+  set
+    plan_id = p_plan_id,
+    attempt_token = gen_random_uuid(),
+    status = 'processing',
+    stripe_checkout_session_id = null,
+    processing_started_at = now(),
+    expires_at = p_expires_at,
+    updated_at = now()
+  where a.user_id = p_user_id
+    and a.stripe_mode = p_stripe_mode
+    and a.status = 'failed'
+  returning a.attempt_token, a.expires_at into v_token, v_expires_at;
+
+  if found then
+    return query
+      select true, v_token, 'processing'::text, p_plan_id, null::text,
+        v_expires_at;
+    return;
+  end if;
+
+  -- A processing request can be safely replaced after its persisted Stripe
+  -- expiry. This bounds different-plan locks without guessing whether an
+  -- interrupted network request reached Stripe.
+  update public.stripe_checkout_attempts as a
+  set
+    plan_id = p_plan_id,
+    attempt_token = gen_random_uuid(),
+    status = 'processing',
+    stripe_checkout_session_id = null,
+    processing_started_at = now(),
+    expires_at = p_expires_at,
+    updated_at = now()
+  where a.user_id = p_user_id
+    and a.stripe_mode = p_stripe_mode
+    and a.status = 'processing'
+    and a.expires_at <= now()
+  returning a.attempt_token, a.expires_at into v_token, v_expires_at;
+
+  if found then
+    return query
+      select true, v_token, 'processing'::text, p_plan_id, null::text,
+        v_expires_at;
+    return;
+  end if;
+
+  update public.stripe_checkout_attempts as a
+  set
+    processing_started_at = now(),
+    updated_at = now()
+  where a.user_id = p_user_id
+    and a.stripe_mode = p_stripe_mode
+    and a.plan_id = p_plan_id
+    and a.status = 'processing'
+    and a.expires_at > now()
+    and a.processing_started_at <= now() - p_stale_after
+  returning a.attempt_token, a.expires_at into v_token, v_expires_at;
+
+  if found then
+    return query
+      select true, v_token, 'processing'::text, p_plan_id, null::text,
+        v_expires_at;
+    return;
+  end if;
+
+  select
+    a.attempt_token,
+    a.status,
+    a.plan_id,
+    a.stripe_checkout_session_id,
+    a.expires_at
+  into v_token, v_status, v_plan_id, v_session_id, v_expires_at
+  from public.stripe_checkout_attempts as a
+  where a.user_id = p_user_id
+    and a.stripe_mode = p_stripe_mode;
+
+  if not found then
+    raise exception using
+      errcode = 'P0001',
+      message = 'STRIPE_CHECKOUT_ATTEMPT_NOT_FOUND';
+  end if;
+
+  return query
+    select false, v_token, v_status, v_plan_id, v_session_id, v_expires_at;
+end;
+$function$;
+
+create or replace function public.open_stripe_checkout_attempt(
+  p_user_id uuid,
+  p_stripe_mode text,
+  p_attempt_token uuid,
+  p_session_id text,
+  p_expires_at timestamptz
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $function$
+declare
+  v_row_count bigint;
+begin
+  if p_session_id is null
+    or char_length(p_session_id) not between 1 and 255
+    or p_expires_at is null
+    or p_expires_at <= now()
+  then
+    raise exception using
+      errcode = '22023',
+      message = 'INVALID_STRIPE_CHECKOUT_SESSION';
+  end if;
+
+  update public.stripe_checkout_attempts as a
+  set
+    status = 'open',
+    stripe_checkout_session_id = p_session_id,
+    expires_at = p_expires_at,
+    updated_at = now()
+  where a.user_id = p_user_id
+    and a.stripe_mode = p_stripe_mode
+    and a.attempt_token = p_attempt_token
+    and a.status = 'processing';
+
+  get diagnostics v_row_count = row_count;
+  return v_row_count > 0;
+end;
+$function$;
+
+create or replace function public.fail_stripe_checkout_attempt(
+  p_user_id uuid,
+  p_stripe_mode text,
+  p_attempt_token uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $function$
+declare
+  v_row_count bigint;
+begin
+  update public.stripe_checkout_attempts as a
+  set
+    status = 'failed',
+    updated_at = now()
+  where a.user_id = p_user_id
+    and a.stripe_mode = p_stripe_mode
+    and a.attempt_token = p_attempt_token
+    and a.status = 'processing';
+
+  get diagnostics v_row_count = row_count;
+  return v_row_count > 0;
+end;
+$function$;
+
+create or replace function public.complete_stripe_checkout_attempt(
+  p_user_id uuid,
+  p_stripe_mode text,
+  p_session_id text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $function$
+declare
+  v_row_count bigint;
+begin
+  update public.stripe_checkout_attempts as a
+  set
+    status = 'completed',
+    updated_at = now()
+  where a.user_id = p_user_id
+    and a.stripe_mode = p_stripe_mode
+    and a.stripe_checkout_session_id = p_session_id
+    and a.status in ('processing', 'open', 'completed');
+
+  get diagnostics v_row_count = row_count;
+  return v_row_count > 0;
+end;
+$function$;
+
+create or replace function public.expire_stripe_checkout_attempt(
+  p_user_id uuid,
+  p_stripe_mode text,
+  p_session_id text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $function$
+declare
+  v_row_count bigint;
+begin
+  update public.stripe_checkout_attempts as a
+  set
+    status = 'failed',
+    expires_at = coalesce(a.expires_at, now()),
+    updated_at = now()
+  where a.user_id = p_user_id
+    and a.stripe_mode = p_stripe_mode
+    and a.stripe_checkout_session_id = p_session_id
+    and a.status in ('open', 'failed');
+
+  get diagnostics v_row_count = row_count;
+  return v_row_count > 0;
+end;
+$function$;
+
+create or replace function public.retire_terminal_stripe_checkout_attempt(
+  p_user_id uuid,
+  p_stripe_mode text,
+  p_session_id text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $function$
+declare
+  v_row_count bigint;
+begin
+  if p_user_id is null
+    or p_stripe_mode is null
+    or p_stripe_mode not in ('test', 'live')
+    or p_session_id is null
+    or char_length(p_session_id) not between 1 and 255
+  then
+    raise exception using
+      errcode = '22023',
+      message = 'INVALID_TERMINAL_STRIPE_CHECKOUT_ATTEMPT';
+  end if;
+
+  -- The application must verify the exact Stripe Subscription is canceled or
+  -- incomplete_expired immediately before calling this atomic exact-row delete.
+  delete from public.stripe_checkout_attempts as a
+  where a.user_id = p_user_id
+    and a.stripe_mode = p_stripe_mode
+    and a.stripe_checkout_session_id = p_session_id
+    and a.status in ('open', 'completed');
+
+  get diagnostics v_row_count = row_count;
+  return v_row_count > 0;
+end;
+$function$;
+
+revoke all on function public.claim_stripe_checkout_attempt(
+  uuid,
+  text,
+  uuid,
+  timestamptz,
+  interval
+) from public, anon, authenticated;
+revoke all on function public.open_stripe_checkout_attempt(
+  uuid,
+  text,
+  uuid,
+  text,
+  timestamptz
+) from public, anon, authenticated;
+revoke all on function public.fail_stripe_checkout_attempt(uuid, text, uuid)
+from public, anon, authenticated;
+revoke all on function public.complete_stripe_checkout_attempt(uuid, text, text)
+from public, anon, authenticated;
+revoke all on function public.expire_stripe_checkout_attempt(uuid, text, text)
+from public, anon, authenticated;
+revoke all on function public.retire_terminal_stripe_checkout_attempt(
+  uuid,
+  text,
+  text
+) from public, anon, authenticated;
+
+grant execute on function public.claim_stripe_checkout_attempt(
+  uuid,
+  text,
+  uuid,
+  timestamptz,
+  interval
+) to service_role;
+grant execute on function public.open_stripe_checkout_attempt(
+  uuid,
+  text,
+  uuid,
+  text,
+  timestamptz
+) to service_role;
+grant execute on function public.fail_stripe_checkout_attempt(uuid, text, uuid)
+to service_role;
+grant execute on function public.complete_stripe_checkout_attempt(uuid, text, text)
+to service_role;
+grant execute on function public.expire_stripe_checkout_attempt(uuid, text, text)
+to service_role;
+grant execute on function public.retire_terminal_stripe_checkout_attempt(
+  uuid,
+  text,
+  text
+) to service_role;
+
+-- =========================================================
 -- USER STORAGE USAGE
 -- =========================================================
 
@@ -97,8 +924,433 @@ create table if not exists public.user_storage_usage (
   photo_count integer default 0,
   photos_count integer default 0,
   albums_count integer default 0,
+  pending_plan text,
+  downgrade_scheduled_at timestamptz,
+  current_period_end timestamptz,
   updated_at timestamptz default now()
 );
+
+-- =========================================================
+-- ATOMIC STRIPE ENTITLEMENT RECONCILIATION
+-- =========================================================
+
+alter table public.subscriptions
+  add column if not exists stripe_state_event_created_at timestamptz,
+  add column if not exists stripe_state_event_id text,
+  add column if not exists entitlement_plan_id uuid
+    references public.plans(id) on delete restrict,
+  add column if not exists entitlement_event_created_at timestamptz,
+  add column if not exists entitlement_event_id text;
+
+alter table public.user_storage_usage
+  add column if not exists pending_plan text,
+  add column if not exists downgrade_scheduled_at timestamptz,
+  add column if not exists current_period_end timestamptz;
+
+update public.subscriptions
+set stripe_state_event_created_at = coalesce(
+      stripe_state_event_created_at,
+      updated_at,
+      created_at,
+      now()
+    ),
+    stripe_state_event_id = coalesce(
+      stripe_state_event_id,
+      'legacy:' || id::text
+    ),
+    entitlement_plan_id = case
+      when status in ('active', 'trialing', 'past_due')
+        then coalesce(entitlement_plan_id, plan_id)
+      else null
+    end,
+    entitlement_event_created_at = case
+      when status in ('active', 'trialing', 'past_due')
+        then coalesce(
+          entitlement_event_created_at,
+          updated_at,
+          created_at,
+          now()
+        )
+      else entitlement_event_created_at
+    end,
+    entitlement_event_id = case
+      when status in ('active', 'trialing', 'past_due')
+        then coalesce(entitlement_event_id, 'legacy:' || id::text)
+      else entitlement_event_id
+    end
+where stripe_subscription_id is not null;
+
+create index if not exists idx_subscriptions_effective_entitlement
+on public.subscriptions(
+  user_id,
+  stripe_mode,
+  entitlement_event_created_at desc,
+  current_period_end desc
+)
+where entitlement_plan_id is not null
+  and status in ('active', 'trialing', 'past_due');
+
+create or replace function public.reconcile_stripe_subscription_entitlement(
+  p_user_id uuid,
+  p_stripe_mode text,
+  p_subscription_id text,
+  p_customer_id text,
+  p_plan_id uuid,
+  p_status text,
+  p_current_period_start timestamptz,
+  p_current_period_end timestamptz,
+  p_cancel_at_period_end boolean,
+  p_event_created_at timestamptz,
+  p_event_id text,
+  p_grant_entitlement boolean
+)
+returns table (
+  state_applied boolean,
+  entitlement_applied boolean,
+  effective_plan text,
+  effective_subscription_id text,
+  eligible_subscription_count integer
+)
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $function$
+declare
+  v_existing public.subscriptions%rowtype;
+  v_current public.subscriptions%rowtype;
+  v_state_applied boolean := false;
+  v_entitlement_applied boolean := false;
+  v_incoming_rank integer;
+  v_existing_rank integer;
+  v_effective_plan text;
+  v_effective_subscription_id text;
+  v_effective_storage_limit bigint;
+  v_effective_period_end timestamptz;
+  v_eligible_count integer := 0;
+  v_effective_mode text;
+begin
+  if p_user_id is null
+    or p_stripe_mode is null
+    or p_stripe_mode not in ('test', 'live')
+    or p_subscription_id is null
+    or char_length(p_subscription_id) not between 1 and 255
+    or p_status is null
+    or p_status not in (
+      'active',
+      'trialing',
+      'past_due',
+      'paused',
+      'unpaid',
+      'incomplete',
+      'incomplete_expired',
+      'canceled'
+    )
+    or p_event_created_at is null
+    or p_event_id is null
+    or char_length(p_event_id) not between 1 and 255
+    or p_grant_entitlement is null
+  then
+    raise exception using
+      errcode = '22023',
+      message = 'INVALID_STRIPE_ENTITLEMENT_RECONCILIATION';
+  end if;
+
+  if p_status in ('active', 'trialing', 'past_due') and p_plan_id is null then
+    raise exception using
+      errcode = '22023',
+      message = 'STRIPE_ENTITLEMENT_PLAN_REQUIRED';
+  end if;
+
+  -- user_storage_usage has one row per user, shared by Test and Live. Serialize
+  -- across both Stripe modes so a late Test webhook cannot race a Live event.
+  perform pg_advisory_xact_lock(hashtextextended(p_user_id::text, 0));
+
+  select s.*
+  into v_existing
+  from public.subscriptions as s
+  where s.stripe_subscription_id = p_subscription_id
+  for update;
+
+  if found
+    and (
+      v_existing.user_id is distinct from p_user_id
+      or v_existing.stripe_mode is distinct from p_stripe_mode
+    )
+  then
+    raise exception using
+      errcode = '23514',
+      message = 'STRIPE_SUBSCRIPTION_OWNERSHIP_MISMATCH';
+  end if;
+
+  v_incoming_rank := case
+    when p_status in ('canceled', 'incomplete_expired') then 4
+    when p_status in ('paused', 'unpaid', 'incomplete') then 3
+    when p_status = 'past_due' then 2
+    else 1
+  end;
+
+  v_existing_rank := case
+    when v_existing.status in ('canceled', 'incomplete_expired') then 4
+    when v_existing.status in ('paused', 'unpaid', 'incomplete') then 3
+    when v_existing.status = 'past_due' then 2
+    else 1
+  end;
+
+  if v_existing.id is null then
+    insert into public.subscriptions (
+      user_id,
+      plan_id,
+      stripe_customer_id,
+      stripe_subscription_id,
+      stripe_mode,
+      status,
+      current_period_start,
+      current_period_end,
+      cancel_at_period_end,
+      stripe_state_event_created_at,
+      stripe_state_event_id
+    ) values (
+      p_user_id,
+      p_plan_id,
+      p_customer_id,
+      p_subscription_id,
+      p_stripe_mode,
+      p_status,
+      p_current_period_start,
+      p_current_period_end,
+      coalesce(p_cancel_at_period_end, false),
+      p_event_created_at,
+      p_event_id
+    )
+    returning * into v_current;
+
+    v_state_applied := true;
+  else
+    v_state_applied :=
+      (
+        p_status in ('canceled', 'incomplete_expired')
+        and v_existing.status not in ('canceled', 'incomplete_expired')
+      )
+      or (
+        not (
+          v_existing.status in ('canceled', 'incomplete_expired')
+          and p_status not in ('canceled', 'incomplete_expired')
+        )
+        and (
+          v_existing.stripe_state_event_created_at is null
+          or p_event_created_at > v_existing.stripe_state_event_created_at
+          or (
+            p_event_created_at = v_existing.stripe_state_event_created_at
+            and (
+              v_incoming_rank > v_existing_rank
+              or (
+                v_incoming_rank = v_existing_rank
+                and p_event_id >= coalesce(v_existing.stripe_state_event_id, '')
+              )
+            )
+          )
+        )
+      );
+
+    if v_state_applied then
+      update public.subscriptions as s
+      set plan_id = coalesce(p_plan_id, s.plan_id),
+          stripe_customer_id = coalesce(p_customer_id, s.stripe_customer_id),
+          status = p_status,
+          current_period_start = coalesce(
+            p_current_period_start,
+            s.current_period_start
+          ),
+          current_period_end = coalesce(
+            p_current_period_end,
+            s.current_period_end
+          ),
+          cancel_at_period_end = coalesce(
+            p_cancel_at_period_end,
+            s.cancel_at_period_end
+          ),
+          stripe_state_event_created_at = p_event_created_at,
+          stripe_state_event_id = p_event_id
+      where s.id = v_existing.id
+      returning * into v_current;
+    else
+      v_current := v_existing;
+    end if;
+  end if;
+
+  if v_state_applied
+    and v_current.status in (
+      'paused',
+      'unpaid',
+      'incomplete',
+      'incomplete_expired',
+      'canceled'
+    )
+  then
+    update public.subscriptions as s
+    set entitlement_plan_id = null,
+        entitlement_event_created_at = p_event_created_at,
+        entitlement_event_id = p_event_id
+    where s.id = v_current.id
+    returning * into v_current;
+
+    v_entitlement_applied := true;
+  elsif p_grant_entitlement
+    and v_current.status in ('active', 'trialing')
+    and v_current.plan_id = p_plan_id
+    and (
+      v_current.entitlement_event_created_at is null
+      or p_event_created_at > v_current.entitlement_event_created_at
+      or (
+        p_event_created_at = v_current.entitlement_event_created_at
+        and p_event_id >= coalesce(v_current.entitlement_event_id, '')
+      )
+    )
+  then
+    update public.subscriptions as s
+    set entitlement_plan_id = p_plan_id,
+        entitlement_event_created_at = p_event_created_at,
+        entitlement_event_id = p_event_id
+    where s.id = v_current.id
+    returning * into v_current;
+
+    v_entitlement_applied := true;
+  elsif v_state_applied and v_current.status = 'past_due' then
+    update public.subscriptions as s
+    set entitlement_event_created_at = p_event_created_at,
+        entitlement_event_id = p_event_id
+    where s.id = v_current.id
+    returning * into v_current;
+
+    v_entitlement_applied := true;
+  end if;
+
+  -- Once a user has any Live subscription history, only Live rows may drive
+  -- their effective entitlement. This prevents old Test deliveries from
+  -- restoring a paid Test quota after Live cancellation or payment failure.
+  select case
+    when exists (
+      select 1
+      from public.subscriptions as live_subscription
+      where live_subscription.user_id = p_user_id
+        and live_subscription.stripe_mode = 'live'
+        and live_subscription.stripe_subscription_id is not null
+    ) then 'live'
+    else 'test'
+  end
+  into v_effective_mode;
+
+  select count(*)::integer
+  into v_eligible_count
+  from public.subscriptions as s
+  where s.user_id = p_user_id
+    and s.stripe_mode = v_effective_mode
+    and s.status in ('active', 'trialing', 'past_due')
+    and s.entitlement_plan_id is not null;
+
+  select
+    p.slug,
+    s.stripe_subscription_id,
+    p.storage_limit_bytes,
+    s.current_period_end
+  into
+    v_effective_plan,
+    v_effective_subscription_id,
+    v_effective_storage_limit,
+    v_effective_period_end
+  from public.subscriptions as s
+  join public.plans as p on p.id = s.entitlement_plan_id
+  where s.user_id = p_user_id
+    and s.stripe_mode = v_effective_mode
+    and s.status in ('active', 'trialing', 'past_due')
+    and s.entitlement_plan_id is not null
+  order by
+    s.entitlement_event_created_at desc nulls last,
+    s.current_period_end desc nulls last,
+    s.updated_at desc,
+    s.id desc
+  limit 1;
+
+  if v_effective_plan is null then
+    select p.slug, p.storage_limit_bytes
+    into v_effective_plan, v_effective_storage_limit
+    from public.plans as p
+    where p.slug = 'free'
+    limit 1;
+
+    if v_effective_plan is null then
+      raise exception using
+        errcode = '23514',
+        message = 'FREE_PLAN_REQUIRED_FOR_ENTITLEMENT_RECONCILIATION';
+    end if;
+
+    v_effective_subscription_id := null;
+    v_effective_period_end := null;
+  end if;
+
+  insert into public.user_storage_usage as u (
+    user_id,
+    current_plan,
+    storage_limit_bytes,
+    pending_plan,
+    downgrade_scheduled_at,
+    current_period_end,
+    updated_at
+  ) values (
+    p_user_id,
+    v_effective_plan,
+    v_effective_storage_limit,
+    null,
+    null,
+    v_effective_period_end,
+    now()
+  )
+  on conflict (user_id) do update
+  set current_plan = excluded.current_plan,
+      storage_limit_bytes = excluded.storage_limit_bytes,
+      pending_plan = null,
+      downgrade_scheduled_at = null,
+      current_period_end = excluded.current_period_end,
+      updated_at = excluded.updated_at;
+
+  return query select
+    v_state_applied,
+    v_entitlement_applied,
+    v_effective_plan,
+    v_effective_subscription_id,
+    v_eligible_count;
+end;
+$function$;
+
+revoke all on function public.reconcile_stripe_subscription_entitlement(
+  uuid,
+  text,
+  text,
+  text,
+  uuid,
+  text,
+  timestamptz,
+  timestamptz,
+  boolean,
+  timestamptz,
+  text,
+  boolean
+) from public, anon, authenticated;
+
+grant execute on function public.reconcile_stripe_subscription_entitlement(
+  uuid,
+  text,
+  text,
+  text,
+  uuid,
+  text,
+  timestamptz,
+  timestamptz,
+  boolean,
+  timestamptz,
+  text,
+  boolean
+) to service_role;
 
 -- =========================================================
 -- ALBUMS
@@ -223,6 +1475,8 @@ alter table if exists public.portfolios
 create or replace function public.update_storage_after_asset_change()
 returns trigger
 language plpgsql
+security definer
+set search_path = public, pg_temp
 as $$
 declare
   old_owner uuid;
@@ -293,6 +1547,11 @@ begin
   return new;
 end;
 $$;
+
+revoke all on function public.update_storage_after_asset_change()
+from public, anon, authenticated;
+grant execute on function public.update_storage_after_asset_change()
+to service_role;
 
 drop trigger if exists trg_storage_asset_usage on public.storage_assets;
 create trigger trg_storage_asset_usage
@@ -1845,6 +3104,8 @@ grant execute on function public.claim_next_face_job(text) to service_role;
 create or replace function public.recalculate_user_storage(user_uuid uuid)
 returns void
 language plpgsql
+security definer
+set search_path = public, pg_temp
 as $$
 declare
   total_used bigint;
@@ -1898,9 +3159,16 @@ begin
 end;
 $$;
 
+revoke all on function public.recalculate_user_storage(uuid)
+from public, anon, authenticated;
+grant execute on function public.recalculate_user_storage(uuid)
+to service_role;
+
 create or replace function public.update_storage_after_photo_insert()
 returns trigger
 language plpgsql
+security definer
+set search_path = public, pg_temp
 as $$
 declare
   uid uuid;
@@ -1938,6 +3206,11 @@ begin
   return new;
 end;
 $$;
+
+revoke all on function public.update_storage_after_photo_insert()
+from public, anon, authenticated;
+grant execute on function public.update_storage_after_photo_insert()
+to service_role;
 
 drop trigger if exists trg_photo_insert_storage on public.photos;
 create trigger trg_photo_insert_storage
@@ -1985,6 +3258,8 @@ for each row execute procedure public.update_album_photo_count_after_delete();
 create or replace function public.update_storage_after_photo_delete()
 returns trigger
 language plpgsql
+security definer
+set search_path = public, pg_temp
 as $$
 declare
   uid uuid;
@@ -2007,6 +3282,11 @@ begin
   return old;
 end;
 $$;
+
+revoke all on function public.update_storage_after_photo_delete()
+from public, anon, authenticated;
+grant execute on function public.update_storage_after_photo_delete()
+to service_role;
 
 drop trigger if exists trg_photo_delete_storage on public.photos;
 create trigger trg_photo_delete_storage
@@ -2078,12 +3358,52 @@ on conflict (id) do nothing;
 -- RLS
 -- =========================================================
 
+alter table public.plans enable row level security;
+alter table public.subscriptions enable row level security;
+alter table public.user_storage_usage enable row level security;
 alter table public.albums enable row level security;
 alter table public.photos enable row level security;
 alter table public.categories enable row level security;
 alter table public.photo_jobs enable row level security;
 alter table public.face_jobs enable row level security;
 alter table public.photo_faces enable row level security;
+
+drop policy if exists "plans_select_active" on public.plans;
+create policy "plans_select_active"
+on public.plans
+for select
+to authenticated
+using (is_active is true);
+
+drop policy if exists "subscriptions_select_own" on public.subscriptions;
+create policy "subscriptions_select_own"
+on public.subscriptions
+for select
+to authenticated
+using (user_id = (select auth.uid()));
+
+drop policy if exists "user_storage_usage_select_own"
+on public.user_storage_usage;
+create policy "user_storage_usage_select_own"
+on public.user_storage_usage
+for select
+to authenticated
+using (user_id = (select auth.uid()));
+
+revoke all on table public.plans
+from public, anon, authenticated;
+revoke all on table public.subscriptions
+from public, anon, authenticated;
+revoke all on table public.user_storage_usage
+from public, anon, authenticated;
+
+grant select on table public.plans to authenticated;
+grant select on table public.subscriptions to authenticated;
+grant select on table public.user_storage_usage to authenticated;
+
+grant all privileges on table public.plans to service_role;
+grant all privileges on table public.subscriptions to service_role;
+grant all privileges on table public.user_storage_usage to service_role;
 
 drop policy if exists "albums_select_own" on public.albums;
 drop policy if exists "albums_insert_own" on public.albums;

@@ -266,7 +266,7 @@ export async function POST(request: NextRequest) {
 
   try {
     ;[plan, estimatedUploadBytes] = await Promise.all([
-      getUserStoragePlan(ownerId),
+      getUserStoragePlan(ownerId, supabase),
       Promise.resolve(estimatePhotoStorageBytes(fileSizeBytes)),
     ])
   } catch (error) {

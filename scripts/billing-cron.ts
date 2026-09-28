@@ -5,11 +5,6 @@ config({
 })
 
 import { createClient } from '@supabase/supabase-js'
-import {
-  PLAN_LIMITS,
-  type PlanKey,
-} from '../src/lib/plans'
-
 const SUPABASE_URL =
   process.env.NEXT_PUBLIC_SUPABASE_URL
 
@@ -31,105 +26,29 @@ const supabase = createClient(
   }
 )
 
-async function applyDowngrades() {
-  console.log('Checking scheduled downgrades...')
-
-  const now = new Date().toISOString()
+async function auditLegacyDowngrades() {
+  console.log('Auditing legacy scheduled downgrades...')
 
   const { data: users, error } = await supabase
     .from('user_storage_usage')
-    .select('*')
+    .select('user_id, pending_plan, downgrade_scheduled_at, current_period_end')
     .not('pending_plan', 'is', null)
-    .lte('current_period_end', now)
 
   if (error) {
     throw new Error(error.message)
   }
 
   if (!users || users.length === 0) {
-    console.log('No scheduled downgrades')
+    console.log('No legacy scheduled downgrades')
     return
   }
 
-  console.log(`Found ${users.length} scheduled downgrade(s)`)
-
-  for (const user of users) {
-    try {
-      const nextPlan =
-        String(user.pending_plan) as PlanKey
-
-      const nextPlanConfig =
-        PLAN_LIMITS[nextPlan]
-
-      if (!nextPlanConfig) {
-        console.log(
-          `Invalid plan for user ${user.user_id}`
-        )
-
-        continue
-      }
-
-      const currentUsage = Number(
-        user.storage_used_bytes || 0
-      )
-
-      // SAFETY CHECK
-      if (
-        currentUsage >
-        nextPlanConfig.storageBytes
-      ) {
-        console.log(
-          `Skip downgrade user=${user.user_id} usage exceeds limit`
-        )
-
-        continue
-      }
-
-      const nextPeriodEnd = new Date(
-        Date.now() +
-          30 * 24 * 60 * 60 * 1000
-      ).toISOString()
-
-      const { error: updateError } =
-        await supabase
-          .from('user_storage_usage')
-          .update({
-            current_plan: nextPlan,
-            storage_limit_bytes:
-              nextPlanConfig.storageBytes,
-
-            pending_plan: null,
-            downgrade_scheduled_at: null,
-
-            current_period_end:
-              nextPeriodEnd,
-
-            updated_at:
-              new Date().toISOString(),
-          })
-          .eq('user_id', user.user_id)
-
-      if (updateError) {
-        console.error(
-          `Downgrade failed ${user.user_id}:`,
-          updateError.message
-        )
-
-        continue
-      }
-
-      console.log(
-        `Downgrade applied user=${user.user_id} -> ${nextPlan}`
-      )
-    } catch (error) {
-      console.error(error)
-    }
-  }
-
-  console.log('Billing cron completed')
+  throw new Error(
+    `${users.length} legacy scheduled downgrade(s) require manual Stripe/entitlement reconciliation. No quota was changed.`
+  )
 }
 
-applyDowngrades()
+auditLegacyDowngrades()
   .then(() => process.exit(0))
   .catch((error) => {
     console.error(error)

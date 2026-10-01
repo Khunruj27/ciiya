@@ -30,7 +30,7 @@ export default async function CiiyaSyncConnectPage({
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold-deep">
             CIIYA SYNC
           </p>
-          <h1 className="mt-3 text-[34px] font-medium leading-[1.06] tracking-[-0.045em] sm:text-[42px]">
+          <h1 className="mt-3 [font-family:var(--font-fc-mittraphap),var(--font-manrope),sans-serif] text-[34px] font-medium leading-[1.08] tracking-[-0.035em] sm:text-[42px]">
             เชื่อม Lightroom
             <br />กับอัลบั้ม Ciiya
           </h1>

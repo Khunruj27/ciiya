@@ -78,7 +78,7 @@ export default async function SharePage({ params }: PageProps) {
     return <SharePasswordGate token={token} albumTitle={album.title} />
   }
 
-  const { photos, photoCount } = await getSharedAlbumPhotos(album.id)
+  const { photos, photoCount, syncSince } = await getSharedAlbumPhotos(album.id)
 
   const contact = await getPhotographerContact(album.owner_id || album.user_id)
   const hasContact = Boolean(contact.facebook || contact.phone)
@@ -203,26 +203,16 @@ export default async function SharePage({ params }: PageProps) {
                 <SelfieFaceSearch albumId={album.id} token={token} variant="inline" />
               </div>
 
-              {visiblePhotos.length > 0 ? (
-                <PublicGalleryInfinite
-                  initialPhotos={visiblePhotos}
-                  totalCount={photoCount}
-                  albumTitle={album.title}
-                  albumId={album.id}
-                  shareToken={token}
-                  initialCursor={initialCursor}
-                />
-              ) : (
-                <div className="rounded-hero border border-line bg-surface px-7 py-14 text-center">
-                  <p className="text-[20px] font-semibold tracking-[-0.03em] text-ink">
-                    {t.share.noPhotos}
-                  </p>
-
-                  <p className="mt-2 text-[14px] font-normal leading-6 text-muted">
-                    {t.share.noPhotosSub}
-                  </p>
-                </div>
-              )}
+              <PublicGalleryInfinite
+                key={album.id}
+                initialPhotos={visiblePhotos}
+                totalCount={photoCount}
+                albumTitle={album.title}
+                albumId={album.id}
+                shareToken={token}
+                initialCursor={initialCursor}
+                initialSyncSince={syncSince}
+              />
             </div>
           </ShareGalleryTabs>
 

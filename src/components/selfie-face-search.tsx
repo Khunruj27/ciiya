@@ -214,7 +214,7 @@ export default function SelfieFaceSearch({
       )}
 
       {loading && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-5">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 px-5">
           <div
             className="w-full max-w-sm rounded-hero border border-line bg-surface px-6 py-6 text-left shadow-lift"
             aria-live="polite"
@@ -249,7 +249,7 @@ export default function SelfieFaceSearch({
       )}
 
       {results.length > 0 && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 p-6">
+        <div className="fixed inset-0 z-[120] overflow-y-auto bg-black/70 p-6">
           <div className="mx-auto max-w-5xl rounded-hero bg-surface p-6">
             <div className="mb-5 flex items-center justify-between">
               <div>

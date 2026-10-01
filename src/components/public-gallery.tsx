@@ -357,7 +357,9 @@ export default function PublicGallery({
 }: Props) {
   const { t } = useI18n()
   const photos = initialPhotos
-  const [activeIndex, setActiveIndex] = useState<number | null>(null)
+  // Incoming uploads can prepend/reorder the grid. Keep the open image by ID
+  // so a live update never switches the photo a guest is viewing/downloading.
+  const [activePhotoId, setActivePhotoId] = useState<string | null>(null)
   const [tab, setTab] = useState<'live' | 'popular'>('live')
   const [scale, setScale] = useState(1)
   const [lastTap, setLastTap] = useState(0)
@@ -419,6 +421,8 @@ export default function PublicGallery({
     [photos, popularPhotos, tab]
   )
 
+  const activePosition = displayPhotos.findIndex((photo) => photo.id === activePhotoId)
+  const activeIndex = activePosition < 0 ? null : activePosition
   const activePhoto = activeIndex !== null ? displayPhotos[activeIndex] : null
   const activeImageUrl = activePhoto ? getDisplayImageUrl(activePhoto) : ''
 
@@ -472,15 +476,15 @@ useEffect(() => {
     if (activeIndex === null) return
 
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setActiveIndex(null)
+      if (e.key === 'Escape') setActivePhotoId(null)
 
       if (e.key === 'ArrowRight') {
         setScale(1)
         setViewerLoaded(false)
 
-        setActiveIndex((current) => {
-          if (current === null) return current
-          return Math.min(current + 1, displayPhotos.length - 1)
+        setActivePhotoId((current) => {
+          const index = displayPhotos.findIndex((photo) => photo.id === current)
+          return index < 0 ? current : displayPhotos[Math.min(index + 1, displayPhotos.length - 1)].id
         })
       }
 
@@ -488,9 +492,9 @@ useEffect(() => {
         setScale(1)
         setViewerLoaded(false)
 
-        setActiveIndex((current) => {
-          if (current === null) return current
-          return Math.max(current - 1, 0)
+        setActivePhotoId((current) => {
+          const index = displayPhotos.findIndex((photo) => photo.id === current)
+          return index < 0 ? current : displayPhotos[Math.max(index - 1, 0)].id
         })
       }
     }
@@ -502,13 +506,13 @@ useEffect(() => {
       window.removeEventListener('keydown', handleKeyDown)
       document.body.style.overflow = ''
     }
-  }, [activeIndex, displayPhotos.length])
+  }, [activeIndex, displayPhotos])
 
   const openPhoto = useCallback((index: number) => {
     setScale(1)
     setViewerLoaded(false)
-    setActiveIndex(index)
-  }, [])
+    setActivePhotoId(displayPhotos[index]?.id ?? null)
+  }, [displayPhotos])
 
   const toggleSelectMode = useCallback(() => {
     setSelectMode((current) => !current)
@@ -666,9 +670,9 @@ useEffect(() => {
     setScale(1)
     setViewerLoaded(false)
 
-    setActiveIndex((current) => {
-      if (current === null) return current
-      return Math.max(current - 1, 0)
+    setActivePhotoId((current) => {
+      const index = displayPhotos.findIndex((photo) => photo.id === current)
+      return index < 0 ? current : displayPhotos[Math.max(index - 1, 0)].id
     })
   }
 
@@ -676,9 +680,9 @@ useEffect(() => {
     setScale(1)
     setViewerLoaded(false)
 
-    setActiveIndex((current) => {
-      if (current === null) return current
-      return Math.min(current + 1, displayPhotos.length - 1)
+    setActivePhotoId((current) => {
+      const index = displayPhotos.findIndex((photo) => photo.id === current)
+      return index < 0 ? current : displayPhotos[Math.min(index + 1, displayPhotos.length - 1)].id
     })
   }
 
@@ -954,7 +958,7 @@ useEffect(() => {
             <div className="flex items-center justify-between">
               <button
                 type="button"
-                onClick={() => setActiveIndex(null)}
+                onClick={() => setActivePhotoId(null)}
                 className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-2xl backdrop-blur"
               >
                 ✕

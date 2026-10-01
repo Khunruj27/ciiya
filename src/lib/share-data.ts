@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
 import { resolvePhotoDeliveries } from '@/lib/storage/delivery'
 import { resolveAlbumCoverDeliveries } from '@/lib/storage/album-covers'
+import { overlapPhotoUpdateTimestamp } from '@/lib/share-photo-updates'
 
 // Public share-page reads run entirely server-side with the service role, and
 // the share token is validated in application code before any read (every
@@ -147,6 +148,15 @@ export const getSharedAlbumPhotos = unstable_cache(
   async (albumId: string) => {
     const supabase = getServiceClient()
 
+    // Capture a database watermark BEFORE the snapshot. Cache it with the
+    // photos, so stale cached/empty pages can catch up without a refresh or
+    // requiring browser/server clocks to match the database clock.
+    const { data: latest, error: watermarkError } = await supabase.from('photos')
+      .select('updated_at').eq('album_id', albumId)
+      .not('updated_at', 'is', null)
+      .order('updated_at', { ascending: false }).limit(1).maybeSingle()
+    if (watermarkError) throw new Error(watermarkError.message)
+
     const [{ count: photoCountResult }, { data: photos, error: photosError }] =
       await Promise.all([
         supabase
@@ -181,6 +191,7 @@ export const getSharedAlbumPhotos = unstable_cache(
             uhd_path,
             selected_size,
             created_at,
+            updated_at,
             view_count,
             like_count,
             processing_status
@@ -199,9 +210,12 @@ export const getSharedAlbumPhotos = unstable_cache(
         (photo) => photo.preview_url && photo.thumbnail_url
       ),
       photoCount: photoCountResult || 0,
+      syncSince: latest?.updated_at
+        ? overlapPhotoUpdateTimestamp(latest.updated_at)
+        : new Date(0).toISOString(),
     }
   },
-  ['shared-album-photos'],
+  ['shared-album-photos-v2'],
   { revalidate: SHARE_CACHE_TTL_SECONDS }
 )
 
@@ -269,6 +283,7 @@ export const getSharedAlbumPhotosPage = unstable_cache(
         thumbnail_path,
         blur_data_url,
         created_at,
+        updated_at,
         view_count,
         processing_status
         `

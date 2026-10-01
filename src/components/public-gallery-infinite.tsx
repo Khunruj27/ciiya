@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PublicGallery from '@/components/public-gallery'
 import PublicGalleryRealtime from '@/components/public-gallery-realtime'
 import { useI18n } from '@/components/i18n-provider'
+import { isReadySharedPhoto, mergeSharedPhotos } from '@/lib/share-photo-updates'
 
 type Photo = {
   id: string
@@ -28,6 +29,7 @@ type Photo = {
   selected_size?: string | null
 
   created_at: string
+  updated_at?: string
   view_count?: number | null
   like_count?: number | null
   processing_status?: string | null
@@ -41,16 +43,10 @@ type Props = {
   albumId: string
   shareToken?: string
   initialCursor: string | null
+  initialSyncSince: string
 }
 
-function isReadyPhoto(photo: Photo) {
-  return (
-    photo.processing_status === 'done' &&
-    Boolean(photo.public_url) &&
-    Boolean(photo.preview_url) &&
-    Boolean(photo.thumbnail_url)
-  )
-}
+const isReadyPhoto = isReadySharedPhoto
   
 function getTokenFromUrl() {
   if (typeof window === 'undefined') return ''
@@ -64,13 +60,15 @@ export default function PublicGalleryInfinite({
   albumId,
   shareToken,
   initialCursor,
+  initialSyncSince,
 }: Props) {
-  const { locale } = useI18n()
+  const { locale, t } = useI18n()
   const [photos, setPhotos] = useState<Photo[]>(initialPhotos)
   const [cursor, setCursor] = useState(initialCursor)
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(Boolean(initialCursor))
   const [loadError, setLoadError] = useState(false)
+  const [accessLost, setAccessLost] = useState(false)
 
   const loaderRef = useRef<HTMLDivElement | null>(null)
   const isFetchingRef = useRef(false)
@@ -91,26 +89,11 @@ export default function PublicGalleryInfinite({
   }, [])
 
   const prependRealtimePhotos = useCallback((nextPhotos: Photo[]) => {
-    const readyPhotos = nextPhotos.filter(isReadyPhoto)
-    if (!readyPhotos.length) return
-
-    setPhotos((prev) => {
-      const existing = new Set(prev.map((photo) => photo.id))
-      const uniqueNew = readyPhotos.filter((photo) => !existing.has(photo.id))
-      return uniqueNew.length ? [...uniqueNew, ...prev] : prev
-    })
+    setPhotos((prev) => mergeSharedPhotos(prev, nextPhotos))
   }, [])
 
-  const appendOlderPhotos = useCallback((nextPhotos: Photo[]) => {
-    const readyPhotos = nextPhotos.filter(isReadyPhoto)
-    if (!readyPhotos.length) return
-
-    setPhotos((prev) => {
-      const existing = new Set(prev.map((photo) => photo.id))
-      const uniqueOld = readyPhotos.filter((photo) => !existing.has(photo.id))
-      return uniqueOld.length ? [...prev, ...uniqueOld] : prev
-    })
-  }, [])
+  const appendOlderPhotos = prependRealtimePhotos
+  const handleAccessLost = useCallback(() => setAccessLost(true), [])
 
   const loadMore = useCallback(async () => {
     const resolvedShareToken = shareToken || getTokenFromUrl()
@@ -194,23 +177,34 @@ export default function PublicGalleryInfinite({
   }, [loadMore])
 
   const visiblePhotos = useMemo(() => {
-    return photos.filter(isReadyPhoto)
-  }, [photos])
+    return mergeSharedPhotos(initialPhotos, photos).filter(isReadyPhoto)
+  }, [initialPhotos, photos])
+
+  if (accessLost) {
+    return <div role="alert" className="rounded-hero border border-line bg-surface px-7 py-14 text-center">
+      <p>{locale === 'th' ? 'สิทธิ์เข้าชมอัลบั้มเปลี่ยนแปลง กรุณาเปิดลิงก์แชร์อีกครั้ง' : 'Album access has changed. Please reopen the share link.'}</p>
+    </div>
+  }
 
   return (
     <>
       <PublicGalleryRealtime
-        albumId={albumId}
+        shareToken={shareToken || getTokenFromUrl()}
+        initialSince={initialSyncSince}
         onPhotosDone={prependRealtimePhotos}
+        onAccessLost={handleAccessLost}
       />
 
-      <PublicGallery
+      {visiblePhotos.length > 0 ? <PublicGallery
         photos={visiblePhotos}
         totalCount={totalCount}
         albumTitle={albumTitle}
         albumId={albumId}
         shareToken={shareToken || getTokenFromUrl()}
-      />
+      /> : <div className="rounded-hero border border-line bg-surface px-7 py-14 text-center">
+        <p className="text-[20px] font-semibold tracking-[-0.03em] text-ink">{t.share.noPhotos}</p>
+        <p className="mt-2 text-[14px] font-normal leading-6 text-muted">{t.share.noPhotosSub}</p>
+      </div>}
 
       {hasMore ? (
         <div className="flex flex-col items-center gap-4 py-10">

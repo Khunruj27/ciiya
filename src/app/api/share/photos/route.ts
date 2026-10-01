@@ -72,6 +72,7 @@ export async function GET(req: NextRequest) {
       thumbnail_url: photo.thumbnail_url,
       blur_data_url: photo.blur_data_url,
       created_at: photo.created_at,
+      updated_at: photo.updated_at,
       view_count: photo.view_count,
       processing_status: photo.processing_status,
     }))

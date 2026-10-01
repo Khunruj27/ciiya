@@ -835,12 +835,13 @@ function showWindow() {
 
 function createWindow(showOnReady = true) {
   const window = new BrowserWindow({
-    width: 1080,
-    height: 760,
-    minWidth: 860,
-    minHeight: 640,
-    backgroundColor: '#f5f1e9',
+    width: 780,
+    height: 620,
+    minWidth: 720,
+    minHeight: 600,
+    backgroundColor: '#f5f5f7',
     title: 'Ciiya Sync',
+    icon: path.join(__dirname, 'native-icons', process.platform === 'win32' ? 'app-icon.ico' : 'app-icon.png'),
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -864,10 +865,11 @@ function createWindow(showOnReady = true) {
 }
 
 function createTray() {
-  const iconPath = path.join(__dirname, 'renderer/tray.svg')
+  const iconPath = path.join(__dirname, 'native-icons',
+    process.platform === 'win32' ? 'app-icon.ico' : 'trayTemplate.png')
   const image = nativeImage.createFromPath(iconPath)
   image.setTemplateImage(process.platform === 'darwin')
-  const nextTray = new Tray(image)
+  const nextTray = new Tray(process.platform === 'win32' ? iconPath : image)
   nextTray.setToolTip('Ciiya Sync')
   nextTray.setContextMenu(
     Menu.buildFromTemplate([

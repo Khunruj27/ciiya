@@ -40,6 +40,8 @@ win:
         - x64
         - arm64
 nsis:
+  installerIcon: ../../desktop/ciiya-sync/assets/app-icon.ico
+  uninstallerIcon: ../../desktop/ciiya-sync/assets/app-icon.ico
   oneClick: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true

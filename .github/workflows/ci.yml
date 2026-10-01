@@ -73,4 +73,6 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
+      - name: Build isolated Ciiya Sync renderer fixtures
+        run: npm run build:ciiya-sync:desktop
       - run: npm run test:e2e

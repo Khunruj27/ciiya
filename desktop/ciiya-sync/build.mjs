@@ -49,6 +49,15 @@ await Promise.all([
 await cp(path.join(desktopRoot, 'renderer'), path.join(outputRoot, 'renderer'), {
   recursive: true,
 })
+// Bundle the supplied vector artwork locally; the renderer needs no network.
+await Promise.all(['logo-mark.svg', 'logo-usage.svg'].map((name) =>
+  cp(path.join(projectRoot, 'public', name), path.join(outputRoot, 'renderer', name))
+))
+const nativeIconsRoot = path.join(outputRoot, 'native-icons')
+await mkdir(nativeIconsRoot, { recursive: true })
+await Promise.all(['app-icon.ico', 'app-icon.png', 'trayTemplate.png', 'trayTemplate@2x.png'].map((name) =>
+  cp(path.join(desktopRoot, 'assets', name), path.join(nativeIconsRoot, name))
+))
 const rendererFontsRoot = path.join(outputRoot, 'renderer/fonts')
 await mkdir(rendererFontsRoot, { recursive: true })
 await Promise.all(

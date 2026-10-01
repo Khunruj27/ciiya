@@ -18,6 +18,9 @@
 /out/
 /dist/ciiya-sync/
 /release/ciiya-sync/
+/release/ciiya-sync-compact/
+/release/ciiya-sync-macos-style/
+/release/ciiya-sync-windows-style/
 
 # production
 /build

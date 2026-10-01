@@ -184,6 +184,20 @@ const applied = await runStorageOrphanCleanup({
 assert.equal(applied.deletedCount, 1)
 assert.equal(deleted.length, 1)
 
+// Installer binaries deliberately have no photo database rows.
+const releaseRef: StorageObjectRef = {
+  provider: 'r2', bucket: 'ciiya-media',
+  key: 'releases/ciiya-sync/0.1.0/hash/Ciiya-Sync.exe',
+}
+const releasesDeleted: StorageObjectRef[] = []
+const protectedRelease = await runStorageOrphanCleanup({
+  supabase, provider: 'r2', bucket: 'ciiya-media', dryRun: false,
+  allowR2Delete: true,
+  adapterFactory: () => fakeAdapter('r2', releaseRef, releasesDeleted),
+})
+assert.equal(protectedRelease.orphanCount, 0)
+assert.equal(releasesDeleted.length, 0)
+
 await assert.rejects(
   runStorageOrphanCleanup({
     supabase,

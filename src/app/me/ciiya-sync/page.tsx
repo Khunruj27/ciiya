@@ -3,6 +3,9 @@ import { redirect } from 'next/navigation'
 import { ArrowLeft, FolderSync, ShieldCheck } from 'lucide-react'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { getLocale } from '@/lib/i18n-server'
+import CiiyaSyncDownloads from '@/components/ciiya-sync-downloads'
+import { getCiiyaSyncRolloutDecision } from '@/lib/ciiya-sync/rollout'
+import { hasCompleteR2Config } from '@/lib/storage/config'
 import CiiyaSyncDevices, {
   type CiiyaSyncDeviceListItem,
 } from '@/components/ciiya-sync-devices'
@@ -58,6 +61,11 @@ export default async function CiiyaSyncDevicesPage() {
             </span>
           </div>
         </header>
+
+        <CiiyaSyncDownloads
+          locale={locale}
+          enabled={getCiiyaSyncRolloutDecision(user.id).enabled && hasCompleteR2Config()}
+        />
 
         <section className="my-4 flex items-start gap-3 rounded-[22px] border border-line bg-gold-soft/60 px-4 py-4">
           <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-gold-deep" strokeWidth={1.7} aria-hidden />

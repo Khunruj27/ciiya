@@ -28,6 +28,90 @@ camera at the same time.
 3. The same exported file is uploaded to the chosen Ciiya album.
 4. The local file is retained. Ciiya never moves or deletes it by default.
 
+## Compact desktop interface
+
+- Default window: 780 × 620; minimum: 720 × 600. Album, watched folder,
+  and start/pause remain the primary controls.
+- Lightroom installation and auto-resume are under **ตั้งค่าเพิ่มเติม**.
+  A visible badge still flags missing, outdated, or damaged plugins.
+- Session statistics are under **รายละเอียดงาน**. Upload history scrolls
+  inside its panel; offline, failure, retry, and cancel controls remain visible.
+- The supplied `public/logo-mark.svg` and `public/logo-usage.svg` are bundled
+  locally. The macOS-inspired light palette uses white/light gray, dark text,
+  and blue actions; success/warning/error retain distinct semantic colors.
+  Native icons use the same neutral/blue palette without changing logo geometry.
+  Regenerate PNG/ICO/ICNS with `node desktop/ciiya-sync/build-icons.mjs`
+  (ICNS requires macOS).
+- This is a presentation-only change: queue persistence, authentication,
+  upload processing, and the Lightroom bridge protocol are unchanged.
+
+After `npm run build:ciiya-sync:desktop`, run the isolated renderer checks:
+
+```sh
+E2E_BASE_URL=https://ciiya-sync.test npx playwright test e2e/ciiya-sync-compact.spec.ts --project=chromium
+```
+
+These tests use mocked desktop IPC and cannot upload photos or change the
+installed app's queue. A desktop installer must be installed separately;
+deploying the web app does not update an installed Ciiya Sync binary.
+
+### Windows light-theme internal build — 2026-10-01
+
+Windows uses the same compact light renderer as macOS. The window, taskbar,
+tray, NSIS installer, and uninstaller use the regenerated logo artwork. The ICO
+contains 16/20/24/32/40/48/64/128/256 px PNG images for display scaling; macOS
+tray assets are bundled as template PNGs rather than unsupported SVG input.
+
+Internal canary installers are in `release/ciiya-sync-windows-style/`:
+
+- `Ciiya-Sync-0.1.0-win.exe`: combined x64/ARM64 installer.
+- `Ciiya-Sync-0.1.0-win-x64.exe`: Intel/AMD 64-bit.
+- `Ciiya-Sync-0.1.0-win-arm64.exe`: Windows on ARM.
+
+Both packaged app architectures and all three installer executables were
+checked for the nine embedded logo resolutions. Packaged renderer colors,
+native icons, and the external Lightroom plugin were verified. These artifacts
+are unsigned; native Windows installation, SmartScreen behavior, taskbar/tray
+appearance, and end-to-end Lightroom upload still require a Windows machine.
+No installed application or real upload queue was replaced during this build.
+
+## Installer downloads on `/me/ciiya-sync`
+
+The authenticated device page includes Mac Apple Silicon (macOS 13+) and
+combined Windows x64/ARM64 (Windows 10+) downloads, hardware limitations, file
+sizes, and collapsed unsigned-installation instructions in Thai/English.
+The current Mac artifact does **not** support Intel Macs. Compatibility is based
+on the packaged app's `LSMinimumSystemVersion=13.0` and Electron 44 requirements;
+Windows compatibility does not imply a completed native Windows smoke test.
+
+`src/lib/ciiya-sync/installers.ts` pins filenames, sizes, and SHA-256 hashes.
+The two October 1 artifacts were uploaded to the existing private R2 bucket
+under immutable `releases/ciiya-sync/<version>/<sha256>/` keys, then downloaded
+through signed URLs and fully checksum-verified. Installer files are not added
+to Git or the Next/Vercel deployment bundle.
+
+`GET /api/ciiya-sync/download?platform=mac-arm64|windows` requires a valid user
+session and the existing Sync rollout decision, checks the allowlisted object
+and size, and returns a 15-minute attachment URL with `private, no-store`.
+Downloads go directly from R2 to the browser. Credentials and signed URLs must
+never be logged. The page does not turn on public rollout or change pairing.
+Missing objects or storage failures return a retryable UI error rather than a
+broken static link. Photo orphan cleanup explicitly excludes this release prefix;
+release retirement is a separate, deliberate operation. Deploy this exclusion
+before enabling any broad R2 orphan-deletion job.
+
+To republish, update the catalog and local artifact map, run
+`node --import tsx scripts/publish-ciiya-sync-installers.ts` (dry run), then
+add `--apply`. Both local hashes must match before any write, and existing keys
+are never overwritten. No new environment variables are required: server-side
+R2 configuration is reused. The page/API code still needs the normal web
+Commit/Deploy workflow to appear in Production.
+
+Validation: installer handler authorization/rollout/allowlist/error/cache tests,
+protected-release orphan cleanup test, desktop/mobile mocked-download browser
+tests, and actual remote installer SHA-256 checks. Browser tests exercise the
+real component with mock download responses and do not touch devices or queues.
+
 ## Security model
 
 - The desktop app opens a browser with an eight-character, ten-minute pairing

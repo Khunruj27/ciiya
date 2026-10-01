@@ -22,6 +22,7 @@ const elements = {
   folderPath: document.querySelector('#folder-path'),
   lightroomCard: document.querySelector('#lightroom-card'),
   lightroomStatus: document.querySelector('#lightroom-status'),
+  pluginAttention: document.querySelector('#plugin-attention'),
   installLightroomButton: document.querySelector('#install-lightroom-button'),
   openLightroomFolderButton: document.querySelector(
     '#open-lightroom-folder-button'
@@ -379,8 +380,10 @@ function renderQueue(state) {
     copy.className = 'queue-copy'
     const name = document.createElement('strong')
     name.textContent = item.fileName
+    name.title = item.fileName
     const detail = document.createElement('small')
     detail.textContent = queueItemDetail(item, state, activityView)
+    detail.title = detail.textContent
     copy.append(name, detail)
 
     const status = document.createElement('div')
@@ -445,10 +448,21 @@ function render(state) {
 
   renderAlbums(state)
   elements.folderName.textContent = folderName(state.settings.folderPath)
-  elements.folderPath.textContent = state.settings.folderPath || 'เลือกรูปจากโฟลเดอร์ที่ Lightroom Export ลงมา'
+  elements.folderPath.textContent = state.settings.folderPath || 'เลือกโฟลเดอร์ Export จาก Lightroom'
+  elements.folderButton.title = elements.folderPath.textContent
   const lightroomInstallationState =
     state.lightroom.installationState ||
     (state.lightroom.installed ? 'ready' : 'not_installed')
+  elements.pluginAttention.hidden =
+    !state.lightroom.supported ||
+    (lightroomInstallationState === 'ready' && state.lightroom.bridgeReady)
+  elements.pluginAttention.textContent = state.lightroom.bridgeError
+    ? 'ตรวจสอบปลั๊กอิน'
+    : lightroomInstallationState === 'not_installed'
+      ? 'ติดตั้งปลั๊กอิน'
+      : lightroomInstallationState === 'update_available'
+        ? 'มีอัปเดต'
+        : 'ตรวจสอบปลั๊กอิน'
   elements.lightroomCard.classList.toggle(
     'ready',
     lightroomInstallationState === 'ready' && state.lightroom.bridgeReady
@@ -481,8 +495,9 @@ function render(state) {
   elements.folderButton.disabled = state.sync.running
   elements.syncButton.textContent = state.sync.running ? 'หยุดซิงก์ชั่วคราว' : 'เริ่มซิงก์โฟลเดอร์'
   elements.syncButton.classList.toggle('running', state.sync.running)
-  elements.syncHeading.textContent = state.sync.running ? 'Live Folder กำลังทำงาน' : 'พร้อมซิงก์'
+  elements.syncHeading.textContent = state.sync.running ? 'กำลังซิงก์' : 'พร้อมซิงก์'
   elements.syncMessage.textContent = state.sync.message
+  elements.syncMessage.title = state.sync.message
   elements.heroDot.classList.toggle('running', state.sync.running)
   elements.syncError.hidden = !state.sync.lastError
   elements.syncError.textContent = state.sync.lastError || ''

@@ -40,7 +40,7 @@
     "test:ciiya-sync:desktop": "node --import tsx scripts/test-ciiya-sync-desktop.ts",
     "test:ciiya-sync:lightroom": "node --import tsx scripts/test-ciiya-sync-lightroom.ts",
     "test:ciiya-sync:session": "node --import tsx scripts/test-ciiya-sync-session.ts",
-    "test:ciiya-sync:release": "node --import tsx scripts/test-ciiya-sync-release.ts",
+    "test:ciiya-sync:release": "node --import tsx scripts/test-ciiya-sync-release.ts && node --import tsx scripts/test-ciiya-sync-installers.ts",
     "build:ciiya-sync:desktop": "node desktop/ciiya-sync/build.mjs",
     "dev:ciiya-sync:desktop": "npm run build:ciiya-sync:desktop && electron dist/ciiya-sync/main.cjs",
     "pack:ciiya-sync:desktop": "npm run build:ciiya-sync:desktop && electron-builder --projectDir dist/ciiya-sync --config ../../desktop/ciiya-sync/electron-builder.yml --dir",

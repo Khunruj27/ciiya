@@ -193,6 +193,18 @@ async function desktopSecurityContractTest() {
   assert.match(html, /id="queue-tab"/)
   assert.match(html, /id="history-tab"/)
   assert.match(html, /id="offline-banner"/)
+  assert.match(html, /id="advanced-settings"/)
+  assert.match(html, /aria-label="Ciiya Sync"/)
+  assert.match(main, /width: 780/)
+  assert.match(main, /height: 620/)
+  assert.match(styles, /logo-usage\.svg/)
+  assert.match(styles, /logo-mark\.svg/)
+  assert.match(buildScript, /'logo-mark\.svg', 'logo-usage\.svg'/)
+  assert.match(buildScript, /'native-icons'/)
+  assert.match(main, /process\.platform === 'win32' \? 'app-icon\.ico' : 'app-icon\.png'/)
+  assert.match(main, /process\.platform === 'win32' \? 'app-icon\.ico' : 'trayTemplate\.png'/)
+  assert.match(buildConfig, /installerIcon: .*app-icon\.ico/)
+  assert.match(buildConfig, /uninstallerIcon: .*app-icon\.ico/)
   assert.match(styles, /font-family: "Ciiya Thai"/)
   assert.match(styles, /FCMittraphap-Regular\.ttf/)
   assert.match(styles, /unicode-range: U\+0E00-0E7F/)
@@ -209,6 +221,29 @@ async function desktopSecurityContractTest() {
   assert.match(packageJson, /dist:ciiya-sync:win/)
 }
 
+async function nativeIconTest() {
+  const icon = await readFile(fileURLToPath(new URL('../desktop/ciiya-sync/assets/app-icon.ico', import.meta.url)))
+  const sizes = [16, 20, 24, 32, 40, 48, 64, 128, 256]
+  assert.equal(icon.readUInt16LE(0), 0)
+  assert.equal(icon.readUInt16LE(2), 1)
+  assert.equal(icon.readUInt16LE(4), sizes.length)
+  let nextOffset = 6 + sizes.length * 16
+  for (const [index, size] of sizes.entries()) {
+    const entry = 6 + index * 16
+    assert.equal(icon[entry] || 256, size)
+    assert.equal(icon[entry + 1] || 256, size)
+    assert.equal(icon.readUInt16LE(entry + 6), 32)
+    const length = icon.readUInt32LE(entry + 8)
+    const offset = icon.readUInt32LE(entry + 12)
+    assert.equal(offset, nextOffset)
+    assert.equal(icon.subarray(offset, offset + 8).toString('hex'), '89504e470d0a1a0a')
+    assert.equal(icon.readUInt32BE(offset + 16), size)
+    assert.equal(icon.readUInt32BE(offset + 20), size)
+    nextOffset += length
+  }
+  assert.equal(nextOffset, icon.length)
+}
+
 async function main() {
   const root = await mkdtemp(path.join(os.tmpdir(), 'ciiya-sync-desktop-'))
   try {
@@ -217,6 +252,7 @@ async function main() {
     await settingsAndCredentialsTest(root)
     await desktopApiTest()
     await desktopSecurityContractTest()
+    await nativeIconTest()
     console.log('Ciiya Sync desktop shell and security checks passed.')
   } finally {
     await rm(root, { recursive: true, force: true })

@@ -621,6 +621,8 @@ export async function scanTrackedStorageObjects(params: {
 function isUnsafeCleanupKey(key: string) {
   const normalized = key.toLowerCase()
   return (
+    // Installers are release assets, not photo rows. Retire them explicitly.
+    normalized.startsWith('releases/ciiya-sync/') ||
     normalized.includes('/preset/') ||
     normalized.includes('/presets/') ||
     normalized.includes('/avatar/') ||

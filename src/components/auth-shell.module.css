@@ -23,7 +23,9 @@
 .formContent button { border-radius: 12px; }
 .formContent > button { background: white; border: 1px solid #e8e4dc; color: #171717; }
 .formContent > button:hover { background: #f8f6f1; }
-.footer { padding-top: 28px; text-align: center; font-size: 11px; color: #77736d; }
+.footer { display: grid; justify-items: center; gap: 8px; padding-top: 28px; text-align: center; font-size: 11px; color: #77736d; }
+.footerLinks { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; }
+.footerLinks a { min-height: 44px; display: inline-flex; align-items: center; font-weight: 500; color: #343434; }
 .page a:focus-visible, .page button:focus-visible { outline: 2px solid #c7a86b; outline-offset: 3px; }
 @media (max-width: 900px) {
   .page { padding-left: 20px; padding-right: 20px; }

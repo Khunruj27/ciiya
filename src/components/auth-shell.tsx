@@ -29,6 +29,7 @@ export default function AuthShell({
   const { t, locale } = useI18n()
   const signup = mode === 'signup'
   const thai = locale === 'th'
+  const infoSource = signup ? 'signup' : 'login'
   return (
     <main className={styles.page}>
       <header className={styles.header}>
@@ -52,7 +53,14 @@ export default function AuthShell({
             <p className={styles.introduction}>{introduction || (signup ? t.signup.subtitle : t.login.subtitle)}</p>
             {children}
           </div>
-          <footer className={styles.footer}>Ciiya · {thai ? 'พื้นที่สำหรับทุกช่วงเวลาสำคัญ' : 'A space for every important moment'}</footer>
+          <footer className={styles.footer}>
+            <span>Ciiya · {thai ? 'พื้นที่สำหรับทุกช่วงเวลาสำคัญ' : 'A space for every important moment'}</span>
+            <span className={styles.footerLinks}>
+              <Link href={`/support?from=${infoSource}`}>{thai ? 'ช่วยเหลือ' : 'Support'}</Link>
+              <Link href={`/privacy?from=${infoSource}`}>{thai ? 'ความเป็นส่วนตัว' : 'Privacy'}</Link>
+              <Link href={`/terms?from=${infoSource}`}>{thai ? 'ข้อกำหนด' : 'Terms'}</Link>
+            </span>
+          </footer>
         </section>
       </div>
     </main>

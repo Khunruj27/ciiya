@@ -12,14 +12,12 @@ import BillingPortalButton from '@/components/billing-portal-button'
 import NotificationBell from '@/components/notification-bell'
 import styles from './me.module.css'
 import {
-  BellRing,
   ChevronRight,
-  Info,
+  FileText,
   LifeBuoy,
   FolderSync,
+  ShieldCheck,
   Sparkles,
-  Star,
-  UserPlus,
 } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -295,42 +293,20 @@ const storageLimitBytes = Number(
             },
             {
               label: t.me.helpCenter,
-              href: `mailto:support@ciiya.app?subject=${encodeURIComponent(
-                locale === 'th' ? 'ขอความช่วยเหลือเกี่ยวกับ Ciiya' : 'Ciiya support request'
-              )}`,
+              href: '/support?from=me',
               icon: LifeBuoy,
-              external: true,
-            },
-            {
-              label: t.me.inviteFriend,
-              href: `mailto:?subject=${encodeURIComponent(
-                locale === 'th' ? 'ลองใช้ Ciiya' : 'Try Ciiya'
-              )}&body=${encodeURIComponent(
-                locale === 'th'
-                  ? 'ลองใช้ Ciiya สำหรับจัดเก็บและส่งมอบแกลเลอรีรูปภาพ https://ciiya.app'
-                  : 'Try Ciiya for beautiful photo gallery delivery: https://ciiya.app'
-              )}`,
-              icon: UserPlus,
-              external: true,
-            },
-            {
-              label: t.me.writeReview,
-              href: `mailto:support@ciiya.app?subject=${encodeURIComponent(
-                locale === 'th' ? 'รีวิวการใช้งาน Ciiya' : 'My Ciiya review'
-              )}`,
-              icon: Star,
-              external: true,
-            },
-            {
-              label: t.me.followUpdates,
-              href: '/notifications',
-              icon: BellRing,
               external: false,
             },
             {
-              label: t.me.aboutCiiya,
-              href: '/#experience',
-              icon: Info,
+              label: locale === 'th' ? 'ความเป็นส่วนตัว' : 'Privacy',
+              href: '/privacy?from=me',
+              icon: ShieldCheck,
+              external: false,
+            },
+            {
+              label: locale === 'th' ? 'ข้อกำหนด' : 'Terms',
+              href: '/terms?from=me',
+              icon: FileText,
               external: false,
             },
           ].map(({ label, href, icon: Icon, external }, index, items) => (

@@ -61,6 +61,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'yearly',
       priority: 0.3,
     },
+    {
+      url: `${base}/support`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.5,
+    },
+    {
+      url: `${base}/privacy`,
+      lastModified: now,
+      changeFrequency: 'yearly',
+      priority: 0.4,
+    },
+    {
+      url: `${base}/terms`,
+      lastModified: now,
+      changeFrequency: 'yearly',
+      priority: 0.4,
+    },
   ]
 
   return [...staticRoutes, ...(await publishedPortfolios(base))]

@@ -164,6 +164,17 @@ export default function SignupPage() {
               onError={handleProviderError}
             />
 
+            <p className="mt-4 text-center text-[11px] leading-5 text-muted">
+              {locale === 'th' ? 'เมื่อสร้างบัญชี คุณยอมรับ' : 'By creating an account, you agree to the'}{' '}
+              <Link href="/terms?from=signup" className="font-semibold text-ink underline decoration-gold underline-offset-4">
+                {locale === 'th' ? 'ข้อกำหนดการให้บริการ' : 'Terms of Service'}
+              </Link>{' '}
+              {locale === 'th' ? 'และรับทราบ' : 'and acknowledge the'}{' '}
+              <Link href="/privacy?from=signup" className="font-semibold text-ink underline decoration-gold underline-offset-4">
+                {locale === 'th' ? 'นโยบายความเป็นส่วนตัว' : 'Privacy Policy'}
+              </Link>
+            </p>
+
             {errorMsg ? (
               <p role="alert" className="mt-4 rounded-panel border border-red-100 bg-red-50 px-4 py-3 text-[13px] font-medium text-red-600">
                 {errorMsg}

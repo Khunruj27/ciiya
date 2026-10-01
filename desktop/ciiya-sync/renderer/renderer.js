@@ -23,6 +23,18 @@ const elements = {
   lightroomCard: document.querySelector('#lightroom-card'),
   lightroomStatus: document.querySelector('#lightroom-status'),
   installLightroomButton: document.querySelector('#install-lightroom-button'),
+  openLightroomFolderButton: document.querySelector(
+    '#open-lightroom-folder-button'
+  ),
+  lightroomInstallDialog: document.querySelector(
+    '#lightroom-install-dialog'
+  ),
+  dialogLightroomFolderButton: document.querySelector(
+    '#dialog-lightroom-folder-button'
+  ),
+  closeLightroomDialogButton: document.querySelector(
+    '#close-lightroom-dialog-button'
+  ),
   autoStart: document.querySelector('#autostart-toggle'),
   syncButton: document.querySelector('#sync-button'),
   syncHeading: document.querySelector('#sync-heading'),
@@ -434,19 +446,36 @@ function render(state) {
   renderAlbums(state)
   elements.folderName.textContent = folderName(state.settings.folderPath)
   elements.folderPath.textContent = state.settings.folderPath || 'เลือกรูปจากโฟลเดอร์ที่ Lightroom Export ลงมา'
-  elements.lightroomCard.classList.toggle('ready', state.lightroom.installed && state.lightroom.bridgeReady)
+  const lightroomInstallationState =
+    state.lightroom.installationState ||
+    (state.lightroom.installed ? 'ready' : 'not_installed')
+  elements.lightroomCard.classList.toggle(
+    'ready',
+    lightroomInstallationState === 'ready' && state.lightroom.bridgeReady
+  )
   elements.installLightroomButton.hidden = !state.lightroom.supported
-  elements.installLightroomButton.textContent = state.lightroom.installed
-    ? 'ติดตั้งใหม่'
-    : 'ติดตั้งปลั๊กอิน'
+  elements.openLightroomFolderButton.hidden =
+    !state.lightroom.supported || lightroomInstallationState === 'not_installed'
+  elements.installLightroomButton.textContent =
+    lightroomInstallationState === 'ready'
+      ? 'ติดตั้งใหม่'
+      : lightroomInstallationState === 'update_available'
+        ? 'อัปเดตปลั๊กอิน'
+        : lightroomInstallationState === 'repair_required'
+          ? 'ซ่อมแซม'
+          : 'ติดตั้งปลั๊กอิน'
   elements.installLightroomButton.disabled = !state.lightroom.bridgeReady
   elements.lightroomStatus.textContent = !state.lightroom.supported
     ? 'รองรับบน macOS และ Windows'
     : state.lightroom.bridgeError
       ? `Bridge ไม่พร้อม: ${state.lightroom.bridgeError}`
-      : state.lightroom.installed
-        ? `พร้อมใช้งาน${state.lightroom.version ? ` · v${state.lightroom.version}` : ''} — เปิด Lightroom ใหม่หากเพิ่งติดตั้ง`
-        : 'ติดตั้งครั้งเดียว แล้วเลือก Ciiya Sync ในหน้าต่าง Export'
+      : lightroomInstallationState === 'ready'
+        ? `พร้อมใช้งาน${state.lightroom.version ? ` · v${state.lightroom.version}` : ''} — เลือก Ciiya Sync ในหน้าต่าง Export`
+        : lightroomInstallationState === 'update_available'
+          ? `มีเวอร์ชันใหม่${state.lightroom.sourceVersion ? ` v${state.lightroom.sourceVersion}` : ''} พร้อมติดตั้ง`
+          : lightroomInstallationState === 'repair_required'
+            ? 'ไฟล์ปลั๊กอินไม่สมบูรณ์ กดซ่อมแซมเพื่อใช้งานต่อ'
+            : 'ติดตั้งครั้งเดียว แล้วเลือก Ciiya Sync ในหน้าต่าง Export'
   elements.autoStart.checked = state.settings.autoStart
   elements.autoStart.disabled = state.sync.running
   elements.folderButton.disabled = state.sync.running
@@ -501,9 +530,28 @@ elements.folderButton.addEventListener('click', () =>
 elements.installLightroomButton.addEventListener('click', () =>
   action(async () => {
     const state = await bridge.installLightroomPlugin()
-    showToast('ติดตั้งปลั๊กอินแล้ว กรุณาเปิด Lightroom Classic ใหม่หนึ่งครั้ง')
+    if (state.lightroom.installationState === 'ready') {
+      elements.lightroomInstallDialog.showModal()
+    } else {
+      showToast('ติดตั้งแล้ว แต่ระบบยังตรวจสอบความสมบูรณ์ไม่ผ่าน')
+    }
     return state
   }, elements.installLightroomButton)
+)
+elements.openLightroomFolderButton.addEventListener('click', () =>
+  action(
+    () => bridge.openLightroomPluginFolder(),
+    elements.openLightroomFolderButton
+  )
+)
+elements.dialogLightroomFolderButton.addEventListener('click', () =>
+  action(
+    () => bridge.openLightroomPluginFolder(),
+    elements.dialogLightroomFolderButton
+  )
+)
+elements.closeLightroomDialogButton.addEventListener('click', () =>
+  elements.lightroomInstallDialog.close()
 )
 elements.autoStart.addEventListener('change', () =>
   action(() => bridge.savePreferences({ autoStart: elements.autoStart.checked }), elements.autoStart)

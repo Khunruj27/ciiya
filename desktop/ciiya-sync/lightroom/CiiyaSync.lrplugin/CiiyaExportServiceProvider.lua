@@ -1,7 +1,7 @@
 local LrDialogs = import 'LrDialogs'
 local LrFileUtils = import 'LrFileUtils'
+local LrFunctionContext = import 'LrFunctionContext'
 local LrPathUtils = import 'LrPathUtils'
-local LrTasks = import 'LrTasks'
 local LrView = import 'LrView'
 
 local Bridge = require 'CiiyaBridge'
@@ -38,10 +38,16 @@ local function refreshAlbums(propertyTable)
   }
   updateCanExport(propertyTable)
 
-  LrTasks.startAsyncTask(function()
-    local ok, albumsOrError = pcall(Bridge.albums)
-    if not ok then
-      propertyTable.ciiyaStatus = tostring(albumsOrError)
+  LrFunctionContext.postAsyncTaskWithContext('Ciiya Sync albums', function(context)
+    context:addFailureHandler(function(_, message)
+      propertyTable.ciiyaStatus = tostring(message)
+      propertyTable.ciiyaConnected = false
+      updateCanExport(propertyTable)
+    end)
+
+    local albums, albumsError = Bridge.albums()
+    if albums == nil then
+      propertyTable.ciiyaStatus = tostring(albumsError)
       propertyTable.ciiyaConnected = false
       updateCanExport(propertyTable)
       return
@@ -49,7 +55,7 @@ local function refreshAlbums(propertyTable)
 
     local items = {}
     local selectedExists = false
-    for _, album in ipairs(albumsOrError) do
+    for _, album in ipairs(albums) do
       items[#items + 1] = {
         title = album.title .. ' · ' .. tostring(album.photoCount) .. ' รูป',
         value = album.id,
@@ -62,9 +68,9 @@ local function refreshAlbums(propertyTable)
     if not selectedExists then propertyTable.ciiyaAlbumId = '' end
     propertyTable.ciiyaAlbumItems = items
     propertyTable.ciiyaConnected = true
-    propertyTable.ciiyaStatus = #albumsOrError > 0
+    propertyTable.ciiyaStatus = #albums > 0
       and 'เชื่อมต่อ Ciiya Sync แล้ว'
-      or 'เชื่อมต่อแล้ว แต่ยังไม่มีอัลบั้ม'
+      or 'ยังไม่มีอัลบั้ม กรุณาสร้างอัลบั้มใน Ciiya ก่อน'
     updateCanExport(propertyTable)
   end)
 end
@@ -193,14 +199,14 @@ function Provider.processRenderedPhotos(functionContext, exportContext)
     local success, pathOrMessage = rendition:waitForRender()
     if success then
       local destination = collisionSafePath(archivePath, pathOrMessage)
-      local copied, copyResult = pcall(LrFileUtils.copy, pathOrMessage, destination)
-      if not copied or copyResult == false then
-        rendition:uploadFailed('ไม่สามารถเก็บไฟล์ในเครื่อง: ' .. tostring(copyResult))
+      local copied, copyError = LrFileUtils.copy(pathOrMessage, destination)
+      if not copied then
+        rendition:uploadFailed('ไม่สามารถเก็บไฟล์ในเครื่อง: ' .. tostring(copyError))
       else
-        local queued, queueResult = pcall(Bridge.enqueue, albumId, destination)
-        if not queued then
+        local queueResult, queueError = Bridge.enqueue(albumId, destination)
+        if queueResult == nil then
           rendition:uploadFailed(
-            'เก็บไฟล์ในเครื่องแล้ว แต่ยังส่งเข้า Ciiya ไม่สำเร็จ: ' .. tostring(queueResult)
+            'เก็บไฟล์ในเครื่องแล้ว แต่ยังส่งเข้า Ciiya ไม่สำเร็จ: ' .. tostring(queueError)
           )
         end
       end

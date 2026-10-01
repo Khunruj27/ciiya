@@ -171,13 +171,23 @@
                   <strong>Export Selection จาก Lightroom</strong>
                   <small id="lightroom-status">กำลังตรวจสอบปลั๊กอิน…</small>
                 </div>
-                <button
-                  class="secondary-button compact-button"
-                  id="install-lightroom-button"
-                  type="button"
-                >
-                  ติดตั้งปลั๊กอิน
-                </button>
+                <div class="integration-actions">
+                  <button
+                    class="text-button compact-button"
+                    id="open-lightroom-folder-button"
+                    type="button"
+                    hidden
+                  >
+                    เปิดโฟลเดอร์
+                  </button>
+                  <button
+                    class="secondary-button compact-button"
+                    id="install-lightroom-button"
+                    type="button"
+                  >
+                    ติดตั้งปลั๊กอิน
+                  </button>
+                </div>
               </div>
 
               <label class="toggle-row">
@@ -276,6 +286,58 @@
         </section>
       </main>
     </div>
+
+    <dialog
+      class="plugin-dialog"
+      id="lightroom-install-dialog"
+      aria-labelledby="lightroom-install-title"
+    >
+      <div class="plugin-dialog-mark" aria-hidden="true">✓</div>
+      <p class="eyebrow gold">LIGHTROOM CLASSIC</p>
+      <h2 id="lightroom-install-title">ติดตั้งปลั๊กอินแล้ว</h2>
+      <p class="plugin-dialog-lead">
+        ทำอีก 3 ขั้นตอนสั้น ๆ แล้ว Export รูปเข้าอัลบั้ม Ciiya ได้ทันที
+      </p>
+      <ol class="plugin-steps">
+        <li>
+          <span>1</span>
+          <div>
+            <strong>เปิด Lightroom Classic ใหม่</strong>
+            <small>หาก Lightroom เปิดอยู่ ให้ปิดแล้วเปิดอีกครั้ง</small>
+          </div>
+        </li>
+        <li>
+          <span>2</span>
+          <div>
+            <strong>ตรวจใน File › Plug-in Manager</strong>
+            <small>Ciiya Sync ควรแสดงสถานะ Installed and running</small>
+          </div>
+        </li>
+        <li>
+          <span>3</span>
+          <div>
+            <strong>ไปที่ File › Export</strong>
+            <small>เลือก Ciiya Sync จาก Export To แล้วเลือกอัลบั้มปลายทาง</small>
+          </div>
+        </li>
+      </ol>
+      <div class="plugin-dialog-actions">
+        <button
+          class="secondary-button"
+          id="dialog-lightroom-folder-button"
+          type="button"
+        >
+          เปิดตำแหน่งปลั๊กอิน
+        </button>
+        <button
+          class="primary-button"
+          id="close-lightroom-dialog-button"
+          type="button"
+        >
+          เข้าใจแล้ว
+        </button>
+      </div>
+    </dialog>
 
     <div class="toast" id="toast" role="status" hidden></div>
     <script src="./renderer.js"></script>

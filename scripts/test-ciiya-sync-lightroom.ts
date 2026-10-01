@@ -117,12 +117,17 @@ async function pluginInstallerTest(root: string) {
     'darwin',
     modulesPath
   )
-  assert.equal((await installer.status()).installed, false)
+  const initialStatus = await installer.status()
+  assert.equal(initialStatus.installed, false)
+  assert.equal(initialStatus.sourceVersion, '0.1.1')
+  assert.equal(initialStatus.installationState, 'not_installed')
 
   const secret = crypto.randomBytes(32).toString('base64url')
   const status = await installer.install({ port: 51_673, secret })
   assert.equal(status.installed, true)
-  assert.equal(status.version, '0.1.0')
+  assert.equal(status.version, '0.1.1')
+  assert.equal(status.sourceVersion, '0.1.1')
+  assert.equal(status.installationState, 'ready')
   assert.ok(status.pluginPath)
 
   const configPath = path.join(status.pluginPath!, 'BridgeConfig.lua')
@@ -138,6 +143,29 @@ async function pluginInstallerTest(root: string) {
     await readFile(path.join(status.pluginPath!, 'Info.lua'), 'utf8'),
     /LrExportServiceProvider/
   )
+
+  await rm(path.join(status.pluginPath!, 'CiiyaBridge.lua'))
+  const damaged = await installer.status()
+  assert.equal(damaged.installed, false)
+  assert.equal(damaged.installationState, 'repair_required')
+
+  const repaired = await installer.install({ port: 51_673, secret })
+  assert.equal(repaired.installed, true)
+  assert.equal(repaired.installationState, 'ready')
+
+  const providerPath = path.join(
+    repaired.pluginPath!,
+    'CiiyaExportServiceProvider.lua'
+  )
+  const provider = await readFile(providerPath, 'utf8')
+  await writeFile(providerPath, `${provider}\n-- stale local version\n`)
+  const outdated = await installer.status()
+  assert.equal(outdated.installed, true)
+  assert.equal(outdated.installationState, 'update_available')
+
+  const updated = await installer.install({ port: 51_673, secret })
+  assert.equal(updated.installationState, 'ready')
+  assert.doesNotMatch(await readFile(providerPath, 'utf8'), /stale local version/)
 }
 
 async function processingOnlyEngineTest(root: string) {
@@ -216,25 +244,43 @@ async function processingOnlyEngineTest(root: string) {
 }
 
 async function pluginContractTest() {
-  const [info, provider, bridge, main, preload, build] = await Promise.all([
-    source('desktop/ciiya-sync/lightroom/CiiyaSync.lrplugin/Info.lua'),
-    source(
-      'desktop/ciiya-sync/lightroom/CiiyaSync.lrplugin/CiiyaExportServiceProvider.lua'
-    ),
-    source('desktop/ciiya-sync/lightroom/CiiyaSync.lrplugin/CiiyaBridge.lua'),
-    source('desktop/ciiya-sync/src/main.ts'),
-    source('desktop/ciiya-sync/src/preload.ts'),
-    source('desktop/ciiya-sync/build.mjs'),
-  ])
+  const [info, provider, bridge, main, preload, renderer, markup, build] =
+    await Promise.all([
+      source('desktop/ciiya-sync/lightroom/CiiyaSync.lrplugin/Info.lua'),
+      source(
+        'desktop/ciiya-sync/lightroom/CiiyaSync.lrplugin/CiiyaExportServiceProvider.lua'
+      ),
+      source('desktop/ciiya-sync/lightroom/CiiyaSync.lrplugin/CiiyaBridge.lua'),
+      source('desktop/ciiya-sync/src/main.ts'),
+      source('desktop/ciiya-sync/src/preload.ts'),
+      source('desktop/ciiya-sync/renderer/renderer.js'),
+      source('desktop/ciiya-sync/renderer/index.html'),
+      source('desktop/ciiya-sync/build.mjs'),
+    ])
   assert.match(info, /LrExportServiceProvider/)
   assert.match(provider, /hideSections = \{ 'exportLocation' \}/)
   assert.match(provider, /LrFileUtils\.copy/)
   assert.match(provider, /Bridge\.enqueue/)
+  assert.match(provider, /postAsyncTaskWithContext/)
+  assert.doesNotMatch(provider, /pcall\(Bridge\.(?:albums|enqueue)/)
+  assert.doesNotMatch(provider, /pcall\(LrFileUtils\.copy/)
   assert.match(bridge, /X-Ciiya-Sync-Secret/)
+  assert.match(bridge, /return nil, requestError/)
   assert.doesNotMatch(bridge, /ciiya_sync_[A-Za-z0-9_-]/)
   assert.match(main, /ciiya-sync-export-selection/)
+  assert.match(main, /open-lightroom-plugin-folder/)
+  assert.match(main, /process\.resourcesPath/)
   assert.match(preload, /install-lightroom-plugin/)
+  assert.match(preload, /open-lightroom-plugin-folder/)
+  assert.match(renderer, /update_available/)
+  assert.match(renderer, /repair_required/)
+  assert.match(markup, /File › Plug-in Manager/)
+  assert.match(markup, /เปิดตำแหน่งปลั๊กอิน/)
   assert.match(build, /'lightroom'/)
+  assert.match(
+    await source('desktop/ciiya-sync/electron-builder.yml'),
+    /extraResources:[\s\S]*from: lightroom[\s\S]*to: lightroom/
+  )
 }
 
 async function main() {

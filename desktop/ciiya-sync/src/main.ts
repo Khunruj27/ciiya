@@ -58,6 +58,7 @@ const CHANNELS = {
   startSync: 'ciiya-sync:start-sync',
   stopSync: 'ciiya-sync:stop-sync',
   installLightroomPlugin: 'ciiya-sync:install-lightroom-plugin',
+  openLightroomPluginFolder: 'ciiya-sync:open-lightroom-plugin-folder',
   retryItem: 'ciiya-sync:retry-item',
   cancelItem: 'ciiya-sync:cancel-item',
   openPairingPage: 'ciiya-sync:open-pairing-page',
@@ -76,6 +77,13 @@ const QUEUE_STATUSES: CiiyaSyncQueueStatus[] = [
   'failed',
   'cancelled',
 ]
+
+function lightroomPluginSourcePath() {
+  const relativePath = path.join('lightroom', 'CiiyaSync.lrplugin')
+  return app.isPackaged
+    ? path.join(process.resourcesPath, relativePath)
+    : path.join(__dirname, relativePath)
+}
 
 function idlePairing(): CiiyaSyncPairingState {
   return {
@@ -185,13 +193,15 @@ class CiiyaSyncDesktopController {
       path.join(userDataPath, 'session-telemetry.json')
     )
     this.lightroomPlugin = new CiiyaSyncLightroomPluginInstaller(
-      path.join(__dirname, 'lightroom', 'CiiyaSync.lrplugin')
+      lightroomPluginSourcePath()
     )
     this.lightroomPluginStatus = {
       supported: process.platform === 'darwin' || process.platform === 'win32',
       installed: false,
       pluginPath: this.lightroomPlugin.destinationPath(),
       version: null,
+      sourceVersion: null,
+      installationState: 'not_installed',
     }
     this.lightroomSecretStore = new CiiyaSyncBridgeSecretStore(
       path.join(userDataPath, 'lightroom-bridge-secret')
@@ -524,6 +534,18 @@ class CiiyaSyncDesktopController {
     })
     this.syncMessage = 'ติดตั้งปลั๊กอินแล้ว กรุณาเปิด Lightroom Classic ใหม่หนึ่งครั้ง'
     return this.emit()
+  }
+
+  async openLightroomPluginFolder() {
+    this.lightroomPluginStatus = await this.lightroomPlugin.status()
+    const pluginPath = this.lightroomPluginStatus.pluginPath
+    if (!pluginPath) {
+      throw new Error('รองรับปลั๊กอิน Lightroom บน macOS และ Windows เท่านั้น')
+    }
+    if (this.lightroomPluginStatus.installationState === 'not_installed') {
+      throw new Error('กรุณาติดตั้งปลั๊กอินก่อนเปิดตำแหน่งไฟล์')
+    }
+    shell.showItemInFolder(pluginPath)
   }
 
   async retryItem(itemId: string) {
@@ -873,6 +895,9 @@ function registerIpc(sync: CiiyaSyncDesktopController) {
   ipcMain.handle(CHANNELS.stopSync, () => sync.stopSync())
   ipcMain.handle(CHANNELS.installLightroomPlugin, () =>
     sync.installLightroomPlugin()
+  )
+  ipcMain.handle(CHANNELS.openLightroomPluginFolder, () =>
+    sync.openLightroomPluginFolder()
   )
   ipcMain.handle(CHANNELS.retryItem, (_event, itemId: string) =>
     sync.retryItem(String(itemId || ''))

@@ -100,6 +100,12 @@ export type CiiyaSyncDesktopState = {
     installed: boolean
     pluginPath: string | null
     version: string | null
+    sourceVersion: string | null
+    installationState:
+      | 'not_installed'
+      | 'ready'
+      | 'update_available'
+      | 'repair_required'
     bridgeReady: boolean
     bridgeError: string | null
   }
@@ -124,6 +130,7 @@ export type CiiyaSyncDesktopBridge = {
   startSync(): Promise<CiiyaSyncDesktopState>
   stopSync(): Promise<CiiyaSyncDesktopState>
   installLightroomPlugin(): Promise<CiiyaSyncDesktopState>
+  openLightroomPluginFolder(): Promise<void>
   retryItem(itemId: string): Promise<CiiyaSyncDesktopState>
   cancelItem(itemId: string): Promise<CiiyaSyncDesktopState>
   openPairingPage(): Promise<void>

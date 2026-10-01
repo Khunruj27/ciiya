@@ -8,6 +8,9 @@ files:
   - "**/*"
   - "!**/*.map"
   - "!node_modules{,/**/*}"
+extraResources:
+  - from: lightroom
+    to: lightroom
 asar: true
 compression: maximum
 npmRebuild: false

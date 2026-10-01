@@ -506,6 +506,31 @@ durable Ciiya upload queue.
 
 The desktop app can install a Ciiya Sync Lightroom Classic export-service
 plug-in into the current user's Lightroom Modules directory on macOS or Windows.
+Installation is staged and verified before the active plug-in is replaced. If
+replacement fails, the previous copy is restored. Ciiya Sync compares the
+installed files with the bundled release at startup and shows separate
+`ready`, `update available`, and `repair required` states instead of treating
+every existing folder as healthy.
+
+Packaged builds place the installable `.lrplugin` directory in Electron's
+external resources directory rather than relying on recursive directory copies
+from `app.asar`. Development builds continue to load the same source tree from
+the desktop bundle. This keeps one plug-in implementation while allowing the
+production installer to copy every Lua file with normal filesystem semantics.
+
+The album refresh and enqueue calls run in Lightroom yield-safe task contexts.
+Expected bridge and HTTP failures are returned as values rather than passing
+yielding SDK calls through Lua `pcall`, which Lightroom Classic rejects with
+`Yielding is not allowed within a C or metamethod call`. Export remains disabled
+until the current owner has an album and explicitly selects it; the plug-in
+never silently creates or guesses a destination album.
+
+After installation, the desktop app shows a three-step activation guide for
+restarting Lightroom Classic, checking `File > Plug-in Manager`, and selecting
+Ciiya Sync from `File > Export`. The user can also reveal the installed
+`.lrplugin` folder from the setup card or the guide without exposing the local
+bridge secret in the renderer.
+
 After restarting Lightroom Classic, `File > Export` offers `Ciiya Sync` as an
 export destination. The plug-in loads only the paired owner's current albums,
 lets the photographer choose one album and one local archive folder, and keeps
@@ -570,6 +595,9 @@ pumps never consume the same queue concurrently.
 - Loopback bridge authentication, album encoding, enqueue contract: passed
 - Bridge-secret persistence and user-only file permissions: passed
 - Lightroom plug-in installation and generated bridge config: passed
+- Staged install, integrity check, update detection, repair, and rollback
+  contract: passed
+- Post-install activation guide and reveal-in-folder bridge contract: passed
 - Processing-only queue → R2 → finalize with Export Selection source: passed
 - Lightroom Export provider/local-copy static contract: passed
 - Desktop bundle includes the Lightroom plug-in: passed

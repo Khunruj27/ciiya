@@ -17,6 +17,8 @@ const bridge: CiiyaSyncDesktopBridge = {
   stopSync: () => ipcRenderer.invoke('ciiya-sync:stop-sync'),
   installLightroomPlugin: () =>
     ipcRenderer.invoke('ciiya-sync:install-lightroom-plugin'),
+  openLightroomPluginFolder: () =>
+    ipcRenderer.invoke('ciiya-sync:open-lightroom-plugin-folder'),
   retryItem: (itemId: string) =>
     ipcRenderer.invoke('ciiya-sync:retry-item', itemId),
   cancelItem: (itemId: string) =>

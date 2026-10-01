@@ -45,13 +45,13 @@ local function parseLine(line)
   return result
 end
 
-local function assertResponse(body, responseHeaders, action)
+local function responseError(body, responseHeaders, action)
   local status = responseHeaders and responseHeaders.status or 0
   if body == nil or status < 200 or status >= 300 then
     local details = parseLine(body or '')
-    error(details.error or (action .. ' ไม่สำเร็จ กรุณาเปิด Ciiya Sync'))
+    return details.error or (action .. ' ไม่สำเร็จ กรุณาเปิด Ciiya Sync')
   end
-  return body
+  return nil
 end
 
 function Bridge.albums()
@@ -61,7 +61,8 @@ function Bridge.albums()
     headers(settings.secret),
     5
   )
-  assertResponse(body, responseHeaders, 'โหลดอัลบั้ม')
+  local requestError = responseError(body, responseHeaders, 'โหลดอัลบั้ม')
+  if requestError then return nil, requestError end
 
   local albums = {}
   for line in string.gmatch(body, '[^\r\n]+') do
@@ -74,7 +75,7 @@ function Bridge.albums()
       }
     end
   end
-  return albums
+  return albums, nil
 end
 
 function Bridge.enqueue(albumId, sourcePath)
@@ -87,8 +88,9 @@ function Bridge.enqueue(albumId, sourcePath)
     'POST',
     10
   )
-  assertResponse(body, responseHeaders, 'เพิ่มรูปเข้า Ciiya')
-  return parseLine(string.match(body, '([^\r\n]+)') or '')
+  local requestError = responseError(body, responseHeaders, 'เพิ่มรูปเข้า Ciiya')
+  if requestError then return nil, requestError end
+  return parseLine(string.match(body, '([^\r\n]+)') or ''), nil
 end
 
 return Bridge

@@ -5,6 +5,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { stripe, stripeConfig } from '@/lib/stripe'
 import {
+  getStripeBillingReturnUrls,
   getStripePriceId,
   getStripeSiteUrl,
   getStripeLiveCheckoutRolloutMode,
@@ -297,7 +298,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const siteUrl = getStripeSiteUrl()
+    const billingReturnUrls = getStripeBillingReturnUrls()
 
     let customerId: string | null = null
 
@@ -564,8 +565,8 @@ export async function POST(req: NextRequest) {
           },
         ],
 
-        success_url: `${siteUrl}/pricing?success=1&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${siteUrl}/pricing?canceled=1`,
+        success_url: billingReturnUrls.successUrl,
+        cancel_url: billingReturnUrls.cancelUrl,
         ...(expiresAtUnix ? { expires_at: expiresAtUnix } : {}),
 
         metadata: {

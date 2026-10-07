@@ -33,6 +33,42 @@ export function getInvoiceSubscriptionId(invoice: Stripe.Invoice) {
   return legacy?.id ?? null
 }
 
+export function getInvoiceSubscriptionPriceIds(
+  invoice: Stripe.Invoice,
+  subscriptionId: string
+) {
+  const priceIds = invoice.lines.data.flatMap((line) => {
+    // New API versions identify subscription lines through parent, not the
+    // legacy line.subscription field. Never treat manual invoice items as
+    // proof of a paid subscription price.
+    if (line.parent && line.parent.type !== 'subscription_item_details') {
+      return []
+    }
+
+    const legacy = line as Stripe.InvoiceLineItem & {
+      type?: string
+      price?: string | { id?: string | null } | null
+    }
+    if (!line.parent && legacy.type === 'invoiceitem') return []
+
+    const lineSubscription = line.parent
+      ? line.parent.subscription_item_details?.subscription
+      : line.subscription
+    const lineSubscriptionId =
+      typeof lineSubscription === 'string'
+        ? lineSubscription
+        : lineSubscription?.id
+
+    if (lineSubscriptionId !== subscriptionId) return []
+
+    const price = line.pricing?.price_details?.price ?? legacy.price
+    const priceId = typeof price === 'string' ? price : price?.id
+    return priceId ? [priceId] : []
+  })
+
+  return [...new Set(priceIds)]
+}
+
 export function isUuid(value: string | null | undefined) {
   return Boolean(
     value &&

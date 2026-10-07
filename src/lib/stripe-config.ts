@@ -298,6 +298,25 @@ export function getStripeSiteUrl(
   return url.origin
 }
 
+export function getStripeBillingReturnUrls(
+  env: StripeEnvironment = process.env
+) {
+  // Keep the existing site URL for webhook identity/fingerprints. Browser
+  // returns use the canonical Live domain where the user's auth cookies live.
+  // Never derive payment return URLs from a client body or forwarded headers.
+  const configuredSiteUrl = getStripeSiteUrl(env)
+  const browserOrigin =
+    env.NODE_ENV === 'production' && getStripeMode(env) === 'live'
+      ? 'https://www.ciiya.app'
+      : configuredSiteUrl
+
+  return {
+    successUrl: `${browserOrigin}/me`,
+    cancelUrl: `${browserOrigin}/pricing?canceled=1`,
+    portalReturnUrl: `${browserOrigin}/me`,
+  }
+}
+
 export function getStripePriceColumn(mode: StripeMode) {
   return mode === 'live' ? 'stripe_live_price_id' : 'stripe_price_id'
 }

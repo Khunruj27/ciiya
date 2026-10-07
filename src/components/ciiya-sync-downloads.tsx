@@ -36,7 +36,7 @@ export default function CiiyaSyncDownloads({ locale, enabled }: {
           {th ? 'ดาวน์โหลด Ciiya Sync' : 'Download Ciiya Sync'}
         </h2>
         <span className="rounded-full bg-gold-soft px-2.5 py-1 text-[11px] text-gold-deep">
-          V0.1.0 · {th ? 'เวอร์ชันทดสอบ' : 'Canary'}
+          V0.1.0 · Public Beta
         </span>
       </div>
       <p className="mt-2 text-[13px] leading-6 text-muted">
@@ -61,7 +61,7 @@ export default function CiiyaSyncDownloads({ locale, enabled }: {
               <p className="mb-4 mt-1 text-[11px] leading-5 text-muted">
                 {mac
                   ? th ? 'ไฟล์นี้ใช้ไม่ได้กับ Mac ชิป Intel' : 'This installer does not support Intel Macs.'
-                  : th ? 'ตัวติดตั้งเลือกสถาปัตยกรรมให้ · ไม่รองรับ 32-bit' : 'Installer selects architecture · No 32-bit support'}
+                  : th ? 'ตัวติดตั้งเลือกสถาปัตยกรรมให้ · ไม่รองรับ 32-bit · ยังไม่ผ่านการทดสอบบนเครื่อง Windows จริง' : 'Installer selects architecture · No 32-bit support · Not yet tested on a Windows PC'}
               </p>
               <button type="button" onClick={() => download(installer.id)} disabled={!enabled || busy !== null}
                 className="mt-auto inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-ink px-3 text-[13px] font-semibold text-white transition hover:bg-ink/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold disabled:cursor-not-allowed disabled:opacity-45">
@@ -73,11 +73,11 @@ export default function CiiyaSyncDownloads({ locale, enabled }: {
         })}
       </div>
       {!enabled && <p className="mt-3 text-[12px] leading-5 text-muted">
-        {th ? 'ขณะนี้เปิดให้เฉพาะบัญชีทดสอบที่ได้รับสิทธิ์ หรือระบบดาวน์โหลดยังไม่พร้อม' : 'Currently available to approved test accounts only, or downloads are temporarily unavailable.'}
+        {th ? 'ระบบดาวน์โหลดยังไม่พร้อมสำหรับบัญชีนี้ กรุณาลองอีกครั้งภายหลัง' : 'Downloads are currently unavailable for this account. Please try again later.'}
       </p>}
       {error && <p role="alert" className="mt-3 text-[12px] leading-5 text-red-600">{error}</p>}
       <p className="mt-3 text-[11px] leading-5 text-muted">
-        {th ? 'Build 1 ต.ค. 2026 · ยังไม่เซ็นดิจิทัล ระบบอาจแจ้งเตือนก่อนติดตั้ง · Windows ยังรอทดสอบบนเครื่องจริง' : 'Build Oct 1, 2026 · Unsigned: your system may show a warning · Native Windows testing pending'}
+        {th ? 'Build 7 ต.ค. 2026 · Public Beta สำหรับผู้ใช้ที่เข้าสู่ระบบ · ยังไม่เซ็นดิจิทัล ระบบอาจแจ้งเตือนก่อนติดตั้ง · ควรทดลองกับสำเนารูปก่อนใช้งานจริง' : 'Build Oct 7, 2026 · Public Beta for signed-in users · Unsigned: your system may show a warning · Try with copies of your photos before production use'}
       </p>
       <details className="mt-3 border-t border-line pt-3 text-[12px] leading-6 text-muted">
         <summary className="cursor-pointer font-medium text-ink">{th ? 'วิธีติดตั้งและเริ่มใช้งาน' : 'Installation and getting started'}</summary>

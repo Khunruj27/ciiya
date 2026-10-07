@@ -104,7 +104,7 @@ async function bridgeShutdownDeadlineTest() {
   socket.destroy()
 }
 
-async function pluginInstallerTest(root: string) {
+async function pluginInstallerTest(root: string, platform: NodeJS.Platform) {
   const sourcePath = fileURLToPath(
     new URL(
       '../desktop/ciiya-sync/lightroom/CiiyaSync.lrplugin',
@@ -114,7 +114,7 @@ async function pluginInstallerTest(root: string) {
   const modulesPath = path.join(root, 'Lightroom', 'Modules')
   const installer = new CiiyaSyncLightroomPluginInstaller(
     sourcePath,
-    'darwin',
+    platform,
     modulesPath
   )
   const initialStatus = await installer.status()
@@ -288,7 +288,9 @@ async function main() {
   try {
     await bridgeTest(root)
     await bridgeShutdownDeadlineTest()
-    await pluginInstallerTest(root)
+    await pluginInstallerTest(path.join(root, 'mac'), 'darwin')
+    // Exercise Windows installer behavior without claiming a native OS test.
+    await pluginInstallerTest(path.join(root, 'Windows export รูปทดสอบ'), 'win32')
     await processingOnlyEngineTest(root)
     await pluginContractTest()
     console.log('Ciiya Sync Lightroom Export Selection checks passed.')

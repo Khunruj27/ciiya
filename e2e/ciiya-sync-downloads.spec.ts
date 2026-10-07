@@ -37,6 +37,9 @@ test('download cards explain hardware and remain usable on small screens', async
   await expect(page.getByRole('heading', { name: 'ดาวน์โหลด Ciiya Sync' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'ดาวน์โหลด Mac (.dmg)' })).toBeEnabled()
   await expect(page.getByRole('button', { name: 'ดาวน์โหลด Windows (.exe)' })).toBeEnabled()
+  await expect(page.getByText(/Build 7 ต.ค. 2026/)).toBeVisible()
+  await expect(page.getByText('V0.1.0 · Public Beta', { exact: true })).toBeVisible()
+  await expect(page.getByText(/ยังไม่ผ่านการทดสอบบนเครื่อง Windows จริง/)).toBeVisible()
   await expect(page.getByText('ไฟล์นี้ใช้ไม่ได้กับ Mac ชิป Intel')).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   await page.getByText('วิธีติดตั้งและเริ่มใช้งาน', { exact: true }).click()
@@ -68,9 +71,9 @@ test('Windows button requests the approved artifact and starts download', async 
   expect((await download).suggestedFilename()).toBe('Ciiya-Sync.exe')
 })
 
-test('non-canary accounts see compatibility but cannot download', async ({ page }) => {
+test('paused downloads still show compatibility and beta limitations', async ({ page }) => {
   await page.goto('/__sync-download-preview?disabled')
   await expect(page.getByRole('button', { name: 'ดาวน์โหลด Mac (.dmg)' })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'ดาวน์โหลด Windows (.exe)' })).toBeDisabled()
-  await expect(page.getByText(/ขณะนี้เปิดให้เฉพาะบัญชีทดสอบ/)).toBeVisible()
+  await expect(page.getByText(/ระบบดาวน์โหลดยังไม่พร้อมสำหรับบัญชีนี้/)).toBeVisible()
 })

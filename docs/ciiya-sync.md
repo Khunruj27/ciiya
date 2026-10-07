@@ -77,6 +77,80 @@ No installed application or real upload queue was replaced during this build.
 
 ## Installer downloads on `/me/ciiya-sync`
 
+### Public Beta — 2026-10-07
+
+The owner approved public access as an **unsigned Public Beta**, explicitly
+accepting that no Windows computer is available for native validation. All
+signed-in Ciiya users may download and pair; this does not make galleries,
+photos, device tokens, or the R2 bucket public. Anonymous downloads remain 401.
+Production uses `CIIYA_SYNC_ROLLOUT_MODE=all`; Preview stays owner-scoped canary.
+The app's embedded `canary` channel is retained honestly: the verified October 7
+binary has not been relabelled as a fully qualified stable Windows release.
+
+The download cards say Public Beta and prominently state that Windows native
+installation and Lightroom end-to-end testing are not yet verified. The user
+chose no digital signing; existing manual-open/SmartScreen instructions remain.
+Recommend testing with copies of photos before a live event. Supported package
+architectures are Windows x64/ARM64 (not 32-bit), and the Mac download is Apple
+Silicon only. Existing installed apps retain their saved origin/settings.
+
+Release verification:
+
+- Both Windows packaged PE architectures, embedded nine-resolution logo,
+  renderer, safe Electron shell, canonical API domain, and external Lightroom
+  plugin match the intended source (`scripts/audit-ciiya-sync-windows-package.ts`).
+- All three Windows installer checksums and embedded canary channels pass.
+- Server/local queue/desktop/Lightroom/session/rollback/download contract tests
+  pass, including simulated Windows plugin install/repair/update with a Unicode
+  path. These are **not** native Windows installation results.
+- Compact renderer (5) and desktop/mobile download browser tests (8) pass.
+- Mac and combined Windows remote R2 downloads match their complete pinned
+  SHA-256 hashes. Use `scripts/publish-ciiya-sync-installers.ts --verify-only`
+  to repeat this without any remote writes.
+
+Production verification completed on October 7, 2026 (Asia/Bangkok): Vercel
+deployment `dpl_7KcAw32jhUfcXNZF2qhpTaQSwLZP` is READY and aliased to
+`https://www.ciiya.app`. The rollout environment was split safely into separate
+Production (`all`) and Preview (`canary`) records; no other environment key
+changed. The authenticated Production page visibly shows the beta badge,
+Windows limitation, unsigned warning and enabled download buttons. Clicking
+Windows download completed successfully; the downloaded 234,984,129-byte EXE
+matches the pinned SHA-256. Anonymous Mac and Windows download requests remain
+401 with private/no-store caching; the device page redirects to login. Home,
+login and pricing smoke checks passed, and the new deployment had no error,
+warning or 5xx log entries during the post-deploy check. This does not replace
+native Windows installation or Lightroom validation. No new pairing or upload
+was performed during this release check.
+
+Before declaring Windows stable, test on a clean Windows account: install and
+uninstall, tray/taskbar, pairing, album refresh, watched folder, Lightroom Classic
+Export To, retained local copy, offline/restart recovery, Gallery delivery and
+device revocation. Test ARM64 separately; static architecture validation does
+not establish Lightroom compatibility on Windows ARM.
+
+Rollback only Sync access: set the Production rollout mode to `canary` (owner
+allowlist) or `off`, then redeploy the same web source. Keep source photos and
+local export queues intact. Stripe, Railway workers and Phase 15 gates are not
+changed by the Public Beta launch.
+
+### Canonical-domain rebuild — 2026-10-07
+
+New installations now default to `https://www.ciiya.app`. Explicit API URL
+overrides and existing saved origins, device identities, album/folder choices,
+and auto-resume settings are preserved; this is not a settings migration.
+Regression checks cover fresh settings, legacy-origin settings reload, and
+mocked pairing/album API requests using the canonical domain.
+
+Unsigned `0.1.0` canary installers are rebuilt separately under
+`release/ciiya-sync-domain-20261007/mac/` (Apple Silicon and Intel DMGs) and
+`release/ciiya-sync-domain-20261007/windows/` (combined, x64, and ARM64 EXEs).
+Each platform has a checksum manifest. The October 7 Apple Silicon DMG and
+combined Windows EXE replace the download catalog entries using new immutable
+R2 keys; October 1 objects are retained. This does not update an installed app
+or itself enable public rollout (see the later Public Beta approval above). Installers remain unsigned by the user's choice,
+with the existing installation guidance unchanged. Native Windows installation
+and Lightroom end-to-end testing remain pending.
+
 The authenticated device page includes Mac Apple Silicon (macOS 13+) and
 combined Windows x64/ARM64 (Windows 10+) downloads, hardware limitations, file
 sizes, and collapsed unsigned-installation instructions in Thai/English.
@@ -85,9 +159,9 @@ on the packaged app's `LSMinimumSystemVersion=13.0` and Electron 44 requirements
 Windows compatibility does not imply a completed native Windows smoke test.
 
 `src/lib/ciiya-sync/installers.ts` pins filenames, sizes, and SHA-256 hashes.
-The two October 1 artifacts were uploaded to the existing private R2 bucket
+The two October 7 artifacts are published to the existing private R2 bucket
 under immutable `releases/ciiya-sync/<version>/<sha256>/` keys, then downloaded
-through signed URLs and fully checksum-verified. Installer files are not added
+through signed URLs and fully checksum-verified by the publishing script. Installer files are not added
 to Git or the Next/Vercel deployment bundle.
 
 `GET /api/ciiya-sync/download?platform=mac-arm64|windows` requires a valid user

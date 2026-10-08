@@ -1,9 +1,7 @@
 import { useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -12,21 +10,34 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
+import { Button } from '@/components/ui';
 import { Radius, Spacing } from '@/constants/theme';
+import { useSession } from '@/ctx/session';
 import { useTheme } from '@/hooks/use-theme';
+import { signInWithGoogle } from '@/lib/auth';
+import { isDemoMode } from '@/lib/config';
 import { useT } from '@/lib/i18n';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+
+type Pending = 'password' | 'google' | null;
 
 export default function SignInScreen() {
   const t = useT();
   const theme = useTheme();
+  const { enterDemo } = useSession();
+  const ready = isDemoMode || isSupabaseConfigured;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(isSupabaseConfigured ? '' : t.signIn.notConfigured);
+  const [pending, setPending] = useState<Pending>(null);
+  const [error, setError] = useState(ready ? '' : t.signIn.notConfigured);
 
-  async function handleSubmit() {
-    if (submitting || !isSupabaseConfigured) return;
+  async function handlePasswordSignIn() {
+    if (pending || !ready) return;
+
+    if (isDemoMode) {
+      enterDemo();
+      return;
+    }
 
     const trimmedEmail = email.trim();
     if (!trimmedEmail || !password) {
@@ -34,7 +45,7 @@ export default function SignInScreen() {
       return;
     }
 
-    setSubmitting(true);
+    setPending('password');
     setError('');
 
     try {
@@ -43,7 +54,7 @@ export default function SignInScreen() {
         password,
       });
 
-      // On success the session listener swaps this screen for the app stack.
+      // On success the session listener swaps this screen for the app.
       if (signInError) {
         setError(
           signInError.code === 'invalid_credentials'
@@ -54,7 +65,28 @@ export default function SignInScreen() {
     } catch {
       setError(t.signIn.genericError);
     } finally {
-      setSubmitting(false);
+      setPending(null);
+    }
+  }
+
+  async function handleGoogleSignIn() {
+    if (pending || !ready) return;
+
+    if (isDemoMode) {
+      enterDemo();
+      return;
+    }
+
+    setPending('google');
+    setError('');
+
+    try {
+      // Closing the sheet resolves to 'cancelled', which needs no message.
+      await signInWithGoogle();
+    } catch {
+      setError(t.signIn.googleError);
+    } finally {
+      setPending(null);
     }
   }
 
@@ -68,9 +100,7 @@ export default function SignInScreen() {
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <ThemedText style={[styles.brand, { color: theme.accentDeep }]}>
             {t.common.appName}
           </ThemedText>
@@ -82,6 +112,22 @@ export default function SignInScreen() {
           </ThemedText>
 
           <View style={styles.form}>
+            <Button
+              label={t.signIn.google}
+              onPress={handleGoogleSignIn}
+              variant="secondary"
+              loading={pending === 'google'}
+              disabled={!ready || pending === 'password'}
+            />
+
+            <View style={styles.divider}>
+              <View style={[styles.rule, { backgroundColor: theme.line }]} />
+              <ThemedText type="small" themeColor="textSecondary">
+                {t.signIn.or}
+              </ThemedText>
+              <View style={[styles.rule, { backgroundColor: theme.line }]} />
+            </View>
+
             <TextInput
               style={inputStyle}
               value={email}
@@ -106,33 +152,28 @@ export default function SignInScreen() {
               autoComplete="current-password"
               textContentType="password"
               returnKeyType="go"
-              onSubmitEditing={handleSubmit}
+              onSubmitEditing={handlePasswordSignIn}
               accessibilityLabel={t.signIn.password}
             />
 
             {error ? (
-              <ThemedText
-                type="small"
-                accessibilityRole="alert"
-                style={{ color: theme.danger }}>
+              <ThemedText type="small" accessibilityRole="alert" style={{ color: theme.danger }}>
                 {error}
               </ThemedText>
             ) : null}
 
-            <Pressable
-              onPress={handleSubmit}
-              disabled={submitting || !isSupabaseConfigured}
-              accessibilityRole="button"
-              style={({ pressed }) => [
-                styles.button,
-                { backgroundColor: theme.text },
-                (pressed || submitting || !isSupabaseConfigured) && styles.buttonDimmed,
-              ]}>
-              {submitting ? <ActivityIndicator color={theme.onInk} /> : null}
-              <ThemedText style={[styles.buttonLabel, { color: theme.onInk }]}>
-                {submitting ? t.signIn.submitting : t.signIn.submit}
+            <Button
+              label={pending === 'password' ? t.signIn.submitting : t.signIn.submit}
+              onPress={handlePasswordSignIn}
+              loading={pending === 'password'}
+              disabled={!ready || pending === 'google'}
+            />
+
+            {isDemoMode ? (
+              <ThemedText type="small" themeColor="textSecondary" style={styles.notice}>
+                {t.signIn.demoNotice}
               </ThemedText>
-            </Pressable>
+            ) : null}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -158,6 +199,8 @@ const styles = StyleSheet.create({
   title: { marginTop: Spacing.three },
   subtitle: { marginTop: Spacing.two },
   form: { marginTop: Spacing.five, gap: Spacing.three },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  rule: { flex: 1, height: StyleSheet.hairlineWidth },
   input: {
     minHeight: 52,
     borderWidth: 1,
@@ -165,15 +208,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     fontSize: 16,
   },
-  button: {
-    minHeight: 52,
-    borderRadius: Radius.pill,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.two,
-    marginTop: Spacing.two,
-  },
-  buttonDimmed: { opacity: 0.6 },
-  buttonLabel: { fontSize: 16, fontWeight: 700 },
+  notice: { textAlign: 'center' },
 });

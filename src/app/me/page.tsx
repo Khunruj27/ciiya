@@ -32,37 +32,27 @@ export default async function MePage() {
 
   if (!user) redirect('/login')
 
-  const { locale, t } = await getServerDictionary()
-  const unreadNotificationCount = await getUnreadNotificationCount(supabase, user.id)
-
-  const { count: albumCount } = await supabase
-    .from('albums')
-    .select('id', { count: 'exact', head: true })
-    .eq('owner_id', user.id)
-
-  const { count: photoCount } = await supabase
-    .from('photos')
-    .select('id', { count: 'exact', head: true })
-    .eq('owner_id', user.id)
-
-  const { data: albumActivity } = await supabase
-    .from('albums')
-    .select('view_count,share_count')
-    .eq('owner_id', user.id)
-
-  const { data: storageUsage } = await supabase
-    .from('user_storage_usage')
-    .select(`
-  current_plan,
-  storage_used_bytes,
-  used_bytes,
-  storage_limit_bytes,
-  photo_count,
-  photos_count,
-  albums_count
-`)
-    .eq('user_id', user.id)
-    .maybeSingle()
+  // Keep user-specific reads fresh, but remove the serial network waterfall.
+  const [
+    { locale, t },
+    unreadNotificationCount,
+    { count: albumCount },
+    { count: photoCount },
+    { data: albumActivity },
+    { data: storageUsage },
+  ] = await Promise.all([
+    getServerDictionary(),
+    getUnreadNotificationCount(supabase, user.id),
+    supabase.from('albums')
+      .select('id', { count: 'exact', head: true }).eq('owner_id', user.id),
+    supabase.from('photos')
+      .select('id', { count: 'exact', head: true }).eq('owner_id', user.id),
+    supabase.from('albums')
+      .select('view_count,share_count').eq('owner_id', user.id),
+    supabase.from('user_storage_usage')
+      .select('current_plan,storage_used_bytes,used_bytes,storage_limit_bytes,photo_count,photos_count,albums_count')
+      .eq('user_id', user.id).maybeSingle(),
+  ])
 
   const region = user.user_metadata?.region || ''
   const province = user.user_metadata?.province || ''

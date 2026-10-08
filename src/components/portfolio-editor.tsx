@@ -31,7 +31,8 @@ import {
   PORTFOLIO_TEMPLATES,
 } from '@/lib/portfolio-templates'
 import PortfolioTemplateHero from '@/components/portfolio-template-hero'
-import PortfolioGalleryLayout, { UPDATED_GALLERY_LAYOUTS } from '@/components/portfolio-gallery-layout'
+import PortfolioGalleryLayout from '@/components/portfolio-gallery-layout'
+import { PORTFOLIO_GALLERY_LAYOUTS } from '@/lib/portfolio-gallery-composition'
 
 type Props = {
   initial: Portfolio
@@ -68,22 +69,6 @@ const EDITOR_SECTIONS: { key: EditorSection; label: string; short: string }[] = 
   { key: 'contact', label: 'ติดต่องาน', short: 'ติดต่อ' },
 ]
 
-const GALLERY_LAYOUTS: {
-  key: Portfolio['gallery_layout']
-  label: string
-  hint: string
-}[] = [
-  { key: 'carousel', label: 'Seamless Swipe', hint: 'ภาพขนาดใหญ่ไหลต่อกันเมื่อปัด เหมือนงาน Carousel' },
-  { key: 'grid', label: 'Clean Grid', hint: 'กริดสองคอลัมน์เรียบสะอาด เห็นภาพได้รวดเร็ว' },
-  { key: 'masonry', label: 'Photo Dump', hint: 'จังหวะภาพสูงต่ำแบบอิสระ ดูเป็นธรรมชาติ' },
-  { key: 'filmstrip', label: 'Film Roll', hint: 'ภาพแนวนอนต่อเนื่องในบรรยากาศฟิล์ม' },
-  { key: 'collage', label: 'Hero Canvas', hint: 'ภาพหลักหนึ่งภาพและรายละเอียดประกอบสองภาพ' },
-  { key: 'collage_story', label: 'Story Flow', hint: 'เล่าเรื่องเป็นช่วงด้วยภาพใหญ่สลับภาพเล็ก' },
-  { key: 'collage_panorama', label: 'Panorama Flow', hint: 'เปิดด้วยภาพกว้าง แล้วไหลต่อสู่รายละเอียด' },
-  { key: 'collage_tiles', label: 'Freeform Canvas', hint: 'คอลลาจหลายขนาดแบบ Editorial ที่มีอิสระ' },
-  { key: 'collage_overlap', label: 'Layered Cards', hint: 'ภาพซ้อนเหลื่อมกันเหมือนการ์ดบน Canvas' },
-  { key: 'collage_frames', label: 'Print Journal', hint: 'ภาพพิมพ์สลับซ้ายขวาบนพื้นที่แบบสมุดภาพ' },
-]
 
 export default function PortfolioEditor({
   initial,
@@ -982,23 +967,27 @@ export default function PortfolioEditor({
         <Field label={t.pe.galleryLayoutLabel}>
           <p className="mb-2 text-[10px] leading-4 text-muted">{t.pe.galleryLayoutHint}</p>
           <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {GALLERY_LAYOUTS.map((option) => {
-              const active = (form.gallery_layout || 'carousel') === option.key
+            {PORTFOLIO_GALLERY_LAYOUTS.map((layout) => {
+              const active = (form.gallery_layout || 'carousel') === layout
+              const option = t.pe.galleryLayouts[layout]
               return (
                 <button
-                  key={option.key}
+                  key={layout}
                   type="button"
-                  onClick={() => set('gallery_layout', option.key)}
+                  onClick={() => set('gallery_layout', layout)}
+                  aria-label={option.label}
+                  aria-pressed={active}
+                  title={option.hint}
                   className={`w-[124px] shrink-0 overflow-hidden rounded-[16px] border text-left transition active:scale-[0.98] sm:w-[136px] ${active ? 'border-gold bg-gold-soft/35 text-ink shadow-card ring-1 ring-gold/40' : 'border-line bg-surface text-ink'}`}
                 >
                   <GalleryLayoutPreview
-                    layout={option.key}
+                    layout={layout}
                     images={form.gallery_urls}
                     active={active}
                   />
                   <div className="p-2.5">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-[11px] font-semibold">{t.pe.galleryLayouts[option.key]?.label || option.label}</p>
+                      <p className="min-w-0 text-[11px] font-semibold leading-4">{option.label}</p>
                       <span className={`grid h-4.5 w-4.5 place-items-center rounded-full border text-[9px] ${active ? 'border-gold bg-gold text-ink' : 'border-line-strong text-transparent'}`}>✓</span>
                     </div>
                   </div>
@@ -1329,18 +1318,6 @@ function TemplatePreview({
   )
 }
 
-function MiniPhoto({ url, className = '' }: { url?: string; className?: string }) {
-  return (
-    <span className={`relative block overflow-hidden bg-line-strong ${className}`}>
-      {url ? (
-        <Image src={url} alt="" fill unoptimized sizes="320px" className="object-cover" />
-      ) : (
-        <span className="absolute inset-0 bg-[linear-gradient(145deg,var(--pf-accent-soft),var(--ciiya-line-strong))]" />
-      )}
-    </span>
-  )
-}
-
 function GalleryLayoutPreview({
   layout,
   images,
@@ -1350,40 +1327,11 @@ function GalleryLayoutPreview({
   images: string[]
   active: boolean
 }) {
-  if (UPDATED_GALLERY_LAYOUTS.some(key => key === layout)) {
-    return <div className={`aspect-[4/3] overflow-hidden border-b p-2 ${active ? 'border-gold/30 bg-gold-soft/35' : 'border-line bg-ground-sunken'}`} aria-hidden>
-      <PortfolioGalleryLayout images={images.slice(0, 6)} layout={layout} photoLabel={() => ''} preview />
-    </div>
-  }
-  const photo = (index: number) =>
-    images.length > 0 ? images[index % images.length] : undefined
-  const tile = (index: number, className: string) => (
-    <MiniPhoto key={`${layout}-${index}`} url={photo(index)} className={className} />
-  )
-
   return (
-    <div className={`grid aspect-[4/3] gap-1 border-b p-2 ${active ? 'border-gold/30 bg-gold-soft/35' : 'border-line bg-ground-sunken'}`} aria-hidden>
-      {layout === 'carousel' ? (
-        <div className="flex gap-1 overflow-hidden">{[0, 1, 2].map((i) => tile(i, 'h-full w-[60%] shrink-0 rounded-[4px]'))}</div>
-      ) : layout === 'filmstrip' ? (
-        <div className="flex items-center gap-1 overflow-hidden">{[0, 1, 2].map((i) => tile(i, 'aspect-[16/10] w-[72%] shrink-0 rounded-[4px]'))}</div>
-      ) : layout === 'grid' ? (
-        <div className="grid grid-cols-3 grid-rows-2 gap-1">{[0, 1, 2, 3, 4, 5].map((i) => tile(i, 'rounded-[3px]'))}</div>
-      ) : layout === 'masonry' ? (
-        <div className="grid grid-cols-3 grid-rows-3 gap-1">{tile(0, 'row-span-2 rounded-[3px]')}{tile(1, 'rounded-[3px]')}{tile(2, 'row-span-2 rounded-[3px]')}{tile(3, 'row-span-2 rounded-[3px]')}{tile(4, 'row-span-2 rounded-[3px]')}{tile(5, 'rounded-[3px]')}</div>
-      ) : layout === 'collage' ? (
-        <div className="grid grid-cols-3 grid-rows-2 gap-1">{tile(0, 'col-span-2 row-span-2 rounded-[3px]')}{tile(1, 'rounded-[3px]')}{tile(2, 'rounded-[3px]')}</div>
-      ) : layout === 'collage_story' ? (
-        <div className="grid grid-cols-4 grid-rows-2 gap-1">{tile(0, 'col-span-2 row-span-2 rounded-[3px]')}{tile(1, 'col-span-2 rounded-[3px]')}{tile(2, 'rounded-[3px]')}{tile(3, 'rounded-[3px]')}</div>
-      ) : layout === 'collage_panorama' ? (
-        <div className="grid grid-cols-3 grid-rows-2 gap-1">{tile(0, 'col-span-3 rounded-[3px]')}{tile(1, 'rounded-[3px]')}{tile(2, 'rounded-[3px]')}{tile(3, 'rounded-[3px]')}</div>
-      ) : layout === 'collage_overlap' ? (
-        <div className="relative h-full overflow-hidden">{tile(0, 'absolute left-0 top-[8%] h-[72%] w-[58%] -rotate-3 rounded-[5px] border-2 border-white shadow-card')}{tile(1, 'absolute right-0 top-[20%] h-[72%] w-[58%] rotate-3 rounded-[5px] border-2 border-white shadow-card')}{tile(2, 'absolute bottom-0 left-[30%] h-[45%] w-[42%] rounded-[5px] border-2 border-white shadow-card')}</div>
-      ) : layout === 'collage_frames' ? (
-        <div className="flex h-full flex-col gap-1.5 overflow-hidden bg-[#eee7dc] p-1">{tile(0, 'h-[45%] w-[76%] self-start rounded-[3px] border-2 border-white shadow-card')}{tile(1, 'h-[45%] w-[76%] self-end rounded-[3px] border-2 border-white shadow-card')}</div>
-      ) : (
-        <div className="grid grid-cols-4 grid-rows-3 gap-1">{tile(0, 'col-span-2 row-span-2 rounded-[3px]')}{tile(1, 'col-span-2 rounded-[3px]')}{tile(2, 'row-span-2 rounded-[3px]')}{tile(3, 'rounded-[3px]')}{tile(4, 'col-span-2 rounded-[3px]')}</div>
-      )}
+    <div className={`aspect-[3/4] overflow-hidden border-b p-2 ${active ? 'border-gold/30 bg-gold-soft/35' : 'border-line bg-ground-sunken'}`} aria-hidden>
+      <div className="mx-auto w-[48%]">
+        <PortfolioGalleryLayout images={images.slice(0, 12)} layout={layout} photoLabel={() => ''} preview />
+      </div>
     </div>
   )
 }

@@ -138,6 +138,31 @@ test('incoming photos do not change the open lightbox or selected photo', async 
   await expect(page.getByRole('button', { name: /Download/ })).toBeEnabled()
 })
 
+test('large albums mount only nearby rows and retain selection across page scrolling', async ({ page }) => {
+  await page.route('**/api/share/photos/updates?*', (route) => route.fulfill({
+    json: { success: true, photos: [], nextCursor: null },
+  }))
+  await mount(page, Array.from({ length: 1_000 }, (_, index) => photo(`large-${index}`)))
+  const grid = page.locator('[data-page-windowed-grid]')
+  const tiles = grid.locator('img')
+  await expect(grid.locator('img[alt="large-0.jpg"]')).toBeVisible()
+  await expect.poll(() => tiles.count()).toBeLessThan(120)
+  await page.getByRole('button', { name: /select photos/i }).click()
+  await grid.locator('img[alt="large-0.jpg"]').click()
+  await expect(page.getByText(/selected 1\/5 photos/)).toBeVisible()
+
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+  await expect(grid.locator('img[alt="large-999.jpg"]')).toBeVisible()
+  await expect(grid.locator('img[alt="large-0.jpg"]')).toHaveCount(0)
+  await expect.poll(() => tiles.count()).toBeLessThan(120)
+  await expect(page.getByText(/selected 1\/5 photos/)).toBeVisible()
+
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await expect(grid.locator('img[alt="large-0.jpg"]')).toBeVisible()
+  await expect(grid.locator('button').filter({ has: page.locator('img[alt="large-0.jpg"]') })
+    .locator('.border-gold.bg-gold')).toHaveCount(1)
+})
+
 test('existing shared album uses the real token-gated update endpoint', async ({ page }) => {
   const token = process.env.E2E_SHARE_TOKEN
   test.skip(!token, 'Set E2E_SHARE_TOKEN for the read-only integration smoke test')

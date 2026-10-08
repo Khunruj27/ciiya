@@ -78,13 +78,15 @@ export default async function SharePage({ params }: PageProps) {
     return <SharePasswordGate token={token} albumTitle={album.title} />
   }
 
-  const { photos, photoCount, syncSince } = await getSharedAlbumPhotos(album.id)
-
-  const contact = await getPhotographerContact(album.owner_id || album.user_id)
+  // These reads are independent once the share/password guard has passed.
+  const [{ photos, photoCount, syncSince }, contact, galleryLikeTotal, momentCount] =
+    await Promise.all([
+      getSharedAlbumPhotos(album.id),
+      getPhotographerContact(album.owner_id || album.user_id),
+      getAlbumLikeTotal(album.id),
+      getGuestMomentCount(album.id),
+    ])
   const hasContact = Boolean(contact.facebook || contact.phone)
-
-  const galleryLikeTotal = await getAlbumLikeTotal(album.id)
-  const momentCount = await getGuestMomentCount(album.id)
 
   // The photographer's contact card. Passed into the tabs so it sits at the
   // foot of both the Gallery and the Moments view.

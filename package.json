@@ -34,6 +34,8 @@
     "test:workers:lifecycle": "node --import tsx scripts/test-worker-graceful-shutdown.ts",
     "test:admin:user-detail": "node --import tsx scripts/test-admin-user-detail-query.ts",
     "test:share:updates": "node --import tsx scripts/test-share-photo-updates.ts",
+    "test:performance": "node --import tsx scripts/test-performance.ts",
+    "test:portfolio:gallery": "node --import tsx scripts/test-portfolio-gallery.ts",
     "test:ciiya-sync": "npm run test:ciiya-sync:server && npm run test:ciiya-sync:local && npm run test:ciiya-sync:desktop && npm run test:ciiya-sync:lightroom && npm run test:ciiya-sync:session && npm run test:ciiya-sync:release",
     "test:ciiya-sync:server": "node --import tsx scripts/test-ciiya-sync-foundation.ts",
     "test:ciiya-sync:local": "node --import tsx scripts/test-ciiya-sync-local-queue.ts",

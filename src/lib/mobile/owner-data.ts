@@ -25,6 +25,9 @@ export type MobileAlbum = {
   downloadSize: MobileDownloadSize
   isPasswordProtected: boolean
   photoCount: number
+  /** The album's upload defaults, so phone uploads behave like web uploads. */
+  autoFaceScan: boolean
+  autoPublish: boolean
 }
 
 export type MobilePhoto = {
@@ -49,7 +52,7 @@ export const MOBILE_PHOTO_PAGE_MAX = 120
 
 // Explicit columns: never `*`, so password_hash and other internals stay out.
 const ALBUM_COLUMNS =
-  'id,title,description,cover_url,cover_photo_id,share_token,photo_count,allow_download,download_size,is_password_protected,created_at'
+  'id,title,description,cover_url,cover_photo_id,share_token,photo_count,allow_download,download_size,is_password_protected,auto_face_scan,auto_publish,created_at'
 
 const PHOTO_COLUMNS =
   'id,filename,file_name,storage_provider,storage_bucket,public_url,preview_url,thumbnail_url,preview_path,thumbnail_path,blur_data_url,width,height,processing_status,created_at'
@@ -65,6 +68,8 @@ type AlbumRow = {
   allow_download: boolean | null
   download_size: string | null
   is_password_protected: boolean | null
+  auto_face_scan: boolean | null
+  auto_publish: boolean | null
   created_at: string
 }
 
@@ -103,6 +108,8 @@ function toMobileAlbum(row: AlbumRow): MobileAlbum {
     downloadSize: normalizeDownloadSize(row.download_size),
     isPasswordProtected: row.is_password_protected === true,
     photoCount: Math.max(0, Number(row.photo_count) || 0),
+    autoFaceScan: row.auto_face_scan !== false,
+    autoPublish: row.auto_publish === true,
   }
 }
 

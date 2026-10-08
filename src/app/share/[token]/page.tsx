@@ -79,7 +79,7 @@ export default async function SharePage({ params }: PageProps) {
   }
 
   // These reads are independent once the share/password guard has passed.
-  const [{ photos, photoCount, syncSince }, contact, galleryLikeTotal, momentCount] =
+  const [{ photos, photoCount, syncSince, nextCursor: initialCursor }, contact, galleryLikeTotal, momentCount] =
     await Promise.all([
       getSharedAlbumPhotos(album.id),
       getPhotographerContact(album.owner_id || album.user_id),
@@ -140,11 +140,6 @@ export default async function SharePage({ params }: PageProps) {
   ) : null
 
   const visiblePhotos = photos
-
-  const initialCursor =
-    visiblePhotos.length > 0
-      ? visiblePhotos[visiblePhotos.length - 1].created_at
-      : null
 
   return (
    <main className={`${styles.page} min-h-screen bg-ground text-ink`}>

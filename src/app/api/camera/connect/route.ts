@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { cameraDesktopRequiredResponse, supportsServerUsbCamera } from '@/lib/camera-runtime'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -66,6 +67,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Album not found' }, { status: 404 })
     }
 
+    if (!supportsServerUsbCamera()) return cameraDesktopRequiredResponse()
+
     const { stdout } = await execFileAsync(GPHOTO_BIN, ['--auto-detect'], {
       timeout: 7000,
     })
@@ -85,7 +88,7 @@ export async function POST(req: Request) {
     // Close out any row still marked 'connected' for this album before
     // adding a new one, so repeated plug/unplug cycles (auto-detect can
     // reconnect many times a day) don't pile up stale 'connected' rows.
-    await supabase
+    const { error: closeError } = await supabase
       .from('camera_sessions')
       .update({
         status: 'disconnected',
@@ -95,7 +98,11 @@ export async function POST(req: Request) {
       .eq('user_id', user.id)
       .eq('status', 'connected')
 
-    await supabase.from('camera_sessions').insert({
+    if (closeError) {
+      return NextResponse.json({ error: 'Unable to update camera connection' }, { status: 500 })
+    }
+
+    const { error: connectError } = await supabase.from('camera_sessions').insert({
       user_id: user.id,
       album_id: albumId,
       camera_brand: cameraBrand,
@@ -110,6 +117,9 @@ export async function POST(req: Request) {
       disconnected_at: null,
     })
 
+    if (connectError) {
+      return NextResponse.json({ error: 'Unable to save camera connection' }, { status: 500 })
+    }
 
     return NextResponse.json({
   success: true,

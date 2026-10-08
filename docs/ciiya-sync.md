@@ -21,6 +21,25 @@ Ciiya Sync never claims the USB camera while Lightroom owns it. Camera Live
 Import remains a separate workflow and must not run for the same tethered
 camera at the same time.
 
+### Camera import from the hosted website — 2026-10-08
+
+The album's camera control on Vercel now directs photographers to
+`/me/ciiya-sync` with instructions for the current album. Connect the camera to
+the computer, use Lightroom Classic or camera software to save JPEGs into a
+folder, then select that album and folder in Ciiya Sync and start Live Folder.
+Lightroom's Ciiya Sync Export To workflow is also available. Photos use the
+existing paired-device upload pipeline and appear in the album through its
+existing realtime updates.
+
+The old web handler ran `gphoto2 --auto-detect` on the web server, not the
+visitor's computer. Hosted pages no longer poll this handler or request USB
+capture sessions. Hosted connect/session-start handlers return
+`CAMERA_DESKTOP_REQUIRED` without running gphoto2 or creating capture rows.
+Local/self-hosted server-attached USB mode remains available when Vercel
+environment markers are absent; it requires the web backend and camera worker
+to run on the computer that owns the USB camera. A database write failure no
+longer reports a successful camera connection.
+
 ### Export Selection
 
 1. The photographer selects edited photos in Lightroom.
@@ -77,6 +96,21 @@ No installed application or real upload queue was replaced during this build.
 
 ## Installer downloads on `/me/ciiya-sync`
 
+### Windows user validation — 2026-10-08
+
+The owner reported that a Windows user completed all requested installation
+and workflow checks successfully, including Lightroom Classic. This is a
+user-reported result, not an independently observed native test by the agent.
+The Windows version and CPU architecture were not supplied; it does not
+establish separate ARM64/Lightroom compatibility or coverage of every Windows
+configuration. The earlier October 7 "not yet tested" status below is historical.
+
+The Thai and English download cards now reflect this report and keep the
+separate ARM64 validation caveat. Public Beta status, unsigned/SmartScreen
+instructions, installer version/build date, checksums, artifacts, and rollout
+settings remain unchanged. These copy changes require web deployment to appear
+in Production; no desktop rebuild is needed.
+
 ### Public Beta — 2026-10-07
 
 The owner approved public access as an **unsigned Public Beta**, explicitly
@@ -87,8 +121,8 @@ Production uses `CIIYA_SYNC_ROLLOUT_MODE=all`; Preview stays owner-scoped canary
 The app's embedded `canary` channel is retained honestly: the verified October 7
 binary has not been relabelled as a fully qualified stable Windows release.
 
-The download cards say Public Beta and prominently state that Windows native
-installation and Lightroom end-to-end testing are not yet verified. The user
+At launch, the download cards said Public Beta and stated that Windows native
+installation and Lightroom end-to-end testing were not yet verified. The user
 chose no digital signing; existing manual-open/SmartScreen instructions remain.
 Recommend testing with copies of photos before a live event. Supported package
 architectures are Windows x64/ARM64 (not 32-bit), and the Mac download is Apple
@@ -149,7 +183,8 @@ combined Windows EXE replace the download catalog entries using new immutable
 R2 keys; October 1 objects are retained. This does not update an installed app
 or itself enable public rollout (see the later Public Beta approval above). Installers remain unsigned by the user's choice,
 with the existing installation guidance unchanged. Native Windows installation
-and Lightroom end-to-end testing remain pending.
+and Lightroom end-to-end testing were pending at rebuild time; see the October 8
+user-reported validation above.
 
 The authenticated device page includes Mac Apple Silicon (macOS 13+) and
 combined Windows x64/ARM64 (Windows 10+) downloads, hardware limitations, file

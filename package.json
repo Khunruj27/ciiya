@@ -25,6 +25,7 @@
     "test:storage:download": "node --import tsx scripts/test-photo-download-storage.ts",
     "test:storage:deletion": "node --import tsx scripts/test-storage-deletion.ts",
     "test:storage:camera": "node --import tsx scripts/test-camera-storage.ts",
+    "test:camera:connection": "node --import tsx scripts/test-camera-connection.ts",
     "test:storage:phase10": "node --import tsx scripts/test-phase10-storage.ts",
     "test:storage:phase11": "node --import tsx scripts/test-storage-consistency.ts",
     "test:storage:phase12": "node --import tsx scripts/test-dual-provider-reads.ts",
@@ -34,6 +35,8 @@
     "test:workers:lifecycle": "node --import tsx scripts/test-worker-graceful-shutdown.ts",
     "test:admin:user-detail": "node --import tsx scripts/test-admin-user-detail-query.ts",
     "test:share:updates": "node --import tsx scripts/test-share-photo-updates.ts",
+    "test:share:pagination": "node --import tsx scripts/test-share-pagination.ts",
+    "test:share:views": "node --import tsx scripts/test-share-view.ts",
     "test:performance": "node --import tsx scripts/test-performance.ts",
     "test:portfolio:gallery": "node --import tsx scripts/test-portfolio-gallery.ts",
     "test:ciiya-sync": "npm run test:ciiya-sync:server && npm run test:ciiya-sync:local && npm run test:ciiya-sync:desktop && npm run test:ciiya-sync:lightroom && npm run test:ciiya-sync:session && npm run test:ciiya-sync:release",
@@ -107,7 +110,7 @@
     "react-easy-crop": "^5.5.7",
     "react-virtualized-auto-sizer": "^1.0.26",
     "react-window": "^1.8.11",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "stripe": "^22.6.2",
     "tsx": "^4.21.0",
     "ws": "^8.21.0"
@@ -134,8 +137,10 @@
     "canvas": "^3.2.3"
   },
   "overrides": {
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "postcss": "^8.5.27",
+    "source-map-js": "^1.2.2",
+    "http-cache-semantics": "^4.3.0",
     "@tensorflow/tfjs-node": {
       "adm-zip": "^0.6.1",
       "tar": "^7.5.22",

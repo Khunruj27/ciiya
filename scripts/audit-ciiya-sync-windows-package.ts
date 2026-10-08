@@ -52,7 +52,7 @@ async function main() {
     for (const image of iconImages) assert.ok(installer.includes(image), `${name}: installer logo resolution`)
     console.log(`${name}: PE installer and embedded logo verified`)
   }
-  console.log('Static Windows package audit passed. Native installation, SmartScreen and Lightroom end-to-end remain unverified.')
+  console.log('Static Windows package audit passed. This static audit does not validate native installation, SmartScreen or Lightroom end-to-end behavior.')
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1 })

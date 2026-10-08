@@ -1,3 +1,5 @@
+import { comparePhotoTimestamps, isPhotoTimestamp } from '@/lib/share-photo-pagination'
+
 // Safe, client-visible fields only. Private originals still use the download API.
 export type SharedPhoto = {
   id: string
@@ -15,10 +17,7 @@ export type SharedPhoto = {
 
 export type PhotoUpdateCursor = { updatedAt: string; id: string }
 
-export function isUpdateTimestamp(value: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
-    Number.isFinite(Date.parse(value))
-}
+export const isUpdateTimestamp = isPhotoTimestamp
 
 export function parsePhotoUpdateCursor(value: string | null): PhotoUpdateCursor | null {
   if (!value) return null
@@ -43,7 +42,7 @@ export function mergeSharedPhotos<T extends SharedPhoto>(current: T[], incoming:
   for (const photo of incoming) {
     if (!isReadySharedPhoto(photo)) continue
     const previous = byId.get(photo.id)
-    if (previous?.updated_at && photo.updated_at && Date.parse(previous.updated_at) > Date.parse(photo.updated_at)) continue
+    if (previous?.updated_at && photo.updated_at && comparePhotoTimestamps(previous.updated_at, photo.updated_at) > 0) continue
     const next = { ...previous, ...photo }
     if (!previous || Object.keys(next).some((key) => previous[key as keyof T] !== next[key as keyof T])) {
       byId.set(photo.id, next)
@@ -51,7 +50,7 @@ export function mergeSharedPhotos<T extends SharedPhoto>(current: T[], incoming:
     }
   }
   return changed
-    ? [...byId.values()].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id.localeCompare(a.id))
+    ? [...byId.values()].sort((a, b) => comparePhotoTimestamps(b.created_at, a.created_at) || b.id.localeCompare(a.id))
     : current
 }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { cameraDesktopRequiredResponse, supportsServerUsbCamera } from '@/lib/camera-runtime'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,6 +68,8 @@ if (!user) {
         { status: 404 }
       )
     }
+
+    if (!supportsServerUsbCamera()) return cameraDesktopRequiredResponse()
 
     await supabase
       .from('camera_upload_sessions')

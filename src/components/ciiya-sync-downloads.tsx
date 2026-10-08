@@ -58,11 +58,16 @@ export default function CiiyaSyncDownloads({ locale, enabled }: {
                 <br />
                 {mac ? 'Apple Silicon · M1, M2, M3, M4…' : 'Intel / AMD (x64) · ARM64'}
               </p>
-              <p className="mb-4 mt-1 text-[11px] leading-5 text-muted">
-                {mac
+              <div className="mb-4 mt-1 text-[11px] leading-5 text-muted">
+                <p>{mac
                   ? th ? 'ไฟล์นี้ใช้ไม่ได้กับ Mac ชิป Intel' : 'This installer does not support Intel Macs.'
-                  : th ? 'ตัวติดตั้งเลือกสถาปัตยกรรมให้ · ไม่รองรับ 32-bit · ยังไม่ผ่านการทดสอบบนเครื่อง Windows จริง' : 'Installer selects architecture · No 32-bit support · Not yet tested on a Windows PC'}
-              </p>
+                  : th ? 'ตัวติดตั้งเลือกสถาปัตยกรรมให้ · ไม่รองรับ 32-bit' : 'Installer selects architecture · No 32-bit support'}</p>
+                {!mac && <p className="mt-2">
+                  {th
+                    ? 'ผู้ใช้ยืนยันว่าทดสอบติดตั้งและใช้งานบน Windows รวมถึง Lightroom Classic ผ่านแล้ว · ยังไม่มีผลทดสอบ ARM64 แยกต่างหาก'
+                    : 'A Windows user has confirmed successful installation and workflow tests, including Lightroom Classic. Separate ARM64 testing is not yet confirmed.'}
+                </p>}
+              </div>
               <button type="button" onClick={() => download(installer.id)} disabled={!enabled || busy !== null}
                 className="mt-auto inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-ink px-3 text-[13px] font-semibold text-white transition hover:bg-ink/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold disabled:cursor-not-allowed disabled:opacity-45">
                 {busy === installer.id ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <Download size={16} aria-hidden />}

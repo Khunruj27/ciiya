@@ -54,6 +54,8 @@ let albums: Album[] = [
     downloadSize: 'hd',
     isPasswordProtected: false,
     photoCount: 58,
+    autoFaceScan: true,
+    autoPublish: false,
   },
   {
     id: 'demo-2',
@@ -66,6 +68,8 @@ let albums: Album[] = [
     downloadSize: 'uhd',
     isPasswordProtected: true,
     photoCount: 13,
+    autoFaceScan: true,
+    autoPublish: false,
   },
   {
     id: 'demo-3',
@@ -78,6 +82,8 @@ let albums: Album[] = [
     downloadSize: 'hd',
     isPasswordProtected: false,
     photoCount: 0,
+    autoFaceScan: true,
+    autoPublish: false,
   },
 ];
 
@@ -89,6 +95,37 @@ function findAlbum(albumId: string) {
   const album = albums.find((item) => item.id === albumId);
   if (!album) throw new DataError('not-found');
   return album;
+}
+
+/**
+ * Demo counterpart of a finished upload: the photo appears in the album as
+ * still processing and turns ready a few seconds later, like the real pipeline.
+ */
+export function addDemoUploadedPhoto(albumId: string, fileName: string) {
+  const album = albums.find((item) => item.id === albumId);
+  const photos = photosByAlbum.get(albumId);
+  if (!album || !photos) return;
+
+  const url = SAMPLE_IMAGES[photos.length % SAMPLE_IMAGES.length];
+  const photo: Photo = {
+    id: `${albumId}-upload-${Date.now()}-${photos.length}`,
+    filename: fileName,
+    thumbnailUrl: url,
+    previewUrl: url,
+    blurDataUrl: null,
+    width: null,
+    height: null,
+    isReady: false,
+    createdAt: new Date().toISOString(),
+  };
+
+  photos.unshift(photo);
+  album.photoCount = photos.length;
+  if (!album.coverUrl) album.coverUrl = url;
+
+  setTimeout(() => {
+    photo.isReady = true;
+  }, 6000);
 }
 
 export const demoData: DataSource = {
@@ -106,7 +143,8 @@ export const demoData: DataSource = {
     await delay();
     const all = photosByAlbum.get(albumId) ?? [];
     const start = cursor ? all.findIndex((photo) => photo.createdAt === cursor) + 1 : 0;
-    const photos = all.slice(start, start + PAGE_SIZE);
+    // Copies, so later changes to the fixtures never mutate what a screen holds.
+    const photos = all.slice(start, start + PAGE_SIZE).map((photo) => ({ ...photo }));
     const hasMore = start + PAGE_SIZE < all.length;
 
     return {
@@ -137,6 +175,8 @@ export const demoData: DataSource = {
       downloadSize: 'hd',
       isPasswordProtected: false,
       photoCount: 0,
+      autoFaceScan: true,
+      autoPublish: false,
     };
     albums = [album, ...albums];
     photosByAlbum.set(album.id, []);

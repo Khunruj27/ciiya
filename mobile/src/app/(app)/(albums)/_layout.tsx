@@ -18,6 +18,7 @@ export default function AlbumsLayout() {
       <Stack.Screen name="index" options={{ title: t.albums.title, headerLargeTitle: true }} />
       <Stack.Screen name="album/[id]/index" options={{ title: '' }} />
       <Stack.Screen name="album/[id]/settings" options={{ title: t.settings.title }} />
+      <Stack.Screen name="album/[id]/uploads" options={{ title: t.uploads.title }} />
       <Stack.Screen
         name="new-album"
         options={{ title: t.newAlbum.title, presentation: 'modal' }}

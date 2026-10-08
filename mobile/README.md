@@ -37,6 +37,22 @@ no sign-in and no network writes. It only works in development builds.
 - Only the public anon key ships in the app. Never add the service role key or
   a worker secret here.
 
+## Uploads
+
+Photos picked from the phone's library are copied into the app's documents
+folder and listed in a queue that is saved to disk (`src/lib/uploads/`). The
+queue sends two at a time through the same reserve → upload → finalize routes
+as the website, retries dropped connections on its own, and picks up where it
+left off after the app is closed. A queue belongs to one account; signing in as
+someone else discards it.
+
+- JPEG, PNG and WebP are sent as iOS hands them over. HEIC (the iPhone camera's
+  default) is converted to a full-resolution JPEG first, because the server
+  accepts only those three formats; the converted copy carries no EXIF data.
+- Each file can be up to 200 MB, and up to 100 photos can be picked at a time.
+- In demo mode the upload itself is simulated, and every third photo drops its
+  connection once so the automatic retry is visible.
+
 ## Google sign-in setup
 
 Add the app's redirect URLs to Supabase → Authentication → URL Configuration:

@@ -1,8 +1,10 @@
 import { Image } from 'expo-image';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import * as ImagePicker from 'expo-image-picker';
+import { Stack, useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Platform,
   Pressable,
@@ -16,15 +18,28 @@ import {
 import { PhotoViewer } from '@/components/photo-viewer';
 import { ThemedText } from '@/components/themed-text';
 import { HeaderButton, LoadingView, StateView } from '@/components/ui';
+import { UploadBanner } from '@/components/upload-banner';
+import { UploadSheet } from '@/components/upload-sheet';
 import { Spacing } from '@/constants/theme';
 import { useQuery } from '@/hooks/use-query';
 import { useTheme } from '@/hooks/use-theme';
+import { useAlbumUploads } from '@/hooks/use-uploads';
 import { shareUrl } from '@/lib/config';
-import { data, type Photo } from '@/lib/data';
+import { data, type Photo, type PhotoPage } from '@/lib/data';
 import { describeError, useT } from '@/lib/i18n';
+import { clearFinishedUploads, retryFailedUploads } from '@/lib/uploads/queue';
 
 const COLUMNS = 3;
 const GAP = 2;
+// Bounds how much is copied into the app at once; more can be added right after.
+const MAX_PHOTOS_PER_PICK = 100;
+// How soon after an upload lands the grid picks it up.
+const UPLOAD_REFRESH_MS = 1500;
+// While new photos are processing, check on them this often, for this long.
+const PROCESSING_POLL_MS = 5000;
+const MAX_PROCESSING_POLLS = 36;
+// Lets the photo picker finish closing before the upload sheet opens over it.
+const SHEET_DELAY_MS = 450;
 
 type PhotoList = {
   photos: Photo[];
@@ -34,6 +49,27 @@ type PhotoList = {
 };
 
 const INITIAL_LIST: PhotoList = { photos: [], nextCursor: null, status: 'loading', error: null };
+
+/**
+ * Folds a fresh first page into the list: new photos go on top and known ones
+ * pick up their latest state, without dropping older pages already scrolled in.
+ */
+function mergeLatest(previous: PhotoList, page: PhotoPage): PhotoList {
+  if (previous.status !== 'ready' || previous.photos.length === 0) {
+    return { ...page, status: 'ready', error: null };
+  }
+
+  const fresh = new Map(page.photos.map((photo) => [photo.id, photo]));
+  const known = new Set(previous.photos.map((photo) => photo.id));
+
+  return {
+    ...previous,
+    photos: [
+      ...page.photos.filter((photo) => !known.has(photo.id)),
+      ...previous.photos.map((photo) => fresh.get(photo.id) ?? photo),
+    ],
+  };
+}
 
 export default function AlbumScreen() {
   const t = useT();
@@ -48,6 +84,11 @@ export default function AlbumScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [picked, setPicked] = useState<ImagePicker.ImagePickerAsset[] | null>(null);
+  const isFocused = useIsFocused();
+  const { summary: uploads } = useAlbumUploads(id);
+  const refreshAlbum = album.refresh;
 
   useEffect(() => {
     let active = true;
@@ -65,6 +106,92 @@ export default function AlbumScreen() {
       active = false;
     };
   }, [id]);
+
+  // Uploads that land show up in the grid without a manual refresh. One refresh
+  // covers everything that finished in the meantime, however fast they arrive.
+  const finishedUploads = uploads.finished;
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (finishedUploads === 0 || refreshTimer.current) return;
+
+    refreshTimer.current = setTimeout(() => {
+      refreshTimer.current = null;
+      void refreshAlbum();
+      data
+        .fetchPhotos(id)
+        .then((page) => setList((previous) => mergeLatest(previous, page)))
+        .catch(() => {
+          // The grid keeps what it has; pull to refresh still works.
+        });
+    }, UPLOAD_REFRESH_MS);
+  }, [finishedUploads, id, refreshAlbum]);
+
+  useEffect(
+    () => () => {
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    },
+    []
+  );
+
+  // Photos still being processed turn into thumbnails on their own.
+  const processingKey = list.photos
+    .filter((photo) => !photo.isReady)
+    .map((photo) => photo.id)
+    .join(',');
+  useEffect(() => {
+    if (!processingKey || !isFocused) return;
+
+    let active = true;
+    let polls = 0;
+    const timer = setInterval(() => {
+      polls += 1;
+      if (polls > MAX_PROCESSING_POLLS) {
+        clearInterval(timer);
+        return;
+      }
+
+      data
+        .fetchPhotos(id)
+        .then((page) => {
+          if (active) setList((previous) => mergeLatest(previous, page));
+        })
+        .catch(() => {
+          // Try again on the next tick.
+        });
+    }, PROCESSING_POLL_MS);
+
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [processingKey, isFocused, id]);
+
+  async function handleAddPhotos() {
+    if (picking || picked) return;
+
+    setPicking(true);
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsMultipleSelection: true,
+        selectionLimit: MAX_PHOTOS_PER_PICK,
+        orderedSelection: true,
+        quality: 1,
+        // Hand back each original file untouched instead of a re-encoded copy.
+        preferredAssetRepresentationMode:
+          ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Current,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        const assets = result.assets;
+        setTimeout(() => setPicked(assets), SHEET_DELAY_MS);
+      }
+    } catch {
+      Alert.alert(t.uploads.pickFailed);
+    } finally {
+      setPicking(false);
+    }
+  }
 
   async function reloadPhotos() {
     try {
@@ -132,6 +259,12 @@ export default function AlbumScreen() {
           headerRight: () => (
             <View style={styles.headerActions}>
               <HeaderButton
+                symbol="plus"
+                label={t.uploads.add}
+                onPress={handleAddPhotos}
+                disabled={!album.data || picking}
+              />
+              <HeaderButton
                 symbol="square.and.arrow.up"
                 label={t.album.share}
                 onPress={handleShare}
@@ -170,15 +303,23 @@ export default function AlbumScreen() {
           }
           ListHeaderComponent={
             album.data ? (
-              <View style={styles.summary}>
-                {album.data.description ? (
-                  <ThemedText themeColor="textSecondary">{album.data.description}</ThemedText>
-                ) : null}
-                <ThemedText type="small" themeColor="textSecondary">
-                  {t.albums.photoCount(total)}
-                  {album.data.isPasswordProtected ? ` · ${t.albums.locked}` : ''}
-                </ThemedText>
-              </View>
+              <>
+                <View style={styles.summary}>
+                  {album.data.description ? (
+                    <ThemedText themeColor="textSecondary">{album.data.description}</ThemedText>
+                  ) : null}
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {t.albums.photoCount(total)}
+                    {album.data.isPasswordProtected ? ` · ${t.albums.locked}` : ''}
+                  </ThemedText>
+                </View>
+                <UploadBanner
+                  summary={uploads}
+                  onOpen={() => router.push({ pathname: '/album/[id]/uploads', params: { id } })}
+                  onRetry={() => retryFailedUploads(id)}
+                  onDismiss={() => clearFinishedUploads(id)}
+                />
+              </>
             ) : null
           }
           ListEmptyComponent={
@@ -233,6 +374,10 @@ export default function AlbumScreen() {
           }}
         />
       )}
+
+      {picked && album.data ? (
+        <UploadSheet album={album.data} assets={picked} onClose={() => setPicked(null)} />
+      ) : null}
 
       {viewerIndex !== null && list.photos.length > 0 ? (
         <PhotoViewer

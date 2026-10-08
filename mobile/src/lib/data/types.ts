@@ -11,6 +11,9 @@ export type Album = {
   downloadSize: DownloadSize;
   isPasswordProtected: boolean;
   photoCount: number;
+  /** The album's upload defaults, applied to photos sent from the phone. */
+  autoFaceScan: boolean;
+  autoPublish: boolean;
 };
 
 export type Photo = {

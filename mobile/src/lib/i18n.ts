@@ -10,6 +10,7 @@ const th = {
   common: {
     appName: 'Ciiya',
     retry: 'ลองอีกครั้ง',
+    ok: 'ตกลง',
     cancel: 'ยกเลิก',
     save: 'บันทึก',
     saving: 'กำลังบันทึก…',
@@ -51,7 +52,7 @@ const th = {
   },
   album: {
     empty: 'ยังไม่มีรูปในอัลบั้มนี้',
-    emptyHint: 'อัปโหลดรูปได้จากเว็บไซต์หรือ Ciiya Sync',
+    emptyHint: 'แตะ + เพื่ออัปโหลดรูปจากมือถือเครื่องนี้',
     processing: 'กำลังประมวลผล',
     share: 'แชร์ลิงก์',
     settings: 'ตั้งค่า',
@@ -91,6 +92,57 @@ const th = {
       `“${title}” และรูปทั้งหมดในอัลบั้มจะถูกลบถาวร ไม่สามารถกู้คืนได้`,
     deleting: 'กำลังลบ…',
   },
+  uploads: {
+    add: 'เพิ่มรูป',
+    title: 'การอัปโหลด',
+    sheetTitle: (count: number) => `อัปโหลด ${count.toLocaleString('th-TH')} รูป`,
+    sheetHint: 'รูปจะถูกส่งเข้าอัลบั้มนี้และเริ่มประมวลผลทันที',
+    sizeLabel: 'ขนาดรูปที่ส่งมอบ',
+    sizeHints: {
+      sd: 'SD — ด้านยาว 2000 px',
+      hd: 'HD — ด้านยาว 3000 px',
+      uhd: 'UHD — ด้านยาว 4000 px',
+      original: 'ต้นฉบับ — ขนาดเต็มตามไฟล์',
+    },
+    start: 'อัปโหลด',
+    preparing: (done: number, total: number) => `กำลังเตรียมรูป ${done} / ${total}`,
+    pickFailed: 'เปิดคลังรูปภาพไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
+    skippedTitle: 'บางรูปไม่ได้เข้าคิว',
+    skippedUnreadable: (count: number) =>
+      `${count} รูปอ่านไฟล์ไม่ได้ หรือมีขนาดเกิน 200 MB`,
+    skippedQueued: (count: number) => `${count} รูปอยู่ในคิวอัปโหลดอยู่แล้ว`,
+    bannerUploading: (current: number, total: number) =>
+      `กำลังอัปโหลด ${current} จาก ${total} รูป`,
+    bannerWaiting: 'รอการเชื่อมต่อ จะอัปโหลดต่อให้อัตโนมัติ',
+    bannerFailed: (count: number) => `อัปโหลดไม่สำเร็จ ${count} รูป`,
+    bannerDone: (count: number) => `อัปโหลดครบ ${count} รูปแล้ว`,
+    bannerAllDuplicates: (count: number) => `${count} รูปนี้มีอยู่ในอัลบั้มแล้ว ไม่ได้เพิ่มซ้ำ`,
+    bannerDoneWithDuplicates: (uploaded: number, duplicates: number) =>
+      `อัปโหลด ${uploaded} รูปแล้ว · มีอยู่แล้ว ${duplicates} รูป`,
+    details: 'ดูรายละเอียด',
+    retryAll: 'ลองใหม่ทั้งหมด',
+    clearFinished: 'ล้างรายการที่เสร็จแล้ว',
+    empty: 'ไม่มีรายการอัปโหลด',
+    remove: 'นำออกจากคิว',
+    status: {
+      queued: 'รออัปโหลด',
+      retrying: 'รอการเชื่อมต่อ จะลองใหม่อัตโนมัติ',
+      retryingServer: 'ระบบไม่ว่างชั่วคราว จะลองใหม่อัตโนมัติ',
+      uploading: (percent: number) => `กำลังอัปโหลด ${percent}%`,
+      finishing: 'กำลังบันทึกเข้าอัลบั้ม…',
+      done: 'อัปโหลดแล้ว',
+      duplicate: 'มีรูปนี้ในอัลบั้มอยู่แล้ว',
+    },
+    failure: {
+      network: 'เชื่อมต่อไม่ได้ แตะเพื่อลองใหม่',
+      server: 'อัปโหลดไม่สำเร็จ แตะเพื่อลองใหม่',
+      'storage-full': 'พื้นที่จัดเก็บเต็ม กรุณาอัปเกรดแพ็กเกจหรือลบรูปเก่า',
+      session: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่ แล้วแตะเพื่อลองอีกครั้ง',
+      'album-missing': 'ไม่พบอัลบั้มนี้แล้ว',
+      rejected: 'ไฟล์นี้อัปโหลดไม่ได้ (รองรับ JPEG, PNG, WebP ไม่เกิน 200 MB)',
+      'file-missing': 'ไม่พบไฟล์ในเครื่องแล้ว กรุณาเลือกรูปใหม่',
+    },
+  },
   account: {
     title: 'บัญชี',
     storage: 'พื้นที่จัดเก็บ',
@@ -108,6 +160,7 @@ const en: Dictionary = {
   common: {
     appName: 'Ciiya',
     retry: 'Try again',
+    ok: 'OK',
     cancel: 'Cancel',
     save: 'Save',
     saving: 'Saving…',
@@ -150,7 +203,7 @@ const en: Dictionary = {
   },
   album: {
     empty: 'No photos in this album yet',
-    emptyHint: 'Upload from the website or Ciiya Sync.',
+    emptyHint: 'Tap + to upload photos from this phone.',
     processing: 'Processing',
     share: 'Share link',
     settings: 'Settings',
@@ -189,6 +242,63 @@ const en: Dictionary = {
     deleteMessage: (title: string) =>
       `“${title}” and every photo in it will be permanently deleted. This cannot be undone.`,
     deleting: 'Deleting…',
+  },
+  uploads: {
+    add: 'Add photos',
+    title: 'Uploads',
+    sheetTitle: (count: number) =>
+      `Upload ${count.toLocaleString('en-US')} ${count === 1 ? 'photo' : 'photos'}`,
+    sheetHint: 'Photos go into this album and start processing right away.',
+    sizeLabel: 'Delivery size',
+    sizeHints: {
+      sd: 'SD — long edge 2000 px',
+      hd: 'HD — long edge 3000 px',
+      uhd: 'UHD — long edge 4000 px',
+      original: 'Original — full size as shot',
+    },
+    start: 'Upload',
+    preparing: (done: number, total: number) => `Preparing ${done} / ${total}`,
+    pickFailed: 'Could not open the photo library. Please try again.',
+    skippedTitle: 'Some photos were not queued',
+    skippedUnreadable: (count: number) =>
+      `${count} could not be read or ${count === 1 ? 'is' : 'are'} larger than 200 MB.`,
+    skippedQueued: (count: number) =>
+      `${count} ${count === 1 ? 'is' : 'are'} already in the upload queue.`,
+    bannerUploading: (current: number, total: number) => `Uploading ${current} of ${total}`,
+    bannerWaiting: 'Waiting for a connection. Uploads resume automatically.',
+    bannerFailed: (count: number) =>
+      `${count} ${count === 1 ? 'upload' : 'uploads'} failed`,
+    bannerDone: (count: number) =>
+      `${count} ${count === 1 ? 'photo' : 'photos'} uploaded`,
+    bannerAllDuplicates: (count: number) =>
+      count === 1
+        ? 'This photo is already in the album. Nothing was added.'
+        : `These ${count} photos are already in the album. Nothing was added.`,
+    bannerDoneWithDuplicates: (uploaded: number, duplicates: number) =>
+      `${uploaded} uploaded · ${duplicates} already in the album`,
+    details: 'Details',
+    retryAll: 'Retry all',
+    clearFinished: 'Clear finished',
+    empty: 'No uploads',
+    remove: 'Remove from queue',
+    status: {
+      queued: 'Waiting to upload',
+      retrying: 'Waiting for a connection. Retries automatically.',
+      retryingServer: 'Server busy. Retries automatically.',
+      uploading: (percent: number) => `Uploading ${percent}%`,
+      finishing: 'Saving to the album…',
+      done: 'Uploaded',
+      duplicate: 'Already in this album',
+    },
+    failure: {
+      network: 'No connection. Tap to retry.',
+      server: 'Upload failed. Tap to retry.',
+      'storage-full': 'Storage is full. Upgrade your plan or delete older photos.',
+      session: 'Your session has expired. Sign in again, then tap to retry.',
+      'album-missing': 'This album no longer exists.',
+      rejected: 'This file cannot be uploaded (JPEG, PNG or WebP, up to 200 MB).',
+      'file-missing': 'The file is no longer on this phone. Pick the photo again.',
+    },
   },
   account: {
     title: 'Account',

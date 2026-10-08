@@ -3,6 +3,7 @@ import { createContext, use, useEffect, useMemo, useState, type PropsWithChildre
 
 import { isDemoMode } from '@/lib/config';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { setUploadOwner } from '@/lib/uploads/queue';
 
 export type SessionUser = {
   id: string;
@@ -79,6 +80,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
       data.subscription.unsubscribe();
     };
   }, []);
+
+  // The upload queue belongs to whoever is signed in, and pauses when nobody is.
+  const userId = user?.id ?? null;
+  useEffect(() => {
+    if (!isLoading) setUploadOwner(userId);
+  }, [userId, isLoading]);
 
   const value = useMemo<SessionValue>(
     () => ({

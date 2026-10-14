@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { createMobileSupabaseClient } from '@/lib/mobile/server-client'
 import crypto from 'crypto'
 
 export const runtime = 'nodejs'
@@ -11,13 +12,23 @@ function createShareToken() {
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient()
+    // An explicit credential must never borrow a different browser identity.
+    // Only this route opts into mobile writes; shared web auth stays unchanged.
+    const hasExplicitAuthorization = req.headers.has('authorization')
+    const supabase = hasExplicitAuthorization
+      ? await createMobileSupabaseClient(req.headers.get('authorization'))
+      : await createServerSupabaseClient()
+
+    if (!supabase) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser()
 
-    if (!user) {
+    if (!user || (hasExplicitAuthorization && authError)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

@@ -1,6 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveAlbumCoverDeliveries } from '../storage/album-covers'
 import { resolvePhotoDeliveries } from '../storage/delivery'
+import {
+  paginatePhotoRows,
+  parsePhotoPageCursor,
+} from '../share-photo-pagination'
 
 /**
  * Read models for the Ciiya mobile app (`mobile/`). The app cannot resolve
@@ -39,6 +43,8 @@ export type MobilePhoto = {
   width: number | null
   height: number | null
   isReady: boolean
+  processingStatus: 'pending' | 'processing' | 'done' | 'failed' | 'cancelled' | 'uploading' | 'finalizing' | 'unknown'
+  processingProgress: number | null
   createdAt: string
 }
 
@@ -55,7 +61,7 @@ const ALBUM_COLUMNS =
   'id,title,description,cover_url,cover_photo_id,share_token,photo_count,allow_download,download_size,is_password_protected,auto_face_scan,auto_publish,created_at'
 
 const PHOTO_COLUMNS =
-  'id,filename,file_name,storage_provider,storage_bucket,public_url,preview_url,thumbnail_url,preview_path,thumbnail_path,blur_data_url,width,height,processing_status,created_at'
+  'id,filename,file_name,storage_provider,storage_bucket,public_url,preview_url,thumbnail_url,preview_path,thumbnail_path,blur_data_url,width,height,processing_status,processing_progress,created_at'
 
 type AlbumRow = {
   id: string
@@ -88,6 +94,7 @@ type PhotoRow = {
   width: number | null
   height: number | null
   processing_status: string | null
+  processing_progress: number | null
   created_at: string
 }
 
@@ -115,6 +122,11 @@ function toMobileAlbum(row: AlbumRow): MobileAlbum {
 
 function toMobilePhoto(row: PhotoRow): MobilePhoto {
   const hasImage = Boolean(row.thumbnail_url || row.preview_url)
+  const status = row.processing_status
+  const processingStatus = status === 'pending' || status === 'processing' || status === 'done' ||
+    status === 'failed' || status === 'cancelled' || status === 'uploading' || status === 'finalizing'
+    ? status : 'unknown'
+  const progress = row.processing_progress
 
   return {
     id: row.id,
@@ -125,6 +137,9 @@ function toMobilePhoto(row: PhotoRow): MobilePhoto {
     width: Number(row.width) > 0 ? Number(row.width) : null,
     height: Number(row.height) > 0 ? Number(row.height) : null,
     isReady: row.processing_status === 'done' && hasImage,
+    processingStatus,
+    processingProgress: processingStatus === 'processing' && typeof progress === 'number' &&
+      Number.isFinite(progress) && progress >= 0 && progress <= 100 ? Math.round(progress) : null,
     createdAt: row.created_at,
   }
 }
@@ -173,16 +188,26 @@ export async function getOwnerAlbum(
 }
 
 /**
- * One page of an album's photos, newest first. `cursor` is the `createdAt` of
- * the last photo of the previous page. Returns null when the album is not the
- * owner's, so callers answer 404 instead of an empty list.
+ * One page of an album's photos, newest first by (created_at, id). Timestamp
+ * ties are common with batch uploads, so a timestamp alone is not a boundary.
+ * Older clients' timestamp cursors replay that boundary once, then receive a
+ * tuple cursor. `photoIds` reads a bounded set of processing updates without
+ * walking every page. Every path checks the owner and album independently.
  */
 export async function listOwnerPhotos(
   supabase: SupabaseClient,
   ownerId: string,
   albumId: string,
-  options: { cursor?: string | null; limit?: number } = {}
+  options: { cursor?: string | null; limit?: number; photoIds?: string[] } = {}
 ): Promise<MobilePhotoPage | null> {
+  const cursor = parsePhotoPageCursor(options.cursor ?? null)
+  if (options.cursor && !cursor) throw new Error('Invalid cursor')
+  if (options.photoIds && (
+    options.photoIds.length === 0 ||
+    options.photoIds.length > MOBILE_PHOTO_PAGE_MAX ||
+    options.photoIds.some((id) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+  )) throw new Error('Invalid photo IDs')
+
   const { data: album, error: albumError } = await supabase
     .from('albums')
     .select('id')
@@ -194,7 +219,7 @@ export async function listOwnerPhotos(
   if (!album) return null
 
   const limit = Math.min(
-    Math.max(Math.trunc(options.limit || MOBILE_PHOTO_PAGE_DEFAULT), 1),
+    Math.max(Math.trunc(Number.isFinite(options.limit) ? options.limit! : MOBILE_PHOTO_PAGE_DEFAULT), 1),
     MOBILE_PHOTO_PAGE_MAX
   )
 
@@ -204,24 +229,31 @@ export async function listOwnerPhotos(
     .eq('album_id', albumId)
     .eq('owner_id', ownerId)
     .order('created_at', { ascending: false })
-    .limit(limit + 1)
+    .order('id', { ascending: false })
 
-  if (options.cursor) query = query.lt('created_at', options.cursor)
+  if (options.photoIds) {
+    query = query.in('id', options.photoIds).limit(MOBILE_PHOTO_PAGE_MAX)
+  } else {
+    query = query.limit(limit + 1)
+    if (cursor) {
+      query = cursor.id
+        ? query.or(`created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`)
+        : query.lte('created_at', cursor.createdAt)
+    }
+  }
 
   const { data, error } = await query
 
   if (error) throw new Error(error.message)
 
   const rows = (data ?? []) as PhotoRow[]
-  const hasMore = rows.length > limit
-  const pageRows = hasMore ? rows.slice(0, limit) : rows
+  const { rows: pageRows, nextCursor } = options.photoIds
+    ? { rows, nextCursor: null }
+    : paginatePhotoRows(rows, limit)
   const photos = resolvePhotoDeliveries(pageRows).map(toMobilePhoto)
 
   return {
     photos,
-    nextCursor:
-      hasMore && pageRows.length > 0
-        ? pageRows[pageRows.length - 1].created_at
-        : null,
+    nextCursor,
   }
 }

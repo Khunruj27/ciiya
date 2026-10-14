@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test'
+import { execFileSync } from 'node:child_process'
+import path from 'node:path'
 import { readBearerAccessToken } from '../src/lib/bearer-token'
 import { resolvePhotoUploadPrincipal } from '../src/lib/photo-upload-principal'
 
@@ -114,30 +116,14 @@ test.describe('photo upload principal', () => {
     })
   }
 
-  test('a user access token uploads as that user', async () => {
-    const { client, calls } = fakeClient('aaaa.bbbb.cccc')
-    const result = await resolvePhotoUploadPrincipal({
-      request: uploadRequest('Bearer aaaa.bbbb.cccc'),
-      browserClient: client,
-    })
-
-    expect(result.principal?.kind).toBe('browser')
-    expect(result.principal?.ownerId).toBe(ownerId)
-    expect(result.explicitCredential).toBe(true)
-    expect(calls).toEqual(['aaaa.bbbb.cccc'])
-  })
-
-  test('a rejected access token never falls back to the cookie session', async () => {
-    const { client, calls } = fakeClient('aaaa.bbbb.cccc')
-    const result = await resolvePhotoUploadPrincipal({
-      request: uploadRequest('Bearer xxxx.yyyy.zzzz'),
-      browserClient: client,
-    })
-
-    expect(result.principal).toBeNull()
-    expect(result.explicitCredential).toBe(true)
-    // Only the presented token was checked; the cookie session was not.
-    expect(calls).toEqual(['xxxx.yyyy.zzzz'])
+  test('native writes use a separate verified client, never the supplied cookie identity', () => {
+    // The dedicated helper must not be replaced by the supplied browser fake.
+    // Execute its actual modules/SDK under offline transport and database mocks.
+    execFileSync(
+      process.execPath,
+      ['--test', '--test-reporter=dot', path.resolve('scripts/test-mobile-write-api.cjs')],
+      { encoding: 'utf8', timeout: 30_000 }
+    )
   })
 
   test('a browser request without a header still uses its cookie session', async () => {

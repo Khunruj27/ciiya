@@ -440,6 +440,19 @@ export async function DELETE(request: NextRequest) {
     return json({ error: 'Unauthorized', code: 'UNAUTHORIZED' }, 401)
   }
 
+  // This release grants native uploads, not remote deletion. A finalizing
+  // reservation can already be an accepted original if its completion reply
+  // was lost. Keep it for explicit audit instead of enabling JWT cancellation.
+  if (principal.kind === 'browser' && request.headers.has('authorization')) {
+    return json(
+      {
+        error: 'Mobile upload cancellation is not enabled',
+        code: 'MOBILE_UPLOAD_CANCELLATION_DISABLED',
+      },
+      403
+    )
+  }
+
   let sessionId = ''
 
   try {

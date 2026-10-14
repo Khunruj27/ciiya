@@ -1,12 +1,15 @@
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 
+import { createCallbackCompleter } from '@/lib/auth-callback';
 import { supabase } from '@/lib/supabase';
+
+WebBrowser.maybeCompleteAuthSession();
 
 /**
  * Where Google sends the photographer back to. This URL must be on the
  * Supabase project's redirect allow list (Authentication → URL Configuration):
- * `ciiya://**` for installed builds, and the Expo Go `exp://` URL while
+ * `ciiya://auth/callback` for installed builds, and the specific Expo Go URL while
  * developing. If it is missing, Supabase falls back to the website and the
  * sign-in sheet never returns to the app.
  */
@@ -14,17 +17,15 @@ export function getOAuthRedirectUrl() {
   return Linking.createURL('auth/callback');
 }
 
-/** Reads the tokens Supabase appends to the redirect URL (fragment or query). */
-function readSessionTokens(url: string) {
-  const start = url.search(/[?#]/);
-  if (start === -1) return null;
+const completeCallback = createCallbackCompleter(async (code) => {
+  // Supabase verifies against the PKCE verifier kept in this device's keychain.
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  if (error) throw error;
+});
 
-  const params = new URLSearchParams(url.slice(start + 1).replace(/[?#]/g, '&'));
-  const accessToken = params.get('access_token');
-  const refreshToken = params.get('refresh_token');
-
-  if (!accessToken || !refreshToken) return null;
-  return { access_token: accessToken, refresh_token: refreshToken };
+/** Used both by the browser result and when a callback launches a closed app. */
+export function completeOAuthCallback(url: string) {
+  return completeCallback(url, getOAuthRedirectUrl());
 }
 
 /**
@@ -47,11 +48,7 @@ export async function signInWithGoogle(): Promise<'signed-in' | 'cancelled'> {
 
   if (result.type !== 'success') return 'cancelled';
 
-  const tokens = readSessionTokens(result.url);
-  if (!tokens) throw new Error('OAuth redirect did not include a session');
-
-  const { error: sessionError } = await supabase.auth.setSession(tokens);
-  if (sessionError) throw sessionError;
+  if (!(await completeOAuthCallback(result.url))) throw new Error('Unexpected authentication callback');
 
   return 'signed-in';
 }

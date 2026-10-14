@@ -5,7 +5,7 @@ import { AppState } from 'react-native';
 import { isDemoMode } from '@/lib/config';
 
 import { demoTransport } from './demo-transport';
-import { deleteLocalFile, localFile, prepareAsset, queueFile, sweepLocalFiles } from './files';
+import { deleteLocalFile, localFile, prepareAsset, queueFile, saveQueue, sweepLocalFiles } from './files';
 import { liveTransport } from './live-transport';
 import {
   UploadError,
@@ -34,7 +34,9 @@ const QUEUE_VERSION = 1;
 const transport: UploadTransport = isDemoMode ? demoTransport : liveTransport;
 
 let items: UploadItem[] = [];
+let visibleItems: UploadItem[] = [];
 let ownerId: string | null = null;
+let ownerGeneration = 0;
 let hydrated = false;
 /** Set when the server stops accepting the session; cleared by resuming. */
 let awaitingSignIn = false;
@@ -42,21 +44,29 @@ let persistTimer: ReturnType<typeof setTimeout> | null = null;
 
 const listeners = new Set<() => void>();
 const running = new Map<string, AbortController>();
+// Running cancellations are cleaned up only once their transport has settled.
+const discarded = new Map<string, UploadItem>();
+const foreignLocalCleanup = new Map<string, string>();
 const notBefore = new Map<string, number>();
 
 function emit() {
+  visibleItems = ownerId ? items.filter((item) => item.ownerId === ownerId) : [];
   for (const listener of listeners) listener();
 }
 
-function persistNow() {
+function persistNow(required = false) {
+  if (persistTimer) clearTimeout(persistTimer);
   persistTimer = null;
 
   try {
     // Finished uploads are only kept for the current session's summary.
     const pending = items.filter((item) => item.status !== 'done' && item.status !== 'duplicate');
-    queueFile().write(JSON.stringify({ version: QUEUE_VERSION, items: pending }));
+    saveQueue(JSON.stringify({ version: QUEUE_VERSION, items: pending }));
+    return true;
   } catch {
-    // The in-memory queue keeps working; the next change tries again.
+    // Never send a registration that cannot survive a crash on this phone.
+    if (required) throw new UploadError('server', { message: 'Could not save the upload queue' });
+    return false;
   }
 }
 
@@ -65,7 +75,7 @@ function setItems(next: UploadItem[], options: { persist?: boolean } = {}) {
   emit();
 
   if (options.persist !== false && !persistTimer) {
-    persistTimer = setTimeout(persistNow, PERSIST_DELAY_MS);
+    persistTimer = setTimeout(() => persistNow(), PERSIST_DELAY_MS);
   }
 }
 
@@ -91,12 +101,16 @@ function isUploadItem(value: unknown): value is UploadItem {
     typeof item.albumId === 'string' &&
     typeof item.fileName === 'string' &&
     typeof item.mimeType === 'string' &&
-    typeof item.sizeBytes === 'number' &&
+    typeof item.sizeBytes === 'number' && Number.isFinite(item.sizeBytes) && item.sizeBytes > 0 &&
     typeof item.fileHash === 'string' &&
     typeof item.localName === 'string' &&
     /^[A-Za-z0-9-]+\.(jpg|png|webp)$/.test(item.localName) &&
-    typeof item.size === 'string' &&
-    typeof item.status === 'string'
+    ['image/jpeg', 'image/png', 'image/webp'].includes(String(item.mimeType)) &&
+    ['sd', 'hd', 'uhd', 'original'].includes(String(item.size)) &&
+    ['queued', 'uploading', 'finishing', 'done', 'duplicate', 'failed'].includes(String(item.status)) &&
+    typeof item.autoFaceScan === 'boolean' && typeof item.autoPublish === 'boolean' &&
+    typeof item.attempts === 'number' && Number.isFinite(item.attempts) && item.attempts >= 0 &&
+    typeof item.createdAt === 'number' && Number.isFinite(item.createdAt)
   );
 }
 
@@ -106,17 +120,23 @@ function hydrate() {
   hydrated = true;
 
   let restored: UploadItem[] = [];
+  let safeToSweep = true;
 
-  try {
-    const file = queueFile();
-    if (file.exists) {
+  // A failed replacement may leave the fully written next journal recoverable.
+  for (const name of ['queue.json', 'queue.next.json'] as const) {
+    try {
+      const file = queueFile(name);
+      if (!file.exists) continue;
+      safeToSweep = false;
       const saved = JSON.parse(file.textSync()) as { version?: number; items?: unknown };
       if (saved.version === QUEUE_VERSION && Array.isArray(saved.items)) {
         restored = saved.items.filter(isUploadItem);
+        safeToSweep = restored.length === saved.items.length;
+        break;
       }
+    } catch {
+      safeToSweep = false;
     }
-  } catch {
-    // An unreadable queue file is treated as empty.
   }
 
   items = restored.map((saved): UploadItem => {
@@ -126,7 +146,11 @@ function hydrate() {
       registering: saved.registering === true,
       staged:
         staged && typeof staged.storagePath === 'string'
-          ? { storagePath: staged.storagePath, uncertain: staged.uncertain === true }
+          ? {
+              storagePath: staged.storagePath,
+              // Older journals set registering but not uncertain before sending.
+              uncertain: staged.uncertain === true || saved.registering === true,
+            }
           : null,
     };
 
@@ -140,7 +164,10 @@ function hydrate() {
     return { ...item, progress: 0 };
   });
 
-  sweepLocalFiles(new Set(items.map((item) => item.localName)));
+  // Do not destroy recoverable local photos when a journal cannot be read.
+  if (safeToSweep) {
+    sweepLocalFiles(new Set(items.map((item) => item.localName)));
+  }
   emit();
 }
 
@@ -195,6 +222,9 @@ function settleFailure(item: UploadItem, error: unknown) {
 }
 
 async function run(id: string) {
+  const initial = find(id);
+  if (!initial || initial.ownerId !== ownerId) return;
+  const generation = ownerGeneration;
   const controller = new AbortController();
   running.set(id, controller);
   notBefore.delete(id);
@@ -205,32 +235,46 @@ async function run(id: string) {
   try {
     const item = find(id);
     if (!item) return;
+    persistNow(true);
+
+    function assertCurrentOwner() {
+      if (controller.signal.aborted || generation !== ownerGeneration || ownerId !== item?.ownerId) {
+        controller.abort();
+        throw new Error('Upload no longer belongs to the active session');
+      }
+    }
 
     const outcome = await transport.upload(item, {
       signal: controller.signal,
       onProgress(progress) {
+        if (controller.signal.aborted || generation !== ownerGeneration) return;
         // Skip tiny steps so a fast upload does not redraw on every chunk.
         if (progress - reported < 0.02 && progress < 1) return;
         reported = progress;
         patch(id, { progress }, { persist: false });
       },
       onFinishing() {
+        assertCurrentOwner();
         patch(id, { status: 'finishing', progress: 1, registering: true });
+        persistNow(true);
       },
       onStaged(staged) {
+        const removed = discarded.get(id);
+        if (removed) discarded.set(id, { ...removed, staged });
+        assertCurrentOwner();
         patch(id, { staged });
         // Saved straight away: losing this would orphan or re-send the file.
-        if (persistTimer) clearTimeout(persistTimer);
-        persistNow();
+        persistNow(true);
       },
     });
 
     const finished = find(id);
     if (finished) {
-      deleteLocalFile(finished.localName);
       // "Already there" after our own registration request is that request having worked.
       const status = outcome === 'duplicate' && item.registering ? 'done' : outcome;
       patch(id, { status, progress: 1, failure: null });
+      // If the process closes now, the journal must not restore a missing file.
+      if (persistNow()) deleteLocalFile(finished.localName);
     }
   } catch (error) {
     const current = find(id);
@@ -247,6 +291,17 @@ async function run(id: string) {
     }
   } finally {
     running.delete(id);
+    const removed = discarded.get(id);
+    if (removed) {
+      discarded.delete(id);
+      transport.discard?.(removed);
+      deleteLocalFile(removed.localName);
+    }
+    const foreignLocalName = foreignLocalCleanup.get(id);
+    if (foreignLocalName) {
+      foreignLocalCleanup.delete(id);
+      deleteLocalFile(foreignLocalName);
+    }
     pump();
   }
 }
@@ -254,11 +309,13 @@ async function run(id: string) {
 /** Tells the queue who is signed in; `null` pauses it without losing anything. */
 export function setUploadOwner(userId: string | null) {
   hydrate();
+  if (ownerId !== userId) ownerGeneration += 1;
   ownerId = userId;
   awaitingSignIn = false;
 
   if (!userId) {
     for (const controller of running.values()) controller.abort();
+    emit();
     return;
   }
 
@@ -267,10 +324,16 @@ export function setUploadOwner(userId: string | null) {
 
   if (foreign.length > 0) {
     for (const item of foreign) {
-      running.get(item.id)?.abort();
-      deleteLocalFile(item.localName);
+      const controller = running.get(item.id);
+      if (controller) {
+        foreignLocalCleanup.set(item.id, item.localName);
+        controller.abort();
+      } else {
+        deleteLocalFile(item.localName);
+      }
     }
     setItems(items.filter((item) => item.ownerId === userId));
+    persistNow();
   }
 
   // A fresh sign-in is what uploads stopped for an expired session were waiting on.
@@ -284,6 +347,7 @@ export function setUploadOwner(userId: string | null) {
     );
   }
 
+  emit();
   pump();
 }
 
@@ -315,6 +379,7 @@ export async function enqueueUploads(
   hydrate();
 
   const owner = ownerId;
+  const generation = ownerGeneration;
   const result: EnqueueResult = { queued: 0, unreadable: 0, alreadyQueued: 0 };
   if (!owner) return result;
 
@@ -327,7 +392,14 @@ export async function enqueueUploads(
   if (albumIsIdle) clearFinishedUploads(albumId);
 
   for (const [index, asset] of assets.entries()) {
+    if (ownerId !== owner || ownerGeneration !== generation) break;
     const prepared = await prepareAsset(asset);
+
+    // A sign-out or A → B → A switch while copying invalidates the whole batch.
+    if (ownerId !== owner || ownerGeneration !== generation) {
+      if (prepared) deleteLocalFile(prepared.localName);
+      break;
+    }
 
     if (!prepared) {
       result.unreadable += 1;
@@ -335,6 +407,7 @@ export async function enqueueUploads(
       items.some(
         (item) =>
           item.albumId === albumId &&
+          item.ownerId === owner &&
           item.fileHash === prepared.fileHash &&
           item.status !== 'failed' &&
           item.status !== 'done' &&
@@ -362,7 +435,9 @@ export async function enqueueUploads(
         },
       ]);
       result.queued += 1;
-      pump();
+      // The copied photo must be journaled before any network request starts.
+      if (persistNow()) pump();
+      else patch(items[items.length - 1].id, { status: 'failed', failure: 'server' });
     }
 
     onPrepared?.(index + 1, assets.length);
@@ -374,7 +449,7 @@ export async function enqueueUploads(
 /** Puts a failed upload back in line with a clean slate. */
 export function retryUpload(id: string) {
   const item = find(id);
-  if (!item || item.status !== 'failed' || item.failure === 'file-missing') return;
+  if (!item || item.ownerId !== ownerId || item.status !== 'failed' || item.failure === 'file-missing') return;
 
   notBefore.delete(id);
   patch(id, { status: 'queued', progress: 0, attempts: 0, failure: null });
@@ -383,21 +458,29 @@ export function retryUpload(id: string) {
 
 export function retryFailedUploads(albumId?: string) {
   for (const item of items) {
-    if (item.status === 'failed' && (!albumId || item.albumId === albumId)) retryUpload(item.id);
+    // Bulk UI retries must not re-run a legacy Supabase journal held for review.
+    if (item.status === 'failed' && !item.staged && (!albumId || item.albumId === albumId)) {
+      retryUpload(item.id);
+    }
   }
 }
 
 /** Cancels an upload (running or not) and forgets it. */
 export function removeUpload(id: string) {
   const item = find(id);
-  if (!item) return;
+  if (!item || item.ownerId !== ownerId) return;
 
+  const controller = running.get(id);
+  if (controller) discarded.set(id, item);
   setItems(items.filter((other) => other.id !== id));
+  persistNow();
   notBefore.delete(id);
   // The transport releases the server-side reservation when it is aborted.
-  running.get(id)?.abort();
-  transport.discard?.(item);
-  deleteLocalFile(item.localName);
+  controller?.abort();
+  if (!controller) {
+    transport.discard?.(item);
+    deleteLocalFile(item.localName);
+  }
 }
 
 export function clearFinishedUploads(albumId?: string) {
@@ -421,7 +504,7 @@ export function subscribeToUploads(listener: () => void) {
 
 /** The current owner's queue, oldest first. The array is replaced on change. */
 export function getUploads() {
-  return items;
+  return visibleItems;
 }
 
 AppState.addEventListener('change', (state) => {

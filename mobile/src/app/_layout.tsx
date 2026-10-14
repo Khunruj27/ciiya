@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 
 import { Colors } from '@/constants/theme';
+import { LanguageProvider } from '@/ctx/language';
 import { SessionProvider, useSession } from '@/ctx/session';
 
 SplashScreen.preventAutoHideAsync();
@@ -27,9 +28,11 @@ export default function RootLayout() {
           primary: palette.accentDeep,
         },
       }}>
-      <SessionProvider>
-        <RootNavigator />
-      </SessionProvider>
+      <LanguageProvider>
+        <SessionProvider>
+          <RootNavigator />
+        </SessionProvider>
+      </LanguageProvider>
     </ThemeProvider>
   );
 }
@@ -53,6 +56,7 @@ function RootNavigator() {
       <Stack.Protected guard={!user}>
         <Stack.Screen name="sign-in" />
       </Stack.Protected>
+      <Stack.Screen name="auth/callback" />
     </Stack>
   );
 }

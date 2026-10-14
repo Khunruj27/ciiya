@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import * as Linking from 'expo-linking';
 import {
   KeyboardAvoidingView,
+  Alert,
   Platform,
   ScrollView,
   StyleSheet,
@@ -15,7 +17,7 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useSession } from '@/ctx/session';
 import { useTheme } from '@/hooks/use-theme';
 import { signInWithGoogle } from '@/lib/auth';
-import { isDemoMode } from '@/lib/config';
+import { isDemoMode, SITE_URL } from '@/lib/config';
 import { useT } from '@/lib/i18n';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
@@ -24,12 +26,17 @@ type Pending = 'password' | 'google' | null;
 export default function SignInScreen() {
   const t = useT();
   const theme = useTheme();
-  const { enterDemo } = useSession();
+  const { enterDemo, authError, clearAuthError } = useSession();
   const ready = isDemoMode || isSupabaseConfigured;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState<Pending>(null);
   const [error, setError] = useState(ready ? '' : t.signIn.notConfigured);
+
+  async function openHelp(path: '/forgot-password' | '/privacy' | '/terms') {
+    try { await Linking.openURL(`${SITE_URL}${path}`); }
+    catch { Alert.alert(t.common.errorGeneric); }
+  }
 
   async function handlePasswordSignIn() {
     if (pending || !ready) return;
@@ -47,6 +54,7 @@ export default function SignInScreen() {
 
     setPending('password');
     setError('');
+    clearAuthError();
 
     try {
       const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -79,6 +87,7 @@ export default function SignInScreen() {
 
     setPending('google');
     setError('');
+    clearAuthError();
 
     try {
       // Closing the sheet resolves to 'cancelled', which needs no message.
@@ -156,9 +165,9 @@ export default function SignInScreen() {
               accessibilityLabel={t.signIn.password}
             />
 
-            {error ? (
+            {error || authError ? (
               <ThemedText type="small" accessibilityRole="alert" style={{ color: theme.danger }}>
-                {error}
+                {error || t.signIn.genericError}
               </ThemedText>
             ) : null}
 
@@ -168,6 +177,12 @@ export default function SignInScreen() {
               loading={pending === 'password'}
               disabled={!ready || pending === 'google'}
             />
+
+            <Button label={t.signIn.forgotPassword} onPress={() => openHelp('/forgot-password')} variant="secondary" />
+            <View style={styles.infoLinks}>
+              <Button label={t.account.privacy} onPress={() => openHelp('/privacy')} variant="secondary" />
+              <Button label={t.account.terms} onPress={() => openHelp('/terms')} variant="secondary" />
+            </View>
 
             {isDemoMode ? (
               <ThemedText type="small" themeColor="textSecondary" style={styles.notice}>
@@ -209,4 +224,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   notice: { textAlign: 'center' },
+  infoLinks: { gap: Spacing.two },
 });

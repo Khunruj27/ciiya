@@ -1,31 +1,77 @@
 import { Image } from 'expo-image';
-import { Stack, useLocalSearchParams } from 'expo-router';
-import { SymbolView, type SFSymbol } from 'expo-symbols';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { Stack, useIsFocused, useLocalSearchParams } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
+import { useMemo } from 'react';
+import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { HeaderButton, StateView } from '@/components/ui';
+import { AlbumDeliveryPanel } from '@/components/album-delivery-panel';
+import { Card, HeaderButton, StateView, formatBytes } from '@/components/ui';
 import { Radius, Spacing } from '@/constants/theme';
+import { useSession } from '@/ctx/session';
+import { useAlbumCoverGuard } from '@/hooks/use-album-cover-guard';
 import { useAlbumUploads } from '@/hooks/use-uploads';
 import { useTheme } from '@/hooks/use-theme';
 import { useT } from '@/lib/i18n';
 import { localFile } from '@/lib/uploads/files';
 import {
   clearFinishedUploads,
+  getUploads,
   removeUpload,
-  retryFailedUploads,
   retryUpload,
 } from '@/lib/uploads/queue';
+import {
+  canRemoveUpload,
+  canRetryUpload,
+  createUploadReviewActions,
+  isUploadFinished,
+  isUploadHeld,
+  reviewUploads,
+  uploadProgress,
+} from '@/lib/uploads/review';
 import type { UploadItem } from '@/lib/uploads/types';
 
 export default function AlbumUploadsScreen() {
   const t = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { items, summary } = useAlbumUploads(id);
+  const { user } = useSession();
+  if (!user?.id) return <StateView title={t.common.errorSession} />;
+  return <OwnedAlbumUploadsScreen key={`${user.id}:${id}`} id={id} accountId={user.id} />;
+}
+
+function OwnedAlbumUploadsScreen({ id, accountId }: { id: string; accountId: string }) {
+  const t = useT();
+  const { items } = useAlbumUploads(id);
+  // Reuse the existing read-only lifetime fence: an old dialog cannot mutate
+  // a queue after leaving this album or signing out and back into an account.
+  const guard = useAlbumCoverGuard(id, useIsFocused());
+  const actions = useMemo(() => createUploadReviewActions({
+    albumId: id,
+    capture: guard.capture,
+    getItems: getUploads,
+    retry: retryUpload,
+    remove: removeUpload,
+    clearFinished: clearFinishedUploads,
+  }), [id, guard.capture]);
+  const review = reviewUploads(items);
+  const active = review.queued + review.uploading + review.finishing;
+
+  function handleRemove(uploadId: string) {
+    const confirmation = actions.requestRemove(uploadId);
+    if (!confirmation) return;
+    try {
+      Alert.alert(t.uploads.removeTitle, t.uploads.removeMessage(confirmation.fileName), [
+        { text: t.common.cancel, style: 'cancel', onPress: confirmation.cancel },
+        { text: t.uploads.remove, style: 'destructive', onPress: confirmation.confirm },
+      ], { cancelable: true, onDismiss: confirmation.cancel });
+    } catch {
+      confirmation.cancel();
+    }
+  }
 
   // Anything needing attention first, then what is moving, then what is done.
   const rank = (item: UploadItem) =>
-    item.status === 'failed' ? 0 : item.status === 'done' || item.status === 'duplicate' ? 2 : 1;
+    isUploadHeld(item) || item.status === 'failed' ? 0 : isUploadFinished(item) ? 2 : 1;
   const ordered = [...items].sort((a, b) => rank(a) - rank(b) || a.createdAt - b.createdAt);
 
   return (
@@ -33,17 +79,19 @@ export default function AlbumUploadsScreen() {
       <Stack.Screen
         options={{
           headerRight: () =>
-            summary.retryable > 0 ? (
+            review.retryable > 0 ? (
               <HeaderButton
                 symbol="arrow.clockwise"
                 label={t.uploads.retryAll}
-                onPress={() => retryFailedUploads(id)}
+                onPress={() => actions.retry()}
+                disabled={!guard.available}
               />
-            ) : summary.finished > 0 && summary.active === 0 ? (
+            ) : review.stored + review.duplicates > 0 && active === 0 && review.held === 0 ? (
               <HeaderButton
                 symbol="checkmark.circle"
                 label={t.uploads.clearFinished}
-                onPress={() => clearFinishedUploads(id)}
+                onPress={actions.clearFinished}
+                disabled={!guard.available}
               />
             ) : null,
         }}
@@ -54,23 +102,66 @@ export default function AlbumUploadsScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         contentInsetAdjustmentBehavior="automatic"
+        extraData={guard.available}
+        ListHeaderComponent={<>
+          {items.length > 0 ? <UploadOverview review={review} /> : null}
+          <AlbumDeliveryPanel key={`${accountId}:${id}`} albumId={id} accountId={accountId} compact
+            uploadComplete={review.stored + review.duplicates > 0 && active === 0 && review.failed === 0 && review.held === 0} />
+        </>}
         ListEmptyComponent={<StateView title={t.uploads.empty} />}
-        renderItem={({ item }) => <UploadRow item={item} />}
+        renderItem={({ item }) => (
+          <UploadRow item={item} available={guard.available}
+            onRetry={() => actions.retry(item.id)} onRemove={() => handleRemove(item.id)} />
+        )}
       />
     </>
   );
 }
 
-function UploadRow({ item }: { item: UploadItem }) {
+function UploadOverview({ review }: { review: ReturnType<typeof reviewUploads> }) {
+  const t = useT();
+  const theme = useTheme();
+  const keys = ['queued', 'uploading', 'finishing', 'stored', 'duplicates', 'failed'] as const;
+  return (
+    <Card>
+      <ThemedText type="smallBold">{t.uploads.queueOverview}</ThemedText>
+      <View style={styles.counts}>
+        {keys.map((key) => (
+          <View key={key} style={styles.count}>
+            <ThemedText type="small" themeColor="textSecondary">{t.uploads.counts[key]}</ThemedText>
+            <ThemedText type="smallBold" style={key === 'failed' && review.failed > 0
+              ? { color: theme.danger } : undefined}>{review[key]}</ThemedText>
+          </View>
+        ))}
+      </View>
+      <ThemedText type="small" themeColor="textSecondary">{t.uploads.foregroundHint}</ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">{t.uploads.storedHint}</ThemedText>
+      {review.held > 0 ? (
+        <ThemedText type="small" style={{ color: theme.danger }}>
+          {t.uploads.heldCount(review.held)}
+        </ThemedText>
+      ) : null}
+    </Card>
+  );
+}
+
+function UploadRow({ item, available, onRetry, onRemove }: {
+  item: UploadItem;
+  available: boolean;
+  onRetry: () => void;
+  onRemove: () => void;
+}) {
   const t = useT();
   const theme = useTheme();
 
-  const finished = item.status === 'done' || item.status === 'duplicate';
+  const finished = isUploadFinished(item);
+  const held = isUploadHeld(item);
   const failed = item.status === 'failed';
-  const canRetry = failed && item.failure !== 'file-missing';
-  const percent = Math.round(item.progress * 100);
+  const canRetry = canRetryUpload(item);
+  const canRemove = canRemoveUpload(item);
+  const percent = Math.round(uploadProgress(item.progress) * 100);
 
-  const statusText = failed
+  const statusText = held ? t.uploads.held : failed
     ? t.uploads.failure[item.failure ?? 'server']
     : item.status === 'uploading'
       ? t.uploads.status.uploading(percent)
@@ -87,10 +178,9 @@ function UploadRow({ item }: { item: UploadItem }) {
                 : t.uploads.status.queued;
 
   // The queued copy is deleted once its upload is stored.
-  const preview = finished ? null : localFile(item.localName).uri;
-  const trailing: SFSymbol = finished ? 'checkmark.circle.fill' : 'xmark';
+  const preview = finished || held || item.failure === 'file-missing' ? null : localFile(item.localName).uri;
 
-  const row = (
+  return (
     <View style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.line }]}>
       <View style={[styles.thumb, { backgroundColor: theme.backgroundElement }]}>
         {preview ? (
@@ -112,55 +202,60 @@ function UploadRow({ item }: { item: UploadItem }) {
         <ThemedText
           type="small"
           numberOfLines={2}
-          style={{ color: failed ? theme.danger : theme.textSecondary }}>
+          style={{ color: failed || held ? theme.danger : theme.textSecondary }}>
           {statusText}
         </ThemedText>
-        {item.status === 'uploading' ? (
-          <View style={[styles.track, { backgroundColor: theme.backgroundElement }]}>
+        <ThemedText type="small" themeColor="textSecondary">{formatBytes(item.sizeBytes)}</ThemedText>
+        {!held && !finished && item.registering ? (
+          <ThemedText type="small" themeColor="textSecondary">{t.uploads.registrationRetained}</ThemedText>
+        ) : null}
+        {!held && item.status === 'uploading' ? (
+          <View style={[styles.track, { backgroundColor: theme.backgroundElement }]}
+            accessibilityRole="progressbar" accessibilityLabel={statusText}
+            accessibilityValue={{ min: 0, max: 100, now: percent }}>
             <View style={[styles.fill, { backgroundColor: theme.accent, width: `${percent}%` }]} />
           </View>
         ) : null}
+        {canRetry ? (
+          <Pressable onPress={onRetry} disabled={!available}
+            accessibilityRole="button" accessibilityState={{ disabled: !available }}
+            accessibilityLabel={t.uploads.retryOne(item.fileName)} style={styles.retry}>
+            <ThemedText type="smallBold" style={{ color: theme.accentDeep }}>{t.common.retry}</ThemedText>
+          </Pressable>
+        ) : null}
       </View>
 
-      {finished ? (
+      {finished && !held ? (
         <SymbolView
-          name={trailing}
+          name="checkmark.circle.fill"
           size={20}
           tintColor={theme.accentDeep}
           fallback={<ThemedText type="small">✓</ThemedText>}
         />
-      ) : (
+      ) : canRemove ? (
         <Pressable
-          onPress={() => removeUpload(item.id)}
+          onPress={onRemove}
+          disabled={!available}
           accessibilityRole="button"
-          accessibilityLabel={t.uploads.remove}
-          hitSlop={12}
+          accessibilityState={{ disabled: !available }}
+          accessibilityLabel={t.uploads.removeOne(item.fileName)}
           style={styles.action}>
           <SymbolView
-            name={trailing}
+            name="xmark"
             size={16}
             tintColor={theme.textSecondary}
             fallback={<ThemedText type="small">×</ThemedText>}
           />
         </Pressable>
-      )}
+      ) : null}
     </View>
-  );
-
-  if (!canRetry) return row;
-
-  return (
-    <Pressable
-      onPress={() => retryUpload(item.id)}
-      accessibilityRole="button"
-      accessibilityLabel={`${item.fileName}. ${statusText}`}>
-      {row}
-    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   list: { padding: Spacing.three, gap: Spacing.two, flexGrow: 1 },
+  counts: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+  count: { width: '45%', gap: Spacing.half },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -181,5 +276,6 @@ const styles = StyleSheet.create({
   body: { flex: 1, gap: Spacing.half },
   track: { height: 4, borderRadius: Radius.pill, overflow: 'hidden', marginTop: Spacing.one },
   fill: { height: 4, borderRadius: Radius.pill },
-  action: { minWidth: 32, minHeight: 32, alignItems: 'center', justifyContent: 'center' },
+  retry: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
+  action: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
 });

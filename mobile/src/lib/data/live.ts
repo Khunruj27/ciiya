@@ -1,12 +1,20 @@
 import { SITE_URL } from '@/lib/config';
+import { albumEditReleaseEnabled } from '@/lib/album-edit-release';
+import { albumAccessReleaseEnabled } from '@/lib/album-access-release';
 import { supabase } from '@/lib/supabase';
 
 import {
   DataError,
+  captureAlbumAccessContext,
   type Album,
+  type AlbumAccessContext,
+  type AlbumAccessInput,
+  type AlbumAccessSettings,
+  type AlbumDetailsInput,
   type AlbumSettingsInput,
   type CreateAlbumInput,
   type DataSource,
+  type Photo,
   type PhotoPage,
   type StorageUsage,
 } from './types';
@@ -18,42 +26,178 @@ import {
  */
 async function api<T>(
   path: string,
-  init: { method?: 'GET' | 'POST' | 'PATCH'; body?: unknown } = {}
+  init: {
+    method?: 'GET' | 'POST' | 'PATCH';
+    body?: unknown;
+    signal?: AbortSignal;
+    /** Only the bounded access editor interprets a revision mismatch as conflict. */
+    accessConflict?: boolean;
+    /** Only access calls bind token acquisition/publication to a captured owner. */
+    accessContext?: AlbumAccessContext;
+  } = {}
 ): Promise<T> {
-  // getSession() hands back a fresh token, refreshing it first when needed.
-  const { data } = await supabase.auth.getSession();
-  const accessToken = data.session?.access_token;
+  if (init.signal?.aborted) throw new DataError('network');
+  if (init.accessContext && !init.accessContext.isCurrent()) throw new DataError('unauthenticated');
 
-  if (!accessToken) throw new DataError('unauthenticated');
-
-  let response: Response;
+  // One deadline includes token refresh, the response and its body. Aborting
+  // alone is not enough: some native transports may not settle promptly.
+  const controller = new AbortController();
+  let rejectDeadline: (error: DataError) => void = () => {};
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    rejectDeadline = reject;
+    timeout = setTimeout(() => {
+      controller.abort();
+      reject(new DataError('network'));
+    }, 30_000);
+  });
+  const bounded = <V>(pending: Promise<V>) => Promise.race([pending, deadline]);
+  const cancel = () => {
+    controller.abort();
+    rejectDeadline(new DataError('network'));
+  };
+  init.signal?.addEventListener('abort', cancel, { once: true });
 
   try {
-    response = await fetch(`${SITE_URL}${path}`, {
-      method: init.method ?? 'GET',
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-        ...(init.body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      },
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
-    });
-  } catch {
-    throw new DataError('network');
+    if (init.accessContext && !init.accessContext.isCurrent()) throw new DataError('unauthenticated');
+    // getSession() refreshes tokens. Both a returned error and a rejected
+    // promise must become a typed data error, never an unhandled auth error.
+    let session;
+    try {
+      session = await bounded(supabase.auth.getSession());
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.name.startsWith('Auth') &&
+        error.name !== 'AuthRetryableFetchError'
+      ) {
+        throw new DataError('unauthenticated');
+      }
+      throw new DataError('network');
+    }
+    if (session.error) {
+      throw new DataError(
+        session.error.name === 'AuthRetryableFetchError' || session.error.status === 0
+          ? 'network'
+          : 'unauthenticated'
+      );
+    }
+    if (init.accessContext && (session.data.session?.user?.id !== init.accessContext.expectedOwnerId ||
+        !init.accessContext.isCurrent())) throw new DataError('unauthenticated');
+    const accessToken = session.data.session?.access_token;
+    if (!accessToken) throw new DataError('unauthenticated');
+    if (controller.signal.aborted) throw new DataError('network');
+
+    let body: string | undefined;
+    try {
+      body = init.body === undefined ? undefined : JSON.stringify(init.body);
+    } catch {
+      throw new DataError('server');
+    }
+
+    // Body serialization may invoke a caller's toJSON; recheck immediately at
+    // the transport boundary rather than trusting a pre-refresh screen guard.
+    if (init.accessContext && !init.accessContext.isCurrent()) throw new DataError('unauthenticated');
+    let response: Response;
+    try {
+      // Deliberately one attempt, especially for create/settings/delete calls:
+      // a missing acknowledgement does not mean the mutation was not accepted.
+      response = await bounded(fetch(`${SITE_URL}${path}`, {
+        method: init.method ?? 'GET',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        },
+        body,
+        signal: controller.signal,
+      }));
+    } catch {
+      throw new DataError('network');
+    }
+    if (init.accessContext && !init.accessContext.isCurrent()) {
+      controller.abort();
+      throw new DataError('unauthenticated');
+    }
+
+    // These statuses are authoritative even if their body never arrives.
+    if (response.status === 401 || response.status === 404) {
+      controller.abort(); // Do not leave an unread body downloading in the background.
+      throw new DataError(response.status === 401 ? 'unauthenticated'
+        : (init.method ?? 'GET') === 'GET' ? 'not-found' : 'server');
+    }
+    if (response.status === 409 && init.accessConflict === true) {
+      controller.abort();
+      throw new DataError('conflict');
+    }
+
+    let payload: (T & { error?: unknown }) | null;
+    try {
+      payload = await bounded(response.json());
+    } catch (error) {
+      // Bad JSON is a server response problem; interrupted reading is network.
+      if (error instanceof SyntaxError) throw new DataError('server');
+      throw new DataError('network');
+    }
+    if (init.accessContext && !init.accessContext.isCurrent()) {
+      controller.abort();
+      throw new DataError('unauthenticated');
+    }
+
+    if (!response.ok || payload === null) {
+      const message = typeof payload?.error === 'string' ? payload.error : undefined;
+      throw new DataError('server', message);
+    }
+
+    return payload;
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
+    init.signal?.removeEventListener('abort', cancel);
   }
+}
 
-  const payload = (await response.json().catch(() => null)) as
-    | (T & { error?: string })
-    | null;
-
-  if (!response.ok || payload === null) {
-    const message = payload?.error;
-    if (response.status === 401) throw new DataError('unauthenticated', message);
-    if (response.status === 404) throw new DataError('not-found', message);
-    throw new DataError('server', message);
+function readAlbumAccess(payload: unknown, albumId: string): AlbumAccessSettings {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload) ||
+      Object.keys(payload).length !== 1 || !Object.hasOwn(payload, 'settings')) {
+    throw new DataError('server');
   }
+  const settings = (payload as { settings: unknown }).settings;
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+    throw new DataError('server');
+  }
+  const value = settings as Record<string, unknown>;
+  const fields = ['albumId', 'allowDownload', 'downloadSize', 'isPasswordProtected', 'revision'];
+  if (Object.keys(value).length !== fields.length || fields.some(field => !Object.hasOwn(value, field)) ||
+      typeof value.albumId !== 'string' || !value.albumId || value.albumId !== albumId ||
+      typeof value.allowDownload !== 'boolean' || typeof value.isPasswordProtected !== 'boolean' ||
+      typeof value.downloadSize !== 'string' || !['sd', 'hd', 'uhd', 'original'].includes(value.downloadSize) ||
+      typeof value.revision !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(value.revision)) {
+    throw new DataError('server');
+  }
+  // Copy the exact safe contract rather than exposing an arbitrary server object.
+  return {
+    albumId: value.albumId,
+    allowDownload: value.allowDownload,
+    downloadSize: value.downloadSize as AlbumAccessSettings['downloadSize'],
+    isPasswordProtected: value.isPasswordProtected,
+    revision: value.revision,
+  };
+}
 
-  return payload;
+function validAlbumAccessInput(input: AlbumAccessInput): boolean {
+  if (!input || typeof input.albumId !== 'string' || !input.albumId ||
+      typeof input.allowDownload !== 'boolean' || typeof input.isPasswordProtected !== 'boolean' ||
+      typeof input.downloadSize !== 'string' || !['sd', 'hd', 'uhd', 'original'].includes(input.downloadSize) ||
+      typeof input.revision !== 'string' || !/^[a-f0-9]{64}$/.test(input.revision) ||
+      typeof input.password !== 'string') return false;
+  let length = 0;
+  for (const character of input.password) {
+    const codePoint = character.codePointAt(0)!;
+    length += codePoint <= 0x7f ? 1 : codePoint <= 0x7ff ? 2 : codePoint <= 0xffff ? 3 : 4;
+    if (length > 72) return false;
+  }
+  return true;
 }
 
 export const liveData: DataSource = {
@@ -76,25 +220,70 @@ export const liveData: DataSource = {
     );
   },
 
+  async fetchPhotoUpdates(albumId, ids): Promise<Photo[]> {
+    if (ids.length === 0) return [];
+    // The feed rotates at most 120 pending IDs per tick, including older pages.
+    // Do not silently truncate: that would leave the omitted photos stale.
+    if (ids.length > 120) throw new DataError('server', 'Too many photo updates');
+    const { photos } = await api<PhotoPage>(
+      `/api/mobile/albums/${encodeURIComponent(albumId)}/photos?ids=${encodeURIComponent(ids.join(','))}`
+    );
+    return photos;
+  },
+
   // A plain read of the photographer's own row; row level security scopes it.
-  async fetchStorageUsage(): Promise<StorageUsage> {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const userId = sessionData.session?.user.id;
+  async fetchStorageUsage(expectedOwnerId?: string): Promise<StorageUsage> {
+    let session;
+    try {
+      session = await supabase.auth.getSession();
+    } catch (error) {
+      throw new DataError(
+        error instanceof Error && error.name.startsWith('Auth') &&
+        error.name !== 'AuthRetryableFetchError' ? 'unauthenticated' : 'network'
+      );
+    }
+    if (session.error) {
+      throw new DataError(
+        session.error.name === 'AuthRetryableFetchError' || session.error.status === 0
+          ? 'network' : 'unauthenticated'
+      );
+    }
+    const userId = session.data.session?.user.id;
 
-    if (!userId) throw new DataError('unauthenticated');
+    if (!userId || (expectedOwnerId !== undefined && userId !== expectedOwnerId)) {
+      throw new DataError('unauthenticated');
+    }
 
-    const { data, error } = await supabase
+    const { data, error, status } = await supabase
       .from('user_storage_usage')
       .select('current_plan, storage_used_bytes, used_bytes, storage_limit_bytes')
       .eq('user_id', userId)
       .maybeSingle();
 
+    if (status === 401) throw new DataError('unauthenticated');
     if (error) throw new DataError('server', error.message);
+    if (!data) throw new DataError('not-found');
+
+    // Missing/invalid rows must not invent a Free plan or zero used bytes.
+    const bytes = (value: unknown): number => {
+      if (typeof value !== 'number' && (typeof value !== 'string' || !/^\d+(\.\d+)?$/.test(value.trim()))) {
+        throw new DataError('server');
+      }
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed) || parsed < 0 || parsed > Number.MAX_SAFE_INTEGER) {
+        throw new DataError('server');
+      }
+      return parsed;
+    };
+    if (typeof data.current_plan !== 'string' || !data.current_plan.trim() || data.current_plan.length > 64) {
+      throw new DataError('server');
+    }
 
     return {
-      plan: String(data?.current_plan || 'free'),
-      usedBytes: Number(data?.storage_used_bytes ?? data?.used_bytes ?? 0) || 0,
-      limitBytes: Number(data?.storage_limit_bytes ?? 0) || 0,
+      plan: data.current_plan.trim(),
+      usedBytes: bytes(data.storage_used_bytes ?? data.used_bytes),
+      // Zero/absent capacity is unknown, never a claim of unlimited storage.
+      limitBytes: data.storage_limit_bytes == null ? 0 : bytes(data.storage_limit_bytes),
     };
   },
 
@@ -104,28 +293,76 @@ export const liveData: DataSource = {
       body: { title: input.title, description: input.description },
     });
 
-    // The create route answers with the raw row; read it back in app shape.
-    return liveData.fetchAlbum(album.id);
+    if (!album || typeof album.id !== 'string' || !album.id.trim()) {
+      throw new DataError('server');
+    }
+    // The write is already acknowledged. A failed follow-up GET must not make
+    // the form offer to create a second album; the destination can retry reads.
+    return { id: album.id };
   },
 
-  async updateAlbumSettings(input: AlbumSettingsInput) {
-    await api<{ success: boolean }>('/api/albums/settings', {
-      method: 'PATCH',
-      body: input,
-    });
+  async updateAlbumDetails(input: AlbumDetailsInput) {
+    // Independent of demo/UI state: no token read or request before release.
+    if (!albumEditReleaseEnabled) throw new DataError('server');
+    const result = await api<{ success: boolean }>(
+      `/api/mobile/albums/${encodeURIComponent(input.albumId)}/details`, {
+        method: 'PATCH',
+        body: { title: input.title, description: input.description },
+      });
+    if (result.success !== true) throw new DataError('server');
   },
 
-  async deleteAlbum(albumId) {
-    await api<{ success: boolean }>('/api/albums/delete', {
-      method: 'POST',
-      body: { albumId },
-    });
+  async fetchAlbumAccess(albumId, context) {
+    if (!albumAccessReleaseEnabled) throw new DataError('server');
+    const accessContext = captureAlbumAccessContext(context);
+    if (typeof albumId !== 'string' || !albumId) throw new DataError('server');
+    const result = await api<unknown>(`/api/mobile/albums/${encodeURIComponent(albumId)}/access`, { accessContext });
+    if (!accessContext.isCurrent()) throw new DataError('unauthenticated');
+    const settings = readAlbumAccess(result, albumId);
+    if (!accessContext.isCurrent()) throw new DataError('unauthenticated');
+    return settings;
+  },
+
+  async updateAlbumAccess(input: AlbumAccessInput, context) {
+    if (!albumAccessReleaseEnabled) throw new DataError('server');
+    const accessContext = captureAlbumAccessContext(context);
+    if (!validAlbumAccessInput(input)) throw new DataError('server');
+    const result = await api<{ success: boolean }>(
+      `/api/mobile/albums/${encodeURIComponent(input.albumId)}/access`, {
+        method: 'PATCH',
+        accessConflict: true,
+        accessContext,
+        body: {
+          allowDownload: input.allowDownload,
+          downloadSize: input.downloadSize,
+          isPasswordProtected: input.isPasswordProtected,
+          password: input.password,
+          revision: input.revision,
+        },
+      });
+    if (!accessContext.isCurrent()) throw new DataError('unauthenticated');
+    if (!result || typeof result !== 'object' || result.success !== true) throw new DataError('server');
+    if (!accessContext.isCurrent()) throw new DataError('unauthenticated');
+  },
+
+  async updateAlbumSettings(_input: AlbumSettingsInput) {
+    // Native callers cannot write passwords/download settings through the
+    // website's legacy full-settings route, even after metadata is released.
+    throw new DataError('server');
+  },
+
+  async deleteAlbum(_albumId) {
+    // This stage never enables deletion, including direct legacy callers.
+    throw new DataError('server');
   },
 
   async setAlbumCover(albumId, photoId) {
-    await api<{ success: boolean }>('/api/albums/cover', {
-      method: 'PATCH',
-      body: { albumId, photoId },
-    });
+    if (!albumEditReleaseEnabled) throw new DataError('server');
+    const result = await api<{ success: boolean }>(
+      `/api/mobile/albums/${encodeURIComponent(albumId)}/cover`, {
+        method: 'PATCH',
+        body: { photoId },
+      });
+    if (result.success !== true) throw new DataError('server');
   },
 };

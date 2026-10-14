@@ -100,9 +100,10 @@ type SegmentedProps<T extends string> = {
   options: { value: T; label: string }[];
   value: T;
   onChange: (value: T) => void;
+  disabled?: boolean;
 };
 
-export function Segmented<T extends string>({ options, value, onChange }: SegmentedProps<T>) {
+export function Segmented<T extends string>({ options, value, onChange, disabled = false }: SegmentedProps<T>) {
   const theme = useTheme();
 
   return (
@@ -113,8 +114,9 @@ export function Segmented<T extends string>({ options, value, onChange }: Segmen
           <Pressable
             key={option.value}
             onPress={() => onChange(option.value)}
+            disabled={disabled}
             accessibilityRole="button"
-            accessibilityState={{ selected }}
+            accessibilityState={{ selected, disabled }}
             style={[styles.segment, selected && { backgroundColor: theme.text }]}>
             <ThemedText
               type="smallBold"

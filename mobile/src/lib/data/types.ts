@@ -16,6 +16,8 @@ export type Album = {
   autoPublish: boolean;
 };
 
+export type PhotoProcessingStatus = 'pending' | 'processing' | 'done' | 'failed' | 'cancelled' | 'uploading' | 'finalizing' | 'unknown';
+
 export type Photo = {
   id: string;
   filename: string | null;
@@ -25,8 +27,29 @@ export type Photo = {
   width: number | null;
   height: number | null;
   isReady: boolean;
+  /** Optional until the additive owner-read API is released. Missing is not pending/failed. */
+  processingStatus?: PhotoProcessingStatus;
+  processingProgress?: number | null;
   createdAt: string;
 };
+
+/** A display model only; it neither retries a job nor infers worker health. */
+export function photoProcessing(photo: Photo) {
+  const raw = photo.processingStatus;
+  const status = photo.isReady === true ? 'ready'
+    : raw === 'pending' || raw === 'processing' || raw === 'failed' || raw === 'cancelled' ||
+      raw === 'uploading' || raw === 'finalizing' ? raw
+      : raw === 'done' ? 'preparing' : 'unknown';
+  const value = photo.processingProgress;
+  const progress = status === 'processing' && typeof value === 'number' && Number.isFinite(value) &&
+    value >= 0 && value <= 100 ? Math.round(value) : null;
+  return { status, progress };
+}
+
+export function shouldPollPhoto(photo: Photo) {
+  const { status } = photoProcessing(photo);
+  return status !== 'ready' && status !== 'failed' && status !== 'cancelled';
+}
 
 export type PhotoPage = {
   photos: Photo[];
@@ -45,6 +68,34 @@ export type CreateAlbumInput = {
   description: string;
 };
 
+/** Native editing is deliberately metadata-only; sharing flags are read-only. */
+export type AlbumDetailsInput = {
+  albumId: string;
+  title: string;
+  description: string;
+};
+
+/** Fresh, owner-scoped gallery access settings; never contains a password/hash. */
+export type AlbumAccessSettings = {
+  albumId: string;
+  allowDownload: boolean;
+  downloadSize: DownloadSize;
+  isPasswordProtected: boolean;
+  /** Opaque revision of the settings reviewed before an explicit save. */
+  revision: string;
+};
+
+export type AlbumAccessInput = AlbumAccessSettings & {
+  /** Empty preserves an existing protected password; no password is returned. */
+  password: string;
+};
+
+/** The permanently fenced owner/focus lifetime captured by an access screen. */
+export type AlbumAccessContext = {
+  expectedOwnerId: string;
+  isCurrent: () => boolean;
+};
+
 export type AlbumSettingsInput = {
   albumId: string;
   title: string;
@@ -56,7 +107,7 @@ export type AlbumSettingsInput = {
   password: string;
 };
 
-export type DataErrorKind = 'network' | 'unauthenticated' | 'not-found' | 'server';
+export type DataErrorKind = 'network' | 'unauthenticated' | 'not-found' | 'server' | 'conflict';
 
 /** The only error the data layer throws; screens map `kind` to copy. */
 export class DataError extends Error {
@@ -69,12 +120,40 @@ export class DataError extends Error {
   }
 }
 
+/** Freeze caller references once; later context edits cannot switch owner/guard. */
+export function captureAlbumAccessContext(context: AlbumAccessContext): AlbumAccessContext {
+  let expectedOwnerId: unknown;
+  let predicate: unknown;
+  try {
+    expectedOwnerId = context?.expectedOwnerId;
+    predicate = context?.isCurrent;
+  } catch { throw new DataError('unauthenticated'); }
+  if (typeof expectedOwnerId !== 'string' || !expectedOwnerId || typeof predicate !== 'function') {
+    throw new DataError('unauthenticated');
+  }
+  const capturedPredicate = predicate;
+  const isCurrent = () => {
+    try { return capturedPredicate() === true; }
+    catch { return false; }
+  };
+  if (!isCurrent()) throw new DataError('unauthenticated');
+  return { expectedOwnerId, isCurrent };
+}
+
 export type DataSource = {
   fetchAlbums(): Promise<Album[]>;
   fetchAlbum(albumId: string): Promise<Album>;
   fetchPhotos(albumId: string, cursor?: string | null): Promise<PhotoPage>;
-  fetchStorageUsage(): Promise<StorageUsage>;
-  createAlbum(input: CreateAlbumInput): Promise<Album>;
+  /** Bounded, owner-scoped updates for already loaded processing photos. */
+  fetchPhotoUpdates(albumId: string, ids: string[]): Promise<Photo[]>;
+  /** An expected account prevents an old screen from reading a new session's row. */
+  fetchStorageUsage(expectedOwnerId?: string): Promise<StorageUsage>;
+  /** A confirmed create returns its ID; the destination loads/retries the details. */
+  createAlbum(input: CreateAlbumInput): Promise<Pick<Album, 'id'>>;
+  updateAlbumDetails(input: AlbumDetailsInput): Promise<void>;
+  fetchAlbumAccess(albumId: string, context: AlbumAccessContext): Promise<AlbumAccessSettings>;
+  updateAlbumAccess(input: AlbumAccessInput, context: AlbumAccessContext): Promise<void>;
+  /** Legacy full-settings transport is unavailable to native real accounts. */
   updateAlbumSettings(input: AlbumSettingsInput): Promise<void>;
   deleteAlbum(albumId: string): Promise<void>;
   setAlbumCover(albumId: string, photoId: string): Promise<void>;

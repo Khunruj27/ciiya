@@ -1,7 +1,9 @@
 import type { Session } from '@supabase/supabase-js';
+import * as Linking from 'expo-linking';
 import { createContext, use, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
 
 import { isDemoMode } from '@/lib/config';
+import { completeOAuthCallback } from '@/lib/auth';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { setUploadOwner } from '@/lib/uploads/queue';
 
@@ -16,6 +18,9 @@ type SessionValue = {
   user: SessionUser | null;
   /** True until the stored session has been read from the keychain. */
   isLoading: boolean;
+  authError: boolean;
+  clearAuthError: () => void;
+  reportAuthError: () => void;
   signOut: () => Promise<void>;
   /** Development demo mode only: enter the app on sample data. */
   enterDemo: () => void;
@@ -53,31 +58,44 @@ function toSessionUser(session: Session | null): SessionUser | null {
 export function SessionProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<SessionUser | null>(isDemoMode ? DEMO_USER : null);
   const [isLoading, setIsLoading] = useState(!isDemoMode && isSupabaseConfigured);
+  const [authError, setAuthError] = useState(false);
 
   useEffect(() => {
     if (isDemoMode || !isSupabaseConfigured) return;
 
     let active = true;
 
-    supabase.auth
-      .getSession()
-      .then(({ data }) => {
-        if (active) setUser(toSessionUser(data.session));
-      })
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => {
+      if (active) {
+        setUser(toSessionUser(next));
+        if (next) setAuthError(false);
+        // Fence queued work immediately, without waiting for a React effect.
+        setUploadOwner(next?.user.id ?? null);
+      }
+    });
+
+    async function restoreSession() {
+      const initialUrl = await Linking.getInitialURL();
+      if (initialUrl) {
+        try { await completeOAuthCallback(initialUrl); }
+        catch { if (active) setAuthError(true); }
+      }
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      if (active) setUser(toSessionUser(data.session));
+    }
+
+    restoreSession()
       .catch(() => {
-        // An unreadable stored session is treated as signed out.
+        if (active) setAuthError(true);
       })
       .finally(() => {
         if (active) setIsLoading(false);
       });
 
-    const { data } = supabase.auth.onAuthStateChange((_event, next) => {
-      if (active) setUser(toSessionUser(next));
-    });
-
     return () => {
       active = false;
-      data.subscription.unsubscribe();
+      listener.subscription.unsubscribe();
     };
   }, []);
 
@@ -91,18 +109,38 @@ export function SessionProvider({ children }: PropsWithChildren) {
     () => ({
       user,
       isLoading,
+      authError,
+      clearAuthError: () => setAuthError(false),
+      reportAuthError: () => setAuthError(true),
       signOut: async () => {
         if (isDemoMode) {
+          setUploadOwner(null);
           setUser(null);
           return;
         }
-        await supabase.auth.signOut();
+        setUploadOwner(null);
+        try {
+          // Sign out this device, not every other Ciiya session the user owns.
+          const { error } = await supabase.auth.signOut({ scope: 'local' });
+          if (error) throw error;
+        } catch (error) {
+          try {
+            const { data, error: restoreError } = await supabase.auth.getSession();
+            if (restoreError) throw restoreError;
+            setUser(toSessionUser(data.session));
+            setUploadOwner(data.session?.user.id ?? null);
+          } catch {
+            setUser(null);
+            setUploadOwner(null);
+          }
+          throw error;
+        }
       },
       enterDemo: () => {
         if (isDemoMode) setUser(DEMO_USER);
       },
     }),
-    [user, isLoading]
+    [user, isLoading, authError]
   );
 
   return <SessionContext value={value}>{children}</SessionContext>;

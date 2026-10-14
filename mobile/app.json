@@ -4,35 +4,40 @@
     "slug": "ciiya",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/ciiya-icon.png",
     "scheme": "ciiya",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
+      "icon": "./assets/images/ciiya-icon.png",
       "bundleIdentifier": "app.ciiya.mobile",
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#f8f6f1",
+        "foregroundImage": "./assets/images/ciiya-adaptive-foreground.png",
+        "monochromeImage": "./assets/images/ciiya-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "app.ciiya.mobile"
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/ciiya-favicon.png"
     },
     "plugins": [
       "expo-router",
       [
+        "expo-dev-client",
+        {
+          "launchMode": "launcher"
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#f8f6f1",
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/ciiya-splash.png",
           "imageWidth": 76
         }
       ],
@@ -44,6 +49,13 @@
           "photosPermission": "Ciiya uses your photo library so you can pick photos to upload to an album.",
           "cameraPermission": false,
           "microphonePermission": false
+        }
+      ],
+      [
+        "expo-sharing",
+        {
+          "ios": { "enabled": false },
+          "android": { "enabled": false }
         }
       ]
     ],

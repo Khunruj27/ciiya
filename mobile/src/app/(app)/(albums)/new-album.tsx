@@ -1,5 +1,5 @@
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -17,9 +17,11 @@ export default function NewAlbumScreen() {
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const savingRef = useRef(false);
 
   async function handleCreate() {
-    if (saving) return;
+    // A second native tap can arrive before React commits the disabled button.
+    if (savingRef.current) return;
 
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
@@ -27,14 +29,16 @@ export default function NewAlbumScreen() {
       return;
     }
 
+    savingRef.current = true;
     setSaving(true);
     setError('');
 
     try {
-      await data.createAlbum({ title: trimmedTitle, description: description.trim() });
-      // The albums list reloads when it regains focus and shows the new album.
-      router.back();
+      const album = await data.createAlbum({ title: trimmedTitle, description: description.trim() });
+      // Start uploading straight away. Replace the form so Back cannot create it again.
+      router.replace({ pathname: '/album/[id]', params: { id: album.id } });
     } catch (createError) {
+      savingRef.current = false;
       setError(describeError(t, createError));
       setSaving(false);
     }
@@ -44,9 +48,15 @@ export default function NewAlbumScreen() {
     <>
       <Stack.Screen
         options={{
+          gestureEnabled: !saving,
           headerLeft: () => (
-            <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
-              <ThemedText>{t.common.cancel}</ThemedText>
+            <Pressable
+              onPress={() => { if (!savingRef.current) router.back(); }}
+              disabled={saving}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: saving }}
+              hitSlop={12}>
+              <ThemedText style={saving ? styles.dimmed : undefined}>{t.common.cancel}</ThemedText>
             </Pressable>
           ),
         }}
@@ -67,6 +77,7 @@ export default function NewAlbumScreen() {
             autoFocus
             maxLength={120}
             returnKeyType="next"
+            editable={!saving}
           />
           <Field
             label={t.newAlbum.descriptionLabel}
@@ -75,6 +86,7 @@ export default function NewAlbumScreen() {
             placeholder={t.newAlbum.descriptionPlaceholder}
             multiline
             maxLength={500}
+            editable={!saving}
           />
 
           {error ? (
@@ -97,4 +109,5 @@ export default function NewAlbumScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: Spacing.three, gap: Spacing.three },
+  dimmed: { opacity: 0.5 },
 });

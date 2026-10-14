@@ -2,7 +2,9 @@ import { SITE_URL } from '@/lib/config';
 
 import {
   DataError,
+  captureAlbumAccessContext,
   type Album,
+  type AlbumAccessSettings,
   type DataSource,
   type Photo,
 } from './types';
@@ -37,6 +39,8 @@ function makePhotos(albumId: string, count: number): Photo[] {
       height: null,
       // The newest photo of the first album is shown as still processing.
       isReady: !(albumId === 'demo-1' && index === 0),
+      processingStatus: albumId === 'demo-1' && index === 0 ? 'processing' : 'done',
+      processingProgress: albumId === 'demo-1' && index === 0 ? 35 : null,
       createdAt: new Date(Date.UTC(2026, 9, 8, 12, 0, 0) - index * 60_000).toISOString(),
     };
   });
@@ -91,6 +95,37 @@ const photosByAlbum = new Map<string, Photo[]>(
   albums.map((album) => [album.id, makePhotos(album.id, album.photoCount)])
 );
 
+// Demo revisions are opaque in-memory version markers, not credentials or
+// password hashes. A local sequence keeps even deterministic fixture runs fresh.
+let accessRevisionSequence = 0;
+const accessRevisions = new Map<string, string>();
+function advanceAccessRevision(albumId: string): string {
+  const noise = Array.from({ length: 48 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+  const revision = `${noise}${(++accessRevisionSequence).toString(16).padStart(16, '0')}`;
+  accessRevisions.set(albumId, revision);
+  return revision;
+}
+
+function readDemoAccess(album: Album): AlbumAccessSettings {
+  return {
+    albumId: album.id,
+    allowDownload: album.allowDownload,
+    downloadSize: album.downloadSize,
+    isPasswordProtected: album.isPasswordProtected,
+    revision: accessRevisions.get(album.id) ?? advanceAccessRevision(album.id),
+  };
+}
+
+function passwordUtf8Bytes(value: string): number {
+  let length = 0;
+  for (const character of value) {
+    const codePoint = character.codePointAt(0)!;
+    length += codePoint <= 0x7f ? 1 : codePoint <= 0x7ff ? 2 : codePoint <= 0xffff ? 3 : 4;
+    if (length > 72) return length;
+  }
+  return length;
+}
+
 function findAlbum(albumId: string) {
   const album = albums.find((item) => item.id === albumId);
   if (!album) throw new DataError('not-found');
@@ -142,15 +177,34 @@ export const demoData: DataSource = {
   async fetchPhotos(albumId, cursor) {
     await delay();
     const all = photosByAlbum.get(albumId) ?? [];
-    const start = cursor ? all.findIndex((photo) => photo.createdAt === cursor) + 1 : 0;
+    let boundary: { createdAt: string; id?: string } | null = null;
+    if (cursor) {
+      try { boundary = JSON.parse(cursor); }
+      catch { boundary = { createdAt: cursor }; }
+    }
+    const start = boundary
+      ? all.findIndex((photo) => boundary.id ? photo.id === boundary.id : photo.createdAt === boundary.createdAt) + 1
+      : 0;
     // Copies, so later changes to the fixtures never mutate what a screen holds.
     const photos = all.slice(start, start + PAGE_SIZE).map((photo) => ({ ...photo }));
     const hasMore = start + PAGE_SIZE < all.length;
 
     return {
       photos,
-      nextCursor: hasMore ? photos[photos.length - 1].createdAt : null,
+      nextCursor: hasMore ? JSON.stringify({
+        createdAt: photos[photos.length - 1].createdAt,
+        id: photos[photos.length - 1].id,
+      }) : null,
     };
+  },
+
+  async fetchPhotoUpdates(albumId, ids) {
+    await delay(120);
+    findAlbum(albumId);
+    const requested = new Set(ids);
+    return (photosByAlbum.get(albumId) ?? [])
+      .filter((photo) => requested.has(photo.id))
+      .map((photo) => ({ ...photo }));
   },
 
   async fetchStorageUsage() {
@@ -183,6 +237,47 @@ export const demoData: DataSource = {
     return { ...album };
   },
 
+  async updateAlbumDetails(input) {
+    await delay(400);
+    const album = findAlbum(input.albumId);
+    album.title = input.title;
+    album.description = input.description || null;
+  },
+
+  async fetchAlbumAccess(albumId, context) {
+    const accessContext = captureAlbumAccessContext(context);
+    await delay(120);
+    if (!accessContext.isCurrent()) throw new DataError('unauthenticated');
+    const settings = readDemoAccess(findAlbum(albumId));
+    if (!accessContext.isCurrent()) throw new DataError('unauthenticated');
+    return settings;
+  },
+
+  async updateAlbumAccess(input, context) {
+    const accessContext = captureAlbumAccessContext(context);
+    await delay(400);
+    if (!accessContext.isCurrent()) throw new DataError('unauthenticated');
+    if (!input || typeof input.albumId !== 'string' || !input.albumId) throw new DataError('server');
+    const album = findAlbum(input.albumId);
+    const current = readDemoAccess(album);
+    if (typeof input.allowDownload !== 'boolean' || typeof input.isPasswordProtected !== 'boolean' ||
+        typeof input.downloadSize !== 'string' || !['sd', 'hd', 'uhd', 'original'].includes(input.downloadSize) ||
+        typeof input.revision !== 'string' || !/^[a-f0-9]{64}$/.test(input.revision) ||
+        typeof input.password !== 'string' || passwordUtf8Bytes(input.password) > 72) {
+      throw new DataError('server');
+    }
+    if (input.revision !== current.revision) throw new DataError('conflict');
+    if (input.isPasswordProtected && !current.isPasswordProtected && !input.password) {
+      throw new DataError('server');
+    }
+    if (!accessContext.isCurrent()) throw new DataError('unauthenticated');
+    album.allowDownload = input.allowDownload;
+    album.downloadSize = input.downloadSize;
+    album.isPasswordProtected = input.isPasswordProtected;
+    // Do not retain even a demo password. Only the protection flag is modeled.
+    advanceAccessRevision(album.id);
+  },
+
   async updateAlbumSettings(input) {
     await delay(400);
     const album = findAlbum(input.albumId);
@@ -191,6 +286,7 @@ export const demoData: DataSource = {
     album.allowDownload = input.allowDownload;
     album.downloadSize = input.downloadSize;
     album.isPasswordProtected = input.isPasswordProtected;
+    advanceAccessRevision(album.id);
   },
 
   async deleteAlbum(albumId) {
@@ -198,6 +294,7 @@ export const demoData: DataSource = {
     findAlbum(albumId);
     albums = albums.filter((album) => album.id !== albumId);
     photosByAlbum.delete(albumId);
+    accessRevisions.delete(albumId);
   },
 
   async setAlbumCover(albumId, photoId) {

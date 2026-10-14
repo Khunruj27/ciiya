@@ -34,9 +34,8 @@ export type UploadFailure =
 export type StagedObject = {
   storagePath: string;
   /**
-   * True once a "register this photo" request was sent without a clear answer,
-   * so the server may already have accepted it. The stored file must then be
-   * kept: deleting it could remove the original of a photo that exists.
+   * Durably set BEFORE attempting registration. A crash or lost answer may
+   * leave the server with an accepted photo, so this file must not be deleted.
    */
   uncertain: boolean;
 };
@@ -118,7 +117,7 @@ export type UploadTransport = {
     item: UploadItem,
     hooks: {
       onProgress: (progress: number) => void;
-      /** Called once the bytes are stored and only registration remains. */
+      /** Must persist registration intent synchronously, or throw before sending. */
       onFinishing: () => void;
       /** Records (or clears) a stored-but-unconfirmed file so a retry reuses it. */
       onStaged: (staged: StagedObject | null) => void;

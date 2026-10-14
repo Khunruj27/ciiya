@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 import { getUploads, subscribeToUploads } from '@/lib/uploads/queue';
+import { canRetryUpload, isUploadHeld, uploadProgress } from '@/lib/uploads/review';
 import type { UploadItem } from '@/lib/uploads/types';
 
 /** Every upload in the signed-in photographer's queue, oldest first. */
@@ -36,16 +37,18 @@ export function summarizeUploads(items: UploadItem[]): UploadSummary {
   let stalled = false;
 
   for (const item of items) {
-    if (item.status === 'done' || item.status === 'duplicate') {
+    if (isUploadHeld(item)) {
+      failed += 1;
+    } else if (item.status === 'done' || item.status === 'duplicate') {
       finished += 1;
       sent += 1;
       if (item.status === 'duplicate') duplicates += 1;
     } else if (item.status === 'failed') {
       failed += 1;
-      if (item.failure !== 'file-missing') retryable += 1;
+      if (canRetryUpload(item)) retryable += 1;
     } else {
       active += 1;
-      sent += item.progress;
+      sent += uploadProgress(item.progress);
       if (item.status === 'queued') {
         if (item.failure === 'network') stalled = true;
       } else {

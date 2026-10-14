@@ -28,11 +28,22 @@ function uploadsDirectory() {
   return directory;
 }
 
-export function queueFile() {
-  return new File(uploadsDirectory(), 'queue.json');
+export function queueFile(name: 'queue.json' | 'queue.next.json' = 'queue.json') {
+  return new File(uploadsDirectory(), name);
+}
+
+/** Write the replacement completely before replacing the previous journal. */
+export function saveQueue(contents: string) {
+  const next = queueFile('queue.next.json');
+  next.create({ overwrite: true });
+  next.write(contents);
+  next.moveSync(queueFile(), { overwrite: true });
 }
 
 export function localFile(localName: string) {
+  if (!/^[A-Za-z0-9-]+\.(jpg|png|webp)$/.test(localName)) {
+    throw new Error('Invalid upload copy name');
+  }
   return new File(uploadsDirectory(), localName);
 }
 
@@ -49,7 +60,11 @@ export function deleteLocalFile(localName: string) {
 export function sweepLocalFiles(keep: Set<string>) {
   try {
     for (const entry of uploadsDirectory().list()) {
-      if (entry instanceof File && entry.name !== 'queue.json' && !keep.has(entry.name)) {
+      if (
+        entry instanceof File &&
+        /^[A-Za-z0-9-]+\.(jpg|png|webp)$/.test(entry.name) &&
+        !keep.has(entry.name)
+      ) {
         entry.delete();
       }
     }
@@ -89,29 +104,38 @@ function withExtension(fileName: string | null | undefined, mimeType: UploadMime
  */
 export async function prepareAsset(asset: ImagePickerAsset): Promise<PreparedFile | null> {
   const id = randomUUID();
-  let source = new File(asset.uri);
+  let generated: File | null = null;
+  let localName: string | null = null;
   let mimeType = acceptedMimeType(asset.mimeType);
 
   try {
+    let source = new File(asset.uri);
     if (!source.exists) return null;
 
     if (!mimeType) {
-      const rendered = await ImageManipulator.manipulate(asset.uri).renderAsync();
-      const saved = await rendered.saveAsync({
-        format: SaveFormat.JPEG,
-        compress: CONVERTED_JPEG_QUALITY,
-      });
-      rendered.release();
-
-      // The picker's copy of the original is no longer needed.
-      source.delete();
-      source = new File(saved.uri);
+      const context = ImageManipulator.manipulate(asset.uri);
+      try {
+        const rendered = await context.renderAsync();
+        try {
+          const saved = await rendered.saveAsync({
+            format: SaveFormat.JPEG,
+            compress: CONVERTED_JPEG_QUALITY,
+          });
+          generated = new File(saved.uri);
+        } finally {
+          rendered.release();
+        }
+      } finally {
+        context.release();
+      }
+      source = generated;
       mimeType = 'image/jpeg';
     }
 
-    const localName = `${id}.${EXTENSIONS[mimeType]}`;
+    localName = `${id}.${EXTENSIONS[mimeType]}`;
     const destination = localFile(localName);
-    await source.move(destination);
+    // A picker URI may refer to an original, not a disposable cache copy.
+    await source.copy(destination);
 
     const info = destination.info({ md5: true });
     const sizeBytes = Number(info.size ?? destination.size) || 0;
@@ -130,11 +154,14 @@ export async function prepareAsset(asset: ImagePickerAsset): Promise<PreparedFil
       localName,
     };
   } catch {
-    try {
-      if (source.exists) source.delete();
-    } catch {
-      // The picker's cache copy is cleared by the system eventually.
-    }
+    if (localName) deleteLocalFile(localName);
     return null;
+  } finally {
+    // Only the conversion output created above belongs to us.
+    try {
+      if (generated?.exists) generated.delete();
+    } catch {
+      // The system eventually clears this generated cache copy.
+    }
   }
 }

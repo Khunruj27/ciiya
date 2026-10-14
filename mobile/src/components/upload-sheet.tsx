@@ -1,6 +1,5 @@
-import { File } from 'expo-file-system';
 import type { ImagePickerAsset } from 'expo-image-picker';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -27,6 +26,7 @@ export function UploadSheet({ album, assets, onClose }: UploadSheetProps) {
   const [size, setSize] = useState<UploadSize>(getPreferredUploadSize);
   const [prepared, setPrepared] = useState<number | null>(null);
   const busy = prepared !== null;
+  const preparingRef = useRef(false);
 
   const sizeOptions: { value: UploadSize; label: string }[] = [
     { value: 'sd', label: t.settings.sizes.sd },
@@ -36,48 +36,47 @@ export function UploadSheet({ album, assets, onClose }: UploadSheetProps) {
   ];
 
   function handleCancel() {
-    if (busy) return;
+    if (preparingRef.current) return;
 
-    // The picker left a copy of each photo in the cache; it is not needed now.
-    for (const asset of assets) {
-      try {
-        const file = new File(asset.uri);
-        if (file.exists) file.delete();
-      } catch {
-        // The system clears its cache on its own.
-      }
-    }
-
+    // A picker URI can point to the user's original. Only the queue may remove
+    // copies it created under its own private documents directory.
     onClose();
   }
 
   async function handleUpload() {
-    if (busy) return;
+    if (preparingRef.current) return;
 
+    preparingRef.current = true;
     setPrepared(0);
     setPreferredUploadSize(size);
 
-    const result = await enqueueUploads(
-      album.id,
-      assets,
-      { size, autoFaceScan: album.autoFaceScan, autoPublish: album.autoPublish },
-      (done) => setPrepared(done)
-    );
+    try {
+      const result = await enqueueUploads(
+        album.id,
+        assets,
+        { size, autoFaceScan: album.autoFaceScan, autoPublish: album.autoPublish },
+        (done) => setPrepared(done)
+      );
 
-    const notes = [
-      result.unreadable > 0 ? t.uploads.skippedUnreadable(result.unreadable) : null,
-      result.alreadyQueued > 0 ? t.uploads.skippedQueued(result.alreadyQueued) : null,
-    ].filter((note): note is string => Boolean(note));
+      const notes = [
+        result.unreadable > 0 ? t.uploads.skippedUnreadable(result.unreadable) : null,
+        result.alreadyQueued > 0 ? t.uploads.skippedQueued(result.alreadyQueued) : null,
+      ].filter((note): note is string => Boolean(note));
 
-    if (notes.length === 0) {
-      onClose();
-      return;
+      if (notes.length === 0) {
+        onClose();
+        return;
+      }
+
+      // Shown over the sheet, which closes once the note has been read.
+      Alert.alert(t.uploads.skippedTitle, notes.join('\n'), [
+        { text: t.common.ok, onPress: onClose },
+      ]);
+    } catch {
+      preparingRef.current = false;
+      setPrepared(null);
+      Alert.alert(t.common.errorGeneric);
     }
-
-    // Shown over the sheet, which closes once the note has been read.
-    Alert.alert(t.uploads.skippedTitle, notes.join('\n'), [
-      { text: t.common.ok, onPress: onClose },
-    ]);
   }
 
   return (
@@ -95,6 +94,7 @@ export function UploadSheet({ album, assets, onClose }: UploadSheetProps) {
             {t.uploads.sheetTitle(assets.length)}
           </ThemedText>
           <ThemedText themeColor="textSecondary">{t.uploads.sheetHint}</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">{t.uploads.foregroundHint}</ThemedText>
         </View>
 
         {/* The size is fixed once the batch starts being queued. */}

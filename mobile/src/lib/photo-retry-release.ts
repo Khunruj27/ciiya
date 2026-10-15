@@ -1,11 +1,11 @@
 import { isDemoMode } from '@/lib/config';
 
 /**
- * Owner-requested reprocessing of failed photos is prepared locally. Its server
- * route is not in Production yet, so live requests stay closed until that
- * release is approved and verified. No environment/cache value enables it.
+ * The owner approved the reprocessing route release on 2026-10-15. Production
+ * deployment dpl_2GTcCGARzJMsEqt4nRY338ANeZCq serves it and its denial smoke is
+ * verified. No environment/cache value toggles this gate.
  */
-export const photoRetryReleaseEnabled = false;
+export const photoRetryReleaseEnabled = true;
 
 /** Demo retries change in-memory fixtures only. */
 export function isPhotoRetryAvailable(): boolean {

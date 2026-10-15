@@ -423,6 +423,30 @@ next step: on a disposable album, turn protection on with a new password, change
 it, keep it with a blank field, turn it off, and switch download sizes; then open
 the share link in a private browser to confirm the gallery asks for the password.
 
+### Owner reprocessing of failed photos — released 2026-10-15
+
+The album screen offers "process failed photos again" for loaded failed/stopped
+photos (confirmation, sequential requests, at most 50 per tap, stop on account or
+album change, outcome summary). The route is
+`POST /api/mobile/albums/[id]/photos/[photoId]/retry` (`src/lib/mobile/photo-retry.ts`):
+bearer-only, ownership read under RLS with the user's client, only failed/cancelled
+photos whose original (and preset) still exist, per-owner rate limit. The live
+database allows one `photo_jobs` row per photo (`uq_photo_jobs_photo_id`), so the
+route resets that row with a compare-and-set on its status instead of inserting
+another job; size, preset and paths are not changed. The photo becomes pending only
+while still failed/cancelled. Note: the website's own `/api/photos/retry-processing`
+inserts a new job and therefore conflicts with that index; it was not changed here.
+
+With the owner's explicit approval, `dpl_2GTcCGARzJMsEqt4nRY338ANeZCq` was built from
+the `dpl_EaHB…` source plus exactly the route and its helper (hash audit), staged
+with `--skip-domain` (protection kept, no bypass), then promoted to `www.ciiya.app`
+and `ciiya.app`. 37 absent/forged-credential checks pass locally and on production;
+the first 50 production logs are info with no 5xx. Offline: 15 server contracts,
+473 mobile regressions, TypeScript and lint. Demo mode verified the flow in the iOS
+Simulator. The native gate (`src/lib/photo-retry-release.ts`) is enabled. Device
+acceptance: retry a genuinely failed photo in a disposable album and confirm the
+worker completes it.
+
 ### Earlier working phases for the first photographer release
 
 The owner asked to continue phase 4 on 2026-10-14. These six phases group the

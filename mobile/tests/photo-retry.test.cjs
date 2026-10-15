@@ -79,14 +79,14 @@ const photo = (id, processingStatus, isReady = false) => ({
   width: null, height: null, isReady, processingStatus, processingProgress: null, createdAt: '2026-10-15T00:00:00.000Z',
 });
 
-test('the retry release gate is closed in source and independent of environment values', () => {
+test('the retry release gate is open in source and independent of environment values', () => {
   for (const isDemoMode of [false, true]) {
     const exports = {};
     vm.runInNewContext(transpile('photo-retry-release.ts'), {
       exports, require(name) { assert.equal(name, '@/lib/config'); return { isDemoMode }; },
     });
-    assert.equal(exports.photoRetryReleaseEnabled, false);
-    assert.equal(exports.isPhotoRetryAvailable(), isDemoMode);
+    assert.equal(exports.photoRetryReleaseEnabled, true);
+    assert.equal(exports.isPhotoRetryAvailable(), true);
   }
   const source = fs.readFileSync(path.join(__dirname, '../src/lib/photo-retry-release.ts'), 'utf8');
   assert.doesNotMatch(source, /process\.env|fetch\(|getSession\(/);

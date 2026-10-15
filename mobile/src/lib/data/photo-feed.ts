@@ -180,6 +180,24 @@ export class PhotoFeed {
     }
   };
 
+  /**
+   * The server accepted reprocessing for these loaded photos. Show them as
+   * waiting right away (only while still failed/stopped here) so the normal
+   * processing poll follows them; a later server read stays authoritative.
+   */
+  markRequeued = (ids: string[]) => {
+    if (this.disposed || !ids.length) return;
+    const requeued = new Set(ids);
+    let changed = false;
+    const photos = this.state.photos.map((photo) => {
+      if (!requeued.has(photo.id) || photo.isReady ||
+        (photo.processingStatus !== 'failed' && photo.processingStatus !== 'cancelled')) return photo;
+      changed = true;
+      return { ...photo, processingStatus: 'pending' as const, processingProgress: null };
+    });
+    if (changed) this.publish({ ...this.state, photos });
+  };
+
   dispose = () => {
     this.disposed = true;
     this.generation += 1;

@@ -26,6 +26,8 @@ import { useQuery } from '@/hooks/use-query';
 import { useTheme } from '@/hooks/use-theme';
 import { useAlbumUploads } from '@/hooks/use-uploads';
 import { isAlbumEditingAvailable } from '@/lib/album-edit-release';
+import { isPhotoRetryAvailable } from '@/lib/photo-retry-release';
+import { MAX_PHOTO_RETRIES_PER_TAP, retryablePhotos, retryPhotos } from '@/lib/photo-retry';
 import { data, DataError } from '@/lib/data';
 import { photoProcessing, shouldPollPhoto } from '@/lib/data/types';
 import { PhotoFeed } from '@/lib/data/photo-feed';
@@ -110,6 +112,10 @@ function OwnedAlbumScreen({ id }: { id: string }) {
   const viewerIndex = selectedIndex >= 0 ? selectedIndex : null;
   const { summary: uploads } = useAlbumUploads(id);
   const refreshAlbum = album.refresh;
+  const failedPhotos = useMemo(() => retryablePhotos(list.photos), [list.photos]);
+  const [retryProgress, setRetryProgress] = useState<{ done: number; total: number } | null>(null);
+  // Synchronous single-flight: a double tap must not start two batches.
+  const retryingRef = useRef(false);
 
   useEffect(() => {
     void feed.reload();
@@ -218,6 +224,50 @@ function OwnedAlbumScreen({ id }: { id: string }) {
       Alert.alert(t.uploads.pickFailed);
     } finally {
       setPicking(false);
+    }
+  }
+
+  function confirmRetryFailed() {
+    const current = coverGuard.capture();
+    if (!current?.() || retryingRef.current || !isPhotoRetryAvailable()) return;
+    const ids = retryablePhotos(feed.getSnapshot().photos).map((photo) => photo.id)
+      .slice(0, MAX_PHOTO_RETRIES_PER_TAP);
+    if (!ids.length) return;
+
+    Alert.alert(t.album.retryFailedTitle, t.album.retryFailedMessage(ids.length), [
+      { text: t.common.cancel, style: 'cancel' },
+      { text: t.album.retryFailedConfirm, onPress: () => { void runRetry(ids, current); } },
+    ]);
+  }
+
+  async function runRetry(ids: string[], isCurrent: () => boolean) {
+    // The dialog may outlive its visit: re-check before sending anything.
+    if (!isCurrent() || retryingRef.current) return;
+    retryingRef.current = true;
+    setRetryProgress({ done: 0, total: ids.length });
+    try {
+      const summary = await retryPhotos({
+        photoIds: ids,
+        retry: (photoId) => data.retryPhotoProcessing(id, photoId),
+        isCurrent,
+        onProgress: (done, total) => setRetryProgress({ done, total }),
+      });
+      if (!isCurrent()) return;
+      feed.markRequeued(summary.queued);
+      const lines = [
+        summary.queued.length ? t.album.retryFailedQueued(summary.queued.length) : null,
+        summary.alreadyQueued ? t.album.retryFailedAlready(summary.alreadyQueued) : null,
+        summary.sourceMissing ? t.album.retryFailedMissing(summary.sourceMissing) : null,
+        summary.notRetryable ? t.album.retryFailedNotRetryable(summary.notRetryable) : null,
+        summary.failed ? t.album.retryFailedErrors(summary.failed) : null,
+        summary.skipped ? t.album.retryFailedStopped(summary.skipped) : null,
+      ].filter((line): line is string => Boolean(line));
+      Alert.alert(t.album.retryFailedDoneTitle, lines.join('\n'));
+      // Photos that were not failed here any more get their real state now.
+      if (summary.notRetryable || summary.alreadyQueued) void feed.refreshProcessing();
+    } finally {
+      retryingRef.current = false;
+      if (isCurrent()) setRetryProgress(null);
     }
   }
 
@@ -367,6 +417,18 @@ function OwnedAlbumScreen({ id }: { id: string }) {
                       <ThemedText type="small" accessibilityRole="alert" style={{ color: theme.danger }}>
                         {t.album.processingReadFailed}
                       </ThemedText>
+                    ) : null}
+                    {isPhotoRetryAvailable() && (failedPhotos.length > 0 || retryProgress) ? (
+                      <Button
+                        label={retryProgress
+                          ? t.album.retryFailedProgress(retryProgress.done, retryProgress.total)
+                          : failedPhotos.length > MAX_PHOTO_RETRIES_PER_TAP
+                            ? t.album.retryFailedLimited(failedPhotos.length, MAX_PHOTO_RETRIES_PER_TAP)
+                            : t.album.retryFailed(failedPhotos.length)}
+                        onPress={confirmRetryFailed}
+                        loading={retryProgress !== null}
+                        disabled={retryProgress !== null || !coverGuard.available}
+                      />
                     ) : null}
                     {readiness.notReady > 0 || list.processingError ? (
                       <Button label={t.album.processingRefresh} onPress={handleRefresh} variant="secondary"

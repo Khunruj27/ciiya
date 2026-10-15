@@ -160,6 +160,8 @@ function harness(relative, { api = {}, uploads = {}, query = {}, suffix = '', ed
     '@/ctx/session': { useSession: () => ({ user }) },
     '@/lib/config': { isDemoMode: false },
     '@/lib/album-edit-release': { albumEditReleaseEnabled: editingAvailable, isAlbumEditingAvailable: () => editingAvailable },
+    '@/lib/photo-retry-release': { photoRetryReleaseEnabled: false, isPhotoRetryAvailable: () => false },
+    '@/lib/photo-retry': { MAX_PHOTO_RETRIES_PER_TAP: 50, retryablePhotos: () => [], async retryPhotos() { throw Error('Closed retry gate must not send'); } },
     '@/lib/album-access-release': { albumAccessReleaseEnabled: false, isAlbumAccessEditingAvailable: () => false },
     '@/lib/supabase': { supabase: { auth: { onAuthStateChange(fn) {
       authListeners.add(fn);

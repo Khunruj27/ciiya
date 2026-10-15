@@ -213,6 +213,8 @@ function harness({ relative = shareRoute, locale = 'th', platform = 'ios', query
       },
     },
     '@/lib/album-edit-release': { isAlbumEditingAvailable: () => false },
+    '@/lib/photo-retry-release': { photoRetryReleaseEnabled: false, isPhotoRetryAvailable: () => false },
+    '@/lib/photo-retry': { MAX_PHOTO_RETRIES_PER_TAP: 50, retryablePhotos: () => [], async retryPhotos() { throw Error('Closed retry gate must not send'); } },
     '@/lib/config': { isDemoMode: demo },
     '@/lib/supabase': { supabase: { auth: { onAuthStateChange(callback) {
       authListeners.add(callback);

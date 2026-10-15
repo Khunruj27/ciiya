@@ -1,6 +1,7 @@
 import { SITE_URL } from '@/lib/config';
 import { albumEditReleaseEnabled } from '@/lib/album-edit-release';
 import { albumAccessReleaseEnabled } from '@/lib/album-access-release';
+import { photoRetryReleaseEnabled } from '@/lib/photo-retry-release';
 import { supabase } from '@/lib/supabase';
 
 import {
@@ -16,6 +17,7 @@ import {
   type DataSource,
   type Photo,
   type PhotoPage,
+  type PhotoRetryOutcome,
   type StorageUsage,
 } from './types';
 
@@ -34,6 +36,8 @@ async function api<T>(
     accessConflict?: boolean;
     /** Only access calls bind token acquisition/publication to a captured owner. */
     accessContext?: AlbumAccessContext;
+    /** Return a 409 body to the caller instead of a generic server error. */
+    readConflictBody?: boolean;
   } = {}
 ): Promise<T> {
   if (init.signal?.aborted) throw new DataError('network');
@@ -142,6 +146,10 @@ async function api<T>(
     if (init.accessContext && !init.accessContext.isCurrent()) {
       controller.abort();
       throw new DataError('unauthenticated');
+    }
+
+    if (response.status === 409 && init.readConflictBody === true && payload !== null) {
+      return payload;
     }
 
     if (!response.ok || payload === null) {
@@ -353,6 +361,31 @@ export const liveData: DataSource = {
 
   async deleteAlbum(_albumId) {
     // This stage never enables deletion, including direct legacy callers.
+    throw new DataError('server');
+  },
+
+  async retryPhotoProcessing(albumId, photoId): Promise<PhotoRetryOutcome> {
+    // Independent of demo/UI state: no token read or request before release.
+    if (!photoRetryReleaseEnabled) throw new DataError('server');
+    if (typeof albumId !== 'string' || !albumId || typeof photoId !== 'string' || !photoId) {
+      throw new DataError('server');
+    }
+    const result = await api<Record<string, unknown>>(
+      `/api/mobile/albums/${encodeURIComponent(albumId)}/photos/${encodeURIComponent(photoId)}/retry`, {
+        method: 'POST',
+        body: {},
+        readConflictBody: true,
+      });
+    if (!result || typeof result !== 'object') throw new DataError('server');
+    if (result.success === true) {
+      if (result.retried === true) return 'queued';
+      if (result.retried === false) return 'already-queued';
+      throw new DataError('server');
+    }
+    if (result.code === 'SOURCE_MISSING') return 'source-missing';
+    if (result.code === 'NOT_RETRYABLE') return 'not-retryable';
+    // A lost compare-and-set race: the caller refreshes and decides again.
+    if (result.code === 'RETRY_CONFLICT') throw new DataError('conflict');
     throw new DataError('server');
   },
 

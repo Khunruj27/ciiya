@@ -140,6 +140,13 @@ export function captureAlbumAccessContext(context: AlbumAccessContext): AlbumAcc
   return { expectedOwnerId, isCurrent };
 }
 
+/**
+ * What the server did with one reprocessing request. `already-queued` means the
+ * worker already had the photo; `source-missing` means its original is gone, so
+ * retrying again cannot help; `not-retryable` means it is no longer failed.
+ */
+export type PhotoRetryOutcome = 'queued' | 'already-queued' | 'source-missing' | 'not-retryable';
+
 export type DataSource = {
   fetchAlbums(): Promise<Album[]>;
   fetchAlbum(albumId: string): Promise<Album>;
@@ -157,4 +164,6 @@ export type DataSource = {
   updateAlbumSettings(input: AlbumSettingsInput): Promise<void>;
   deleteAlbum(albumId: string): Promise<void>;
   setAlbumCover(albumId: string, photoId: string): Promise<void>;
+  /** Sends one failed/stopped photo back to the photo worker. */
+  retryPhotoProcessing(albumId: string, photoId: string): Promise<PhotoRetryOutcome>;
 };

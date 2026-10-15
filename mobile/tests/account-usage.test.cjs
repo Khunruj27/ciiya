@@ -242,6 +242,8 @@ function dataHarness({ owner = 'owner-a', row = {
   const { liveData } = load('lib/data/live.ts', {
     '@/lib/config': { SITE_URL: 'https://mock.invalid' },
     '@/lib/album-edit-release': { albumEditReleaseEnabled: true },
+    '@/lib/photo-retry-release': { photoRetryReleaseEnabled: false, isPhotoRetryAvailable: () => false },
+    '@/lib/photo-retry': { MAX_PHOTO_RETRIES_PER_TAP: 50, retryablePhotos: () => [], async retryPhotos() { throw Error('Closed retry gate must not send'); } },
     '@/lib/album-access-release': { albumAccessReleaseEnabled: false },
     '@/lib/supabase': { supabase: {
       auth: { getSession: async () => ({ data: { session: owner ? { user: { id: owner } } : null }, error: null }) },

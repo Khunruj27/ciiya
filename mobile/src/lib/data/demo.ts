@@ -37,9 +37,11 @@ function makePhotos(albumId: string, count: number): Photo[] {
       blurDataUrl: null,
       width: null,
       height: null,
-      // The newest photo of the first album is shown as still processing.
-      isReady: !(albumId === 'demo-1' && index === 0),
-      processingStatus: albumId === 'demo-1' && index === 0 ? 'processing' : 'done',
+      // The newest photo of the first album is still processing; the next two
+      // failed, so the owner's reprocessing flow can be tried in the demo.
+      isReady: !(albumId === 'demo-1' && index <= 2),
+      processingStatus: albumId === 'demo-1' && index === 0 ? 'processing'
+        : albumId === 'demo-1' && index <= 2 ? 'failed' : 'done',
       processingProgress: albumId === 'demo-1' && index === 0 ? 35 : null,
       createdAt: new Date(Date.UTC(2026, 9, 8, 12, 0, 0) - index * 60_000).toISOString(),
     };
@@ -295,6 +297,23 @@ export const demoData: DataSource = {
     albums = albums.filter((album) => album.id !== albumId);
     photosByAlbum.delete(albumId);
     accessRevisions.delete(albumId);
+  },
+
+  async retryPhotoProcessing(albumId, photoId) {
+    await delay(250);
+    findAlbum(albumId);
+    const photo = (photosByAlbum.get(albumId) ?? []).find((item) => item.id === photoId);
+    if (!photo) throw new DataError('not-found');
+    if (photo.processingStatus === 'pending' || photo.processingStatus === 'processing') return 'already-queued';
+    if (photo.processingStatus !== 'failed' && photo.processingStatus !== 'cancelled') return 'not-retryable';
+    // In-memory only: the photo waits briefly, then finishes like a worker job.
+    photo.processingStatus = 'pending';
+    photo.processingProgress = null;
+    setTimeout(() => {
+      photo.processingStatus = 'done';
+      photo.isReady = true;
+    }, 7000);
+    return 'queued';
   },
 
   async setAlbumCover(albumId, photoId) {

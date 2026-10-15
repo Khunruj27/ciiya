@@ -31,6 +31,8 @@ function harness({ session, fetch: send } = {}) {
   const mocks = {
     '@/lib/config': { SITE_URL: 'https://mock.invalid' },
     '@/lib/album-edit-release': { albumEditReleaseEnabled: false },
+    '@/lib/photo-retry-release': { photoRetryReleaseEnabled: false, isPhotoRetryAvailable: () => false },
+    '@/lib/photo-retry': { MAX_PHOTO_RETRIES_PER_TAP: 50, retryablePhotos: () => [], async retryPhotos() { throw Error('Closed retry gate must not send'); } },
     '@/lib/album-access-release': { albumAccessReleaseEnabled: false },
     '@/lib/supabase': { supabase: { auth: { getSession() {
       authCalls.push('getSession');

@@ -431,3 +431,17 @@ test('one authoritative 401 refreshes only the same owner token and resends the 
   assert.equal(h.requests[1].headers.Authorization, 'Bearer offline-fresh');
   assert.equal(h.uploads.length, 1);
 });
+
+test('a chosen preset travels with reserve and finalize; older journals without one send null', async () => {
+  const withPreset = harness();
+  withPreset.item.presetPath = 'A/album/presets/warm.xmp';
+  await withPreset.run();
+  const sent = withPreset.requests.map(request => request.body.presetPath);
+  assert.equal(withPreset.requests.length, 2);
+  assert.deepEqual(sent, ['A/album/presets/warm.xmp', 'A/album/presets/warm.xmp']);
+
+  const legacy = harness();
+  delete legacy.item.presetPath;
+  await legacy.run();
+  assert.deepEqual(legacy.requests.map(request => request.body.presetPath), [null, null]);
+});

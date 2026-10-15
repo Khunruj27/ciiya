@@ -145,6 +145,17 @@ export function captureAlbumAccessContext(context: AlbumAccessContext): AlbumAcc
  * worker already had the photo; `source-missing` means its original is gone, so
  * retrying again cannot help; `not-retryable` means it is no longer failed.
  */
+/** A Lightroom preset this album's uploads may use. */
+export type AlbumPreset = {
+  /** Passed to the upload routes as `presetPath`. */
+  path: string;
+  name: string;
+  createdAt: string | null;
+};
+
+/** One .xmp file read on the phone, sent as text. */
+export type AlbumPresetUpload = { fileName: string; content: string };
+
 export type PhotoRetryOutcome = 'queued' | 'already-queued' | 'source-missing' | 'not-retryable';
 
 export type DataSource = {
@@ -166,4 +177,8 @@ export type DataSource = {
   setAlbumCover(albumId: string, photoId: string): Promise<void>;
   /** Sends one failed/stopped photo back to the photo worker. */
   retryPhotoProcessing(albumId: string, photoId: string): Promise<PhotoRetryOutcome>;
+  /** The album's own presets plus account-wide legacy ones, newest first. */
+  fetchAlbumPresets(albumId: string): Promise<AlbumPreset[]>;
+  /** Stores a new preset for this album and returns it. */
+  uploadAlbumPreset(albumId: string, input: AlbumPresetUpload): Promise<AlbumPreset>;
 };

@@ -2,12 +2,14 @@ import { SITE_URL } from '@/lib/config';
 import { albumEditReleaseEnabled } from '@/lib/album-edit-release';
 import { albumAccessReleaseEnabled } from '@/lib/album-access-release';
 import { photoRetryReleaseEnabled } from '@/lib/photo-retry-release';
+import { presetReleaseEnabled } from '@/lib/preset-release';
 import { supabase } from '@/lib/supabase';
 
 import {
   DataError,
   captureAlbumAccessContext,
   type Album,
+  type AlbumPreset,
   type AlbumAccessContext,
   type AlbumAccessInput,
   type AlbumAccessSettings,
@@ -191,6 +193,18 @@ function readAlbumAccess(payload: unknown, albumId: string): AlbumAccessSettings
     isPasswordProtected: value.isPasswordProtected,
     revision: value.revision,
   };
+}
+
+/** Copies exactly the safe preset contract; anything else is a server error. */
+function readAlbumPreset(value: unknown): AlbumPreset {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new DataError('server');
+  const preset = value as Record<string, unknown>;
+  if (typeof preset.path !== 'string' || !/^[A-Za-z0-9/._-]{1,500}\.xmp$/i.test(preset.path) ||
+      preset.path.includes('..') || typeof preset.name !== 'string' || !preset.name ||
+      (preset.createdAt !== null && typeof preset.createdAt !== 'string')) {
+    throw new DataError('server');
+  }
+  return { path: preset.path, name: preset.name.slice(0, 120), createdAt: preset.createdAt ?? null };
 }
 
 function validAlbumAccessInput(input: AlbumAccessInput): boolean {
@@ -387,6 +401,29 @@ export const liveData: DataSource = {
     // A lost compare-and-set race: the caller refreshes and decides again.
     if (result.code === 'RETRY_CONFLICT') throw new DataError('conflict');
     throw new DataError('server');
+  },
+
+  async fetchAlbumPresets(albumId) {
+    // Independent of demo/UI state: no token read or request before release.
+    if (!presetReleaseEnabled) throw new DataError('server');
+    if (typeof albumId !== 'string' || !albumId) throw new DataError('server');
+    const result = await api<{ presets?: unknown }>(`/api/mobile/albums/${encodeURIComponent(albumId)}/presets`);
+    if (!result || !Array.isArray(result.presets) || result.presets.length > 100) throw new DataError('server');
+    return result.presets.map(readAlbumPreset);
+  },
+
+  async uploadAlbumPreset(albumId, input) {
+    if (!presetReleaseEnabled) throw new DataError('server');
+    if (typeof albumId !== 'string' || !albumId || !input ||
+        typeof input.fileName !== 'string' || typeof input.content !== 'string') {
+      throw new DataError('server');
+    }
+    // One attempt only: a lost reply may still have stored the preset.
+    const result = await api<{ preset?: unknown }>(`/api/mobile/albums/${encodeURIComponent(albumId)}/presets`, {
+      method: 'POST',
+      body: { fileName: input.fileName, content: input.content },
+    });
+    return readAlbumPreset(result?.preset);
   },
 
   async setAlbumCover(albumId, photoId) {

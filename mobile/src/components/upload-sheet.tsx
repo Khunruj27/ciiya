@@ -2,13 +2,20 @@ import type { ImagePickerAsset } from 'expo-image-picker';
 import { useRef, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, View } from 'react-native';
 
+import { PresetPicker } from '@/components/preset-picker';
 import { ThemedText } from '@/components/themed-text';
 import { Button, Card, Segmented } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { Album } from '@/lib/data';
 import { useT } from '@/lib/i18n';
-import { getPreferredUploadSize, setPreferredUploadSize } from '@/lib/uploads/prefs';
+import { isPresetPickingAvailable } from '@/lib/preset-release';
+import {
+  getPreferredPreset,
+  getPreferredUploadSize,
+  setPreferredPreset,
+  setPreferredUploadSize,
+} from '@/lib/uploads/prefs';
 import { enqueueUploads } from '@/lib/uploads/queue';
 import type { UploadSize } from '@/lib/uploads/types';
 
@@ -25,6 +32,10 @@ export function UploadSheet({ album, assets, onClose }: UploadSheetProps) {
   const theme = useTheme();
   const [size, setSize] = useState<UploadSize>(getPreferredUploadSize);
   const [prepared, setPrepared] = useState<number | null>(null);
+  const presetsAvailable = isPresetPickingAvailable();
+  const [presetPath, setPresetPath] = useState<string | null>(null);
+  const [preferredPreset] = useState(() => getPreferredPreset(album.id));
+  const [presetBusy, setPresetBusy] = useState(false);
   const busy = prepared !== null;
   const preparingRef = useRef(false);
 
@@ -44,17 +55,19 @@ export function UploadSheet({ album, assets, onClose }: UploadSheetProps) {
   }
 
   async function handleUpload() {
-    if (preparingRef.current) return;
+    if (preparingRef.current || presetBusy) return;
 
     preparingRef.current = true;
     setPrepared(0);
     setPreferredUploadSize(size);
+    const chosenPreset = presetsAvailable ? presetPath : null;
+    if (presetsAvailable) setPreferredPreset(album.id, chosenPreset);
 
     try {
       const result = await enqueueUploads(
         album.id,
         assets,
-        { size, autoFaceScan: album.autoFaceScan, autoPublish: album.autoPublish },
+        { size, presetPath: chosenPreset, autoFaceScan: album.autoFaceScan, autoPublish: album.autoPublish },
         (done) => setPrepared(done)
       );
 
@@ -110,16 +123,28 @@ export function UploadSheet({ album, assets, onClose }: UploadSheetProps) {
           </Card>
         </View>
 
+        {presetsAvailable ? (
+          <PresetPicker
+            albumId={album.id}
+            preferredPath={preferredPreset}
+            value={presetPath}
+            onChange={setPresetPath}
+            disabled={busy}
+            onBusyChange={setPresetBusy}
+          />
+        ) : null}
+
         <Button
           label={busy ? t.uploads.preparing(prepared, assets.length) : t.uploads.start}
           onPress={handleUpload}
           loading={busy}
+          disabled={presetBusy}
         />
         <Button
           label={t.common.cancel}
           onPress={handleCancel}
           variant="secondary"
-          disabled={busy}
+          disabled={busy || presetBusy}
         />
       </ScrollView>
     </Modal>

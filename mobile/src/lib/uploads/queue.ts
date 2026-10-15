@@ -109,6 +109,9 @@ function isUploadItem(value: unknown): value is UploadItem {
     ['sd', 'hd', 'uhd', 'original'].includes(String(item.size)) &&
     ['queued', 'uploading', 'finishing', 'done', 'duplicate', 'failed'].includes(String(item.status)) &&
     typeof item.autoFaceScan === 'boolean' && typeof item.autoPublish === 'boolean' &&
+    (item.presetPath === undefined || item.presetPath === null ||
+      (typeof item.presetPath === 'string' && /^[A-Za-z0-9/._-]{1,500}\.xmp$/i.test(item.presetPath) &&
+        !item.presetPath.includes('..') && !item.presetPath.includes('//'))) &&
     typeof item.attempts === 'number' && Number.isFinite(item.attempts) && item.attempts >= 0 &&
     typeof item.createdAt === 'number' && Number.isFinite(item.createdAt)
   );
@@ -144,6 +147,7 @@ function hydrate() {
     const item: UploadItem = {
       ...saved,
       registering: saved.registering === true,
+      presetPath: typeof saved.presetPath === 'string' ? saved.presetPath : null,
       staged:
         staged && typeof staged.storagePath === 'string'
           ? {

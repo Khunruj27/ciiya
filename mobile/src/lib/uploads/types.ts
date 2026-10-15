@@ -59,6 +59,8 @@ export type UploadItem = {
   size: UploadSize;
   autoFaceScan: boolean;
   autoPublish: boolean;
+  /** Lightroom preset applied by the worker; null for none. Older journals lack it. */
+  presetPath?: string | null;
   status: UploadStatus;
   /** 0–1 for the current attempt. */
   progress: number;
@@ -84,6 +86,8 @@ export type PreparedFile = {
 };
 
 export type UploadOptions = {
+  /** One of this album's presets (or an account-wide one); null for none. */
+  presetPath: string | null;
   size: UploadSize;
   autoFaceScan: boolean;
   autoPublish: boolean;

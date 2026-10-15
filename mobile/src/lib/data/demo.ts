@@ -128,6 +128,14 @@ function passwordUtf8Bytes(value: string): number {
   return length;
 }
 
+/** In-memory presets; the first album starts with two to choose from. */
+const presetsByAlbum = new Map<string, { path: string; name: string; createdAt: string | null }[]>([
+  ['demo-1', [
+    { path: 'demo-owner/demo-1/presets/warm-film.xmp', name: 'Warm Film', createdAt: '2026-10-08T03:00:00.000Z' },
+    { path: 'demo-owner/presets/soft-bw.xmp', name: 'Soft B&W', createdAt: null },
+  ]],
+]);
+
 function findAlbum(albumId: string) {
   const album = albums.find((item) => item.id === albumId);
   if (!album) throw new DataError('not-found');
@@ -297,6 +305,27 @@ export const demoData: DataSource = {
     albums = albums.filter((album) => album.id !== albumId);
     photosByAlbum.delete(albumId);
     accessRevisions.delete(albumId);
+  },
+
+  async fetchAlbumPresets(albumId) {
+    await delay(150);
+    findAlbum(albumId);
+    return (presetsByAlbum.get(albumId) ?? []).map((preset) => ({ ...preset }));
+  },
+
+  async uploadAlbumPreset(albumId, input) {
+    await delay(300);
+    findAlbum(albumId);
+    if (!input.fileName.toLowerCase().endsWith('.xmp') || !/<x:xmpmeta[\s>]/i.test(input.content)) {
+      throw new DataError('server');
+    }
+    const preset = {
+      path: `demo-owner/${albumId}/presets/${Date.now()}.xmp`,
+      name: input.fileName.replace(/\.xmp$/i, '').slice(0, 120) || 'Preset',
+      createdAt: new Date().toISOString(),
+    };
+    presetsByAlbum.set(albumId, [preset, ...(presetsByAlbum.get(albumId) ?? [])]);
+    return { ...preset };
   },
 
   async retryPhotoProcessing(albumId, photoId) {

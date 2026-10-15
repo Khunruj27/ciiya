@@ -93,7 +93,7 @@ function demoHarness({ beforeDelay } = {}) {
   return { data: exports.demoData, fetches: () => fetches };
 }
 
-test('actual access release is closed, independent of environment/cache and metadata release', () => {
+test('actual access release is open, independent of environment/cache and metadata release', () => {
   for (const isDemoMode of [false, true]) {
     const exports = {};
     vm.runInNewContext(transpile('album-access-release.ts'), {
@@ -102,8 +102,8 @@ test('actual access release is closed, independent of environment/cache and meta
         return { isDemoMode };
       },
     });
-    assert.equal(exports.albumAccessReleaseEnabled, false);
-    assert.equal(exports.isAlbumAccessEditingAvailable(), isDemoMode);
+    assert.equal(exports.albumAccessReleaseEnabled, true);
+    assert.equal(exports.isAlbumAccessEditingAvailable(), true);
   }
   const original = fs.readFileSync(path.join(__dirname, '../src/lib/album-access-release.ts'), 'utf8');
   assert.doesNotMatch(original, /process\.env|EXPO_PUBLIC_.*ACCESS|fetch\(|getSession\(/);

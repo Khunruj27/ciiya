@@ -277,9 +277,7 @@ existing `processing_progress` column
 and return allowlisted `processingStatus` plus a finite 0–100
 `processingProgress` (or null). Ownership/RLS, bearer auth, pagination, delivery
 URLs, schema, workers and existing Web/share pages are unchanged. Internal job
-errors, object keys and passwords are not included. This local change has not
-been deployed; the existing Production API continues to use readiness/unknown
-fallback in the app until a separately authorized release.
+errors, object keys and passwords are not included. Released 2026-10-15 together with the access API (see the release record below).
 
 The isolated source snapshot is
 `/private/tmp/ciiya-owner-processing-release.iSL2bz`, based on accepted
@@ -351,7 +349,7 @@ Specific semantics to retain:
 - Dormant AI/reindex/cluster/operator components and retired billing endpoints
   are not confirmed live Web UI requirements merely because their files exist.
 
-### First parity batch: gallery access settings — prepared, not released
+### First parity batch: gallery access settings — released 2026-10-15 (see below)
 
 The native password/download editor is prepared at
 `src/app/(app)/(albums)/album/[id]/access.tsx`, separate from the already released
@@ -395,6 +393,35 @@ build and verify it against the accepted baseline, run denial/scope checks, then
 enable the native gate and let the owner deliberately test on a disposable
 album. Do not deploy the dirty checkout or automatically change an album's
 password/download settings to demonstrate the feature.
+
+### Separately authorized access + processing-status release — 2026-10-15
+
+The owner explicitly authorized deploying the prepared access (password/download)
+API and the processing-status read change. Deployment
+`dpl_EaHBkKKQYWUGpZ5fHSHhCvbud3Mo` is READY and promoted on `www.ciiya.app` and
+`ciiya.app`; it supersedes `dpl_ADK8s79rqeLYjT1fzH2gAmBEXKaQ`. Its source is an
+isolated copy of that accepted deployment's source plus exactly three files:
+`src/app/api/mobile/albums/[id]/access/route.ts`, `src/lib/mobile/album-access.ts`
+and `src/lib/mobile/owner-data.ts`. A hash audit confirmed no other file changed;
+packages, `next.config.ts`, `vercel.json`, the shared cookie auth helper and the
+browser settings/cover/delete routes are identical. The dirty checkout and `main`
+were not deployed. It was staged with `--skip-domain` (deployment protection kept,
+no bypass token), confirmed READY, then promoted.
+
+Before release, a read-only production probe confirmed `processing_progress` and
+the access columns exist, all albums are `active`, and no password hash or
+download size has an unexpected shape. The isolated Next 16.3.8 build passed, and
+30 absent/malformed/forged-credential checks passed locally and again on
+production (26×401 private/no-store, 2×405 for unsupported methods, health and
+home 200). The first 46 production request logs were all info, without 5xx.
+No real credential was used and no album setting was changed by the agent.
+
+The native access gate (`src/lib/album-access-release.ts`) is now enabled; 463
+offline regressions, TypeScript and Expo lint pass, and the running dev-client
+Metro server serves the enabled gate. Physical-device acceptance is the owner's
+next step: on a disposable album, turn protection on with a new password, change
+it, keep it with a blank field, turn it off, and switch download sizes; then open
+the share link in a private browser to confirm the gallery asks for the password.
 
 ### Earlier working phases for the first photographer release
 

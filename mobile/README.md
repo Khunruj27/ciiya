@@ -467,6 +467,28 @@ adding a synthetic `.xmp` from Files, and the saved per-album choice in the iOS
 Simulator. Device acceptance: add a real Lightroom preset, upload a test photo with
 it and check the processed preview shows the adjustment.
 
+### Photo deletion from the viewer — released 2026-10-16
+
+The viewer's top bar has a delete button with a destructive confirmation naming
+the photo, a single-flight fence and a re-check of the account/album before
+sending; it is disabled for photos still processing. A 404 is treated as already
+deleted. Route: `DELETE /api/mobile/albums/[id]/photos/[photoId]`
+(`src/lib/mobile/photo-delete.ts`): bearer-only, album and photo ownership under
+RLS, refuses pending/processing photos, then exactly the website's deletion flow
+(stage storage jobs → locked `delete_photo_complete` RPC, which also clears the
+cover → activate/run jobs; unfinished storage stays queued; a failed RPC discards
+the staged jobs). Rate limited per owner.
+
+With the owner's explicit approval, `dpl_37iBXvuGEuLqYuM79ftHzpUmdSFo` was built from
+the `dpl_6RGb…` source plus exactly those two files (hash audit), staged with
+`--skip-domain`, then promoted. 62 absent/forged-credential checks pass locally and
+on production; the first 50 production logs are info with no 5xx. Offline: 9 server
+contracts, 486 mobile regressions, TypeScript and lint; demo mode verified the
+confirmation, removal and the disabled state for a processing photo. No production
+photo was deleted by the agent. Device acceptance: delete one photo in a disposable
+album, confirm it is gone from the website and the share page, and that the album
+cover/count update.
+
 ### Earlier working phases for the first photographer release
 
 The owner asked to continue phase 4 on 2026-10-14. These six phases group the

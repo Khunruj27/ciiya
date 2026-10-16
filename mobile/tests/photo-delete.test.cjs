@@ -42,14 +42,14 @@ function liveHarness({ enabled = true, send } = {}) {
   return { liveData: exports.liveData, timers, requests, authCalls };
 }
 
-test('the delete release gate is closed in source and independent of environment values', () => {
+test('the delete release gate is open in source and independent of environment values', () => {
   for (const isDemoMode of [false, true]) {
     const exports = {};
     vm.runInNewContext(transpile('photo-delete-release.ts'), {
       exports, require(name) { assert.equal(name, '@/lib/config'); return { isDemoMode }; },
     });
-    assert.equal(exports.photoDeleteReleaseEnabled, false);
-    assert.equal(exports.isPhotoDeleteAvailable(), isDemoMode);
+    assert.equal(exports.photoDeleteReleaseEnabled, true);
+    assert.equal(exports.isPhotoDeleteAvailable(), true);
   }
   assert.doesNotMatch(fs.readFileSync(path.join(__dirname, '../src/lib/photo-delete-release.ts'), 'utf8'), /process\.env|fetch\(|getSession\(/);
 });

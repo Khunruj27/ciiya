@@ -447,6 +447,26 @@ Simulator. The native gate (`src/lib/photo-retry-release.ts`) is enabled. Device
 acceptance: retry a genuinely failed photo in a disposable album and confirm the
 worker completes it.
 
+### Lightroom presets for phone uploads — released 2026-10-16
+
+The upload sheet lists the album's presets (its own plus account-wide legacy ones),
+remembers the last choice per album and can add a new `.xmp` from Files. The chosen
+preset is journaled with each queued photo and sent as `presetPath` to reserve and
+finalize, where the existing routes validate it. Route:
+`GET/POST /api/mobile/albums/[id]/presets` (`src/lib/mobile/album-presets.ts`):
+bearer-only, ownership under RLS, list limited to paths the upload routes accept,
+POST takes one XMP packet up to 2 MB, checks quota, registers it in
+`storage_assets` like the website and removes the object if registration fails.
+
+With the owner's explicit approval, `dpl_CfxwZnUM2v8QtsQ6ntPYZGRWmFdi` was built
+from the `dpl_2GTc…` source plus exactly those two files (hash audit), staged with
+`--skip-domain`, then promoted. 49 absent/forged-credential checks pass locally and
+on production; the first 50 production logs are info with no 5xx. Offline: 9 server
+contracts, 479 mobile regressions, TypeScript and lint; demo mode verified listing,
+adding a synthetic `.xmp` from Files, and the saved per-album choice in the iOS
+Simulator. Device acceptance: add a real Lightroom preset, upload a test photo with
+it and check the processed preview shows the adjustment.
+
 ### Earlier working phases for the first photographer release
 
 The owner asked to continue phase 4 on 2026-10-14. These six phases group the

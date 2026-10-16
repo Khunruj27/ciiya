@@ -44,14 +44,14 @@ function liveHarness({ enabled = true, send } = {}) {
 const good = { path: 'owner/album/presets/a.xmp', name: 'Warm Film', createdAt: '2026-10-15T00:00:00.000Z' };
 const xmp = '<x:xmpmeta xmlns:x="adobe:ns:meta/"></x:xmpmeta>';
 
-test('the preset release gate is closed in source and independent of environment values', () => {
+test('the preset release gate is open in source and independent of environment values', () => {
   for (const isDemoMode of [false, true]) {
     const exports = {};
     vm.runInNewContext(transpile('preset-release.ts'), {
       exports, require(name) { assert.equal(name, '@/lib/config'); return { isDemoMode }; },
     });
-    assert.equal(exports.presetReleaseEnabled, false);
-    assert.equal(exports.isPresetPickingAvailable(), isDemoMode);
+    assert.equal(exports.presetReleaseEnabled, true);
+    assert.equal(exports.isPresetPickingAvailable(), true);
   }
   assert.doesNotMatch(fs.readFileSync(path.join(__dirname, '../src/lib/preset-release.ts'), 'utf8'), /process\.env|fetch\(|getSession\(/);
 });

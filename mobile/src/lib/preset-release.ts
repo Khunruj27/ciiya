@@ -1,11 +1,11 @@
 import { isDemoMode } from '@/lib/config';
 
 /**
- * Choosing and adding Lightroom presets for phone uploads is prepared locally.
- * Its server route is not in Production yet, so live requests stay closed until
- * that release is approved and verified. No environment/cache value enables it.
+ * The owner approved the presets route release on 2026-10-16. Production
+ * deployment dpl_CfxwZnUM2v8QtsQ6ntPYZGRWmFdi serves it and its denial smoke is
+ * verified. No environment/cache value toggles this gate.
  */
-export const presetReleaseEnabled = false;
+export const presetReleaseEnabled = true;
 
 /** Demo presets live in memory only. */
 export function isPresetPickingAvailable(): boolean {

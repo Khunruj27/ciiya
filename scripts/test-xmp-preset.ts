@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import sharp from 'sharp'
+import sharp, { type Sharp } from 'sharp'
 import {
   applyXmpAdjustments,
   parseXmpPreset,
@@ -60,7 +60,7 @@ test('lifted shadows produce a tone exponent below 1, recovered highlights above
   assert.ok(presetOperations(highlightsOnly).toneExponent > 1)
 })
 
-async function meanRgb(image: sharp.Sharp) {
+async function meanRgb(image: Sharp) {
   const { data, info } = await image.raw().toBuffer({ resolveWithObject: true })
   const sums = [0, 0, 0]
   for (let i = 0; i < data.length; i += info.channels) for (let c = 0; c < 3; c++) sums[c] += data[i + c]

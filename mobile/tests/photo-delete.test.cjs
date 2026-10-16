@@ -26,6 +26,7 @@ function liveHarness({ enabled = true, send } = {}) {
     '@/lib/photo-retry-release': { photoRetryReleaseEnabled: true },
     '@/lib/preset-release': { presetReleaseEnabled: true },
     '@/lib/photo-delete-release': { photoDeleteReleaseEnabled: enabled },
+    '@/lib/photo-reprocess-release': { photoReprocessReleaseEnabled: false },
     '@/lib/supabase': { supabase: { auth: { getSession() {
       authCalls.push('getSession');
       return Promise.resolve({ data: { session: { access_token: 'mock-token', user: { id: 'owner' } } }, error: null });

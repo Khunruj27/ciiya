@@ -8,9 +8,15 @@ export type PhotoFeedState = PhotoPage & {
   loadingMore: boolean;
   refreshing: boolean;
   processingError: boolean;
+  /** Finished photos being rendered again; they keep their current image meanwhile. */
+  reprocessingIds: string[];
 };
 
 export const PROCESSING_UPDATE_BATCH_SIZE = 120;
+/** Stop watching a reprocess that has not shown a new image after this long. */
+export const REPROCESS_WATCH_MS = 15 * 60 * 1000;
+
+type ReprocessWatch = { thumbnailUrl: string | null; previewUrl: string | null; since: number };
 
 function uniquePhotos(photos: Photo[]): Photo[] {
   return [...new Map(photos.map((photo) => [photo.id, photo])).values()];
@@ -72,7 +78,7 @@ type PhotoFeedSource = {
 export class PhotoFeed {
   private state: PhotoFeedState = {
     photos: [], nextCursor: null, status: 'loading', error: null, errorSource: null,
-    loadingMore: false, refreshing: false, processingError: false,
+    loadingMore: false, refreshing: false, processingError: false, reprocessingIds: [],
   };
   private listeners = new Set<() => void>();
   private generation = 0;
@@ -80,8 +86,12 @@ export class PhotoFeed {
   private polling = false;
   private pollOffset = 0;
   private disposed = false;
+  private reprocessing = new Map<string, ReprocessWatch>();
 
-  constructor(private readonly source: PhotoFeedSource) {}
+  constructor(
+    private readonly source: PhotoFeedSource,
+    private readonly now: () => number = Date.now,
+  ) {}
 
   getSnapshot = (): PhotoFeedState => this.state;
 
@@ -90,9 +100,29 @@ export class PhotoFeed {
     return () => { this.listeners.delete(listener); };
   };
 
-  private publish(state: PhotoFeedState) {
-    this.state = state;
+  /** Reprocessing IDs are always derived here, never carried over by callers. */
+  private publish(state: Omit<PhotoFeedState, 'reprocessingIds'>) {
+    this.state = { ...state, reprocessingIds: this.settleReprocessing(state.photos) };
     this.listeners.forEach((listener) => listener());
+  }
+
+  /**
+   * A reprocessed photo is written under new keys, so a changed image URL
+   * means the new render is in. Photos that left the list, stopped being
+   * ready, or took too long are no longer watched.
+   */
+  private settleReprocessing(photos: Photo[]): string[] {
+    if (!this.reprocessing.size) return this.state.reprocessingIds.length ? [] : this.state.reprocessingIds;
+    const byId = new Map(photos.map((photo) => [photo.id, photo]));
+    const now = this.now();
+    for (const [id, watch] of this.reprocessing) {
+      const photo = byId.get(id);
+      if (!photo || !photo.isReady || now - watch.since > REPROCESS_WATCH_MS ||
+          photo.thumbnailUrl !== watch.thumbnailUrl || photo.previewUrl !== watch.previewUrl) {
+        this.reprocessing.delete(id);
+      }
+    }
+    return [...this.reprocessing.keys()];
   }
 
   /** Also reactivates after React's development effect cleanup/replay. */
@@ -158,7 +188,10 @@ export class PhotoFeed {
 
   refreshProcessing = async () => {
     if (this.disposed || this.latestPending || this.polling) return;
-    const pending = this.state.photos.filter(shouldPollPhoto).map((photo) => photo.id);
+    const pending = [...new Set([
+      ...this.state.photos.filter(shouldPollPhoto).map((photo) => photo.id),
+      ...this.state.reprocessingIds,
+    ])];
     if (!pending.length) return;
     // Rotate bounded batches so a stalled first photo cannot block older ones.
     const start = this.pollOffset % pending.length;
@@ -180,11 +213,6 @@ export class PhotoFeed {
     }
   };
 
-  /**
-   * The server accepted reprocessing for these loaded photos. Show them as
-   * waiting right away (only while still failed/stopped here) so the normal
-   * processing poll follows them; a later server read stays authoritative.
-   */
   /** Drops photos the server confirmed are deleted (or already gone). */
   removePhotos = (ids: string[]) => {
     if (this.disposed || !ids.length) return;
@@ -193,6 +221,11 @@ export class PhotoFeed {
     if (photos.length !== this.state.photos.length) this.publish({ ...this.state, photos });
   };
 
+  /**
+   * The server accepted reprocessing for these loaded photos. Show them as
+   * waiting right away (only while still failed/stopped here) so the normal
+   * processing poll follows them; a later server read stays authoritative.
+   */
   markRequeued = (ids: string[]) => {
     if (this.disposed || !ids.length) return;
     const requeued = new Set(ids);
@@ -204,6 +237,22 @@ export class PhotoFeed {
       return { ...photo, processingStatus: 'pending' as const, processingProgress: null };
     });
     if (changed) this.publish({ ...this.state, photos });
+  };
+
+  /**
+   * The server queued these finished photos to be rendered again. They stay
+   * ready (and visible); the processing poll follows them until their image
+   * URL changes.
+   */
+  markReprocessing = (ids: string[]) => {
+    if (this.disposed || !ids.length) return;
+    const wanted = new Set(ids);
+    const since = this.now();
+    for (const photo of this.state.photos) {
+      if (!wanted.has(photo.id) || !photo.isReady) continue;
+      this.reprocessing.set(photo.id, { thumbnailUrl: photo.thumbnailUrl, previewUrl: photo.previewUrl, since });
+    }
+    this.publish({ ...this.state });
   };
 
   dispose = () => {

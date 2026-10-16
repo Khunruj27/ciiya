@@ -502,6 +502,31 @@ summarizes the outcome. No server change or deployment was needed. 491 offline
 regressions, TypeScript and lint pass; demo mode verified selection, the disabled
 processing tile, confirmation and removal.
 
+### Process finished photos again — prepared, gate closed, 2026-10-16
+
+In selection mode a round "process again" button re-renders the selected finished
+photos with their current preset (for example after the worker's preset fix). The
+photo stays `done` and visible with its current image; a small spinner marks it and
+the feed polls it until its image URL changes (15-minute watch). Up to 100 per batch,
+one request at a time (`src/lib/photo-reprocess.ts`).
+
+Route: `POST /api/mobile/albums/[id]/photos/[photoId]/reprocess`
+(`src/lib/mobile/photo-reprocess.ts`): bearer-only, ownership under RLS, only `done`
+photos whose `original_path` is still the raw upload under `original/` (rows whose
+original was replaced by the baked image are refused, so a preset is never applied
+twice), original and preset must exist. It resets the single job row by
+compare-and-set with a payload `{ source: 'owner-reprocess', reprocess: true,
+revision }` and never touches the photo row.
+
+The photo worker (`src/lib/photo-reprocess.ts`, `photo-worker-plan.ts`) writes every
+derived object under a new key carrying the revision, because previews are served
+`immutable`; it keeps the photo `done`, keeps faces (only the face job's source
+moves), commits the new paths, moves a stored album cover, then deletes the previous
+render. A failed reprocess leaves the photo and its old render untouched and removes
+its own uploads only on final failure; a photo deleted mid-render leaves no new
+objects. `photoReprocessReleaseEnabled` stays false until the route (Vercel) and the
+worker (Railway) are deployed with the owner's approval.
+
 ### Earlier working phases for the first photographer release
 
 The owner asked to continue phase 4 on 2026-10-14. These six phases group the

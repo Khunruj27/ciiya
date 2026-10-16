@@ -22,6 +22,10 @@ import {
   parseXmpPreset,
   type XmpAdjustments,
 } from '../src/lib/xmp-preset'
+import {
+  readPhotoReprocessRequest,
+  supersededPhotoObjectKeys,
+} from '../src/lib/photo-reprocess'
 
 function getSafeIntegerEnv(
   value: string | undefined,
@@ -93,6 +97,8 @@ type PhotoJob = {
 
   retry_count?: number | null
   retries?: number | null
+
+  payload?: unknown
 }
 
 type PhotoStorageRecord = {
@@ -105,6 +111,15 @@ type PhotoStorageRecord = {
   storage_provider?: string | null
   storage_bucket?: string | null
   preset_path?: string | null
+  processing_status?: string | null
+  preview_path?: string | null
+  thumbnail_path?: string | null
+  sd_path?: string | null
+  hd_path?: string | null
+  uhd_path?: string | null
+  preview_url?: string | null
+  thumbnail_url?: string | null
+  public_url?: string | null
 }
 
 type PhotoStorageContext = {
@@ -112,6 +127,12 @@ type PhotoStorageContext = {
   bucket: string | null
   originalPath: string
   presetPath: string | null
+  /** The finished render a reprocess replaces (only read in that mode). */
+  previous: {
+    processingStatus: string | null
+    objectKeys: Array<string | null>
+    urls: Array<string | null>
+  }
 }
 
 
@@ -449,6 +470,21 @@ async function getPhotoStorageContext(
         : job.preset_path != null
           ? String(job.preset_path)
           : null,
+    previous: {
+      processingStatus: photo.processing_status ?? null,
+      objectKeys: [
+        photo.preview_path ?? null,
+        photo.thumbnail_path ?? null,
+        photo.sd_path ?? null,
+        photo.hd_path ?? null,
+        photo.uhd_path ?? null,
+      ],
+      urls: [
+        photo.preview_url ?? null,
+        photo.thumbnail_url ?? null,
+        photo.public_url ?? null,
+      ],
+    },
   }
 }
 
@@ -1105,7 +1141,8 @@ function isTransientError(message: string) {
 
 async function markJobFailedOrRetry(
   job: PhotoJob,
-  message: string
+  message: string,
+  options: { keepPhotoStatus?: boolean } = {}
 ) {
   const retryCount = Number(
     job.retry_count ||
@@ -1158,7 +1195,9 @@ async function markJobFailedOrRetry(
     return false
   }
 
-  if (job.photo_id) {
+  // A failed reprocess leaves the finished photo, and its previous render,
+  // exactly as it was.
+  if (job.photo_id && !options.keepPhotoStatus) {
     await updatePhoto(
       String(job.photo_id),
       {
@@ -1169,13 +1208,133 @@ async function markJobFailedOrRetry(
     )
   }
 
-  return true
+  return nextStatus
+}
+
+async function deleteObjectsQuietly(params: {
+  provider: StorageProvider
+  bucket: string
+  keys: string[]
+  label: string
+}) {
+  let removed = 0
+  const adapter = getWorkerStorageAdapter(params.provider)
+
+  for (const key of params.keys) {
+    try {
+      await withRetry(() =>
+        adapter.deleteObject(
+          createStorageRef({
+            provider: params.provider,
+            bucket: params.bucket,
+            key,
+          })
+        )
+      )
+      removed += 1
+    } catch (error) {
+      console.warn(
+        `[PhotoWorker] ${params.label} not removed:`,
+        error instanceof Error ? error.message : error
+      )
+    }
+  }
+
+  return removed
+}
+
+/**
+ * After a reprocess commits: faces were found on the same pixels, so they are
+ * kept and only their source image moves; a stored album cover pointing at the
+ * previous render follows it; then the previous objects are removed. Every step
+ * is best effort, because the photo itself is already complete.
+ */
+async function finishPhotoReprocess(params: {
+  job: PhotoJob
+  storageContext: PhotoStorageContext
+  outputBucket: string
+  currentKeys: Array<string | null>
+  previewUrl: string
+  faceImagePath: string
+}) {
+  const { job, storageContext } = params
+  const photoId = String(job.photo_id)
+  const ownerId = String(job.owner_id)
+  const albumId = String(job.album_id)
+
+  try {
+    const result = await withRetry(() =>
+      supabase
+        .from('face_jobs')
+        .update({
+          image_path: params.faceImagePath,
+          image_url: params.previewUrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('photo_id', photoId)
+        .eq('owner_id', ownerId)
+    )
+    if (result.error) throw new Error(result.error.message)
+  } catch (error) {
+    console.warn(
+      '[PhotoWorker] face job source not updated:',
+      error instanceof Error ? error.message : error
+    )
+  }
+
+  const previousUrls = storageContext.previous.urls.filter(
+    (url): url is string => Boolean(url)
+  )
+
+  if (previousUrls.length > 0) {
+    try {
+      const result = await withRetry(() =>
+        supabase
+          .from('albums')
+          .update({ cover_url: params.previewUrl })
+          .eq('id', albumId)
+          .eq('cover_photo_id', photoId)
+          .in('cover_url', previousUrls)
+      )
+      if (result.error) throw new Error(result.error.message)
+    } catch (error) {
+      console.warn(
+        '[PhotoWorker] album cover not updated:',
+        error instanceof Error ? error.message : error
+      )
+    }
+  }
+
+  const stale = supersededPhotoObjectKeys({
+    ownerId,
+    albumId,
+    originalPath: storageContext.originalPath,
+    previous: storageContext.previous.objectKeys,
+    current: params.currentKeys,
+  })
+  const removed = await deleteObjectsQuietly({
+    provider: storageContext.provider,
+    bucket: params.outputBucket,
+    keys: stale,
+    label: 'previous render',
+  })
+
+  console.log(
+    `[PhotoWorker] reprocessed: ${job.id} (removed ${removed}/${stale.length} previous objects)`
+  )
 }
 
 async function processPhotoJob(job: PhotoJob) {
   activeJobsCount += 1
 
   const jobBuffers = new Set<Buffer>()
+  let isReprocess = false
+  // New objects a reprocess wrote but has not committed to the photo row yet.
+  let uncommittedReprocessObjects: {
+    provider: StorageProvider
+    bucket: string
+    keys: string[]
+  } | null = null
 
   try {
     console.log('[PhotoWorker] processing:', job.id)
@@ -1187,6 +1346,14 @@ async function processPhotoJob(job: PhotoJob) {
     const originalPath = storageContext.originalPath
     const presetPath = storageContext.presetPath
     const allowedPrefix = `${job.owner_id}/${job.album_id}/`
+
+    // Only a finished photo is re-rendered beside its current one; any other
+    // state is processed as a normal job.
+    const reprocess =
+      storageContext.previous.processingStatus === 'done'
+        ? readPhotoReprocessRequest(job.payload)
+        : null
+    isReprocess = Boolean(reprocess)
 
     if (
       !originalPath ||
@@ -1208,10 +1375,14 @@ async function processPhotoJob(job: PhotoJob) {
       throw new Error('Invalid preset_path')
     }
 
-    await updatePhoto(String(job.photo_id), {
-      processing_status: 'processing',
-      processing_progress: 10,
-    })
+    // A reprocess keeps the photo `done`, so the gallery shows the previous
+    // render until the new one is committed.
+    if (!reprocess) {
+      await updatePhoto(String(job.photo_id), {
+        processing_status: 'processing',
+        processing_progress: 10,
+      })
+    }
 
     // The photo row is canonical for provider, bucket, and path. This prevents
     // stale or forged queue payloads from redirecting a worker to another
@@ -1235,7 +1406,13 @@ async function processPhotoJob(job: PhotoJob) {
       originalKey: originalPath,
       selectedSize,
       hasPreset: Boolean(xmpPreset),
+      revision: reprocess?.revision ?? null,
     })
+
+    if (reprocess && objectPlan.shouldReplaceSupabaseRawOriginal) {
+      // That path deletes the raw upload; a reprocess must never lose it.
+      throw new Error('Reprocess would replace the raw original')
+    }
     const previewPath = objectPlan.previewKey
     const thumbnailPath = objectPlan.thumbnailKey
     const outputBucket =
@@ -1325,6 +1502,22 @@ async function processPhotoJob(job: PhotoJob) {
       )
     }
 
+    if (reprocess) {
+      const previousKeys = new Set(storageContext.previous.objectKeys)
+      uncommittedReprocessObjects = {
+        provider: storageContext.provider,
+        bucket: outputBucket,
+        keys: [
+          thumbnailPath,
+          objectPlan.shouldUploadPreview ? previewPath : null,
+          objectPlan.selectedDerivativeKey,
+        ].filter(
+          (key): key is string =>
+            Boolean(key) && key !== originalPath && !previousKeys.has(key)
+        ),
+      }
+    }
+
     await Promise.all(uploadTasks)
 
     // Relocate the full-resolution original into the private `originals`
@@ -1385,9 +1578,11 @@ async function processPhotoJob(job: PhotoJob) {
       }
     }
 
-    await updatePhoto(String(job.photo_id), {
-      processing_progress: 60,
-    })
+    if (!reprocess) {
+      await updatePhoto(String(job.photo_id), {
+        processing_progress: 60,
+      })
+    }
 
     const previewUrl = getPhotoPublicUrl({
       provider: storageContext.provider,
@@ -1435,6 +1630,25 @@ if (!stillOwnsJob) {
     job.id
   )
 
+  // Another worker that took the job over writes the same keys, so they are
+  // removed only when the photo itself was deleted mid-reprocess.
+  if (uncommittedReprocessObjects) {
+    const photoResult = await withRetry(() =>
+      supabase
+        .from('photos')
+        .select('id')
+        .eq('id', String(job.photo_id))
+        .maybeSingle()
+    )
+
+    if (!photoResult.data) {
+      await deleteObjectsQuietly({
+        ...uncommittedReprocessObjects,
+        label: 'reprocess object of a deleted photo',
+      })
+    }
+  }
+
   return
 }
 
@@ -1478,30 +1692,73 @@ if (!stillOwnsJob) {
       processing_status: 'done',
       processing_progress: 100,
 
-      face_scan_status: FACE_SCAN_ENABLED ? 'pending' : 'skipped',
-      face_scan_progress: FACE_SCAN_ENABLED ? 0 : 100,
-      face_scan_error: FACE_SCAN_ENABLED ? null : 'FACE_SCAN_ENABLED is false',
-      faces_count: 0,
+      // A reprocess keeps the faces already found on these pixels.
+      ...(reprocess
+        ? {}
+        : {
+            face_scan_status: FACE_SCAN_ENABLED ? 'pending' : 'skipped',
+            face_scan_progress: FACE_SCAN_ENABLED ? 0 : 100,
+            face_scan_error: FACE_SCAN_ENABLED
+              ? null
+              : 'FACE_SCAN_ENABLED is false',
+            faces_count: 0,
+          }),
 
       updated_at: new Date().toISOString(),
     }
 
     const updateResult = await withRetry(() =>
-      supabase.from('photos').update(finalPayload).eq('id', String(job.photo_id))
+      supabase
+        .from('photos')
+        .update(finalPayload)
+        .eq('id', String(job.photo_id))
+        .select('id')
     )
 
     if (updateResult.error) {
       throw new Error(updateResult.error.message)
     }
 
-    await queueFaceJob({
-      job,
-      imagePath:
-        storageContext.provider === 'r2' ? previewPath : hdPath || previewPath,
-      imageUrl: previewUrl,
-      storageProvider: storageContext.provider,
-      storageBucket: outputBucket,
-    })
+    if (uncommittedReprocessObjects && !updateResult.data?.length) {
+      // The photo was deleted while it was being rendered again.
+      await deleteObjectsQuietly({
+        ...uncommittedReprocessObjects,
+        label: 'reprocess object of a deleted photo',
+      })
+      uncommittedReprocessObjects = null
+      return
+    }
+
+    // The photo row now references the new objects.
+    uncommittedReprocessObjects = null
+
+    const faceImagePath =
+      storageContext.provider === 'r2' ? previewPath : hdPath || previewPath
+
+    if (reprocess) {
+      await finishPhotoReprocess({
+        job,
+        storageContext,
+        outputBucket,
+        currentKeys: [
+          previewPath,
+          thumbnailPath,
+          sdPath,
+          hdPath,
+          uhdPath,
+        ],
+        previewUrl,
+        faceImagePath,
+      })
+    } else {
+      await queueFaceJob({
+        job,
+        imagePath: faceImagePath,
+        imageUrl: previewUrl,
+        storageProvider: storageContext.provider,
+        storageBucket: outputBucket,
+      })
+    }
 
     const jobMarkedDone = await markJobDone(job)
 
@@ -1523,12 +1780,23 @@ console.log('[PhotoWorker] done:', job.id)
     const failureRecorded =
   await markJobFailedOrRetry(
     job,
-    message
+    message,
+    { keepPhotoStatus: isReprocess }
   )
 
 if (failureRecorded) {
   failedJobsCount += 1
 }
+
+    // A retry rewrites the same keys, so only a final failure (still owned by
+    // this worker) removes what the reprocess added; the photo keeps its
+    // previous render either way.
+    if (failureRecorded === 'failed' && uncommittedReprocessObjects) {
+      await deleteObjectsQuietly({
+        ...uncommittedReprocessObjects,
+        label: 'uncommitted reprocess object',
+      })
+    }
   } finally {
   for (const buffer of jobBuffers) {
     buffer.fill(0)

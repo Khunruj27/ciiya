@@ -94,6 +94,7 @@ test('sign-out stops at once; three network failures stop; other errors continue
 test('the album screen confirms destructively, fences repeats and re-checks the visit before deleting', () => {
   const source = fs.readFileSync(path.join(__dirname, '../src/app/(app)/(albums)/album/[id]/index.tsx'), 'utf8');
   assert.match(source, /deleteSelectedConfirm, style: 'destructive'/);
-  assert.match(source, /async function runDeleteSelected[\s\S]*?if \(!isCurrent\(\) \|\| deletingRef\.current\) return;/);
+  // A delete never starts while a reprocess batch from the same selection runs.
+  assert.match(source, /async function runDeleteSelected[\s\S]*?if \(!isCurrent\(\) \|\| deletingRef\.current \|\| reprocessingRef\.current\) return;/);
   assert.match(source, /isPhotoDeleteAvailable\(\) \? \(/, 'Selection appears only when deletion is available');
 });

@@ -4,6 +4,7 @@ import { albumAccessReleaseEnabled } from '@/lib/album-access-release';
 import { photoRetryReleaseEnabled } from '@/lib/photo-retry-release';
 import { presetReleaseEnabled } from '@/lib/preset-release';
 import { photoDeleteReleaseEnabled } from '@/lib/photo-delete-release';
+import { photoReprocessReleaseEnabled } from '@/lib/photo-reprocess-release';
 import { supabase } from '@/lib/supabase';
 
 import {
@@ -21,6 +22,7 @@ import {
   type Photo,
   type PhotoDeleteOutcome,
   type PhotoPage,
+  type PhotoReprocessOutcome,
   type PhotoRetryOutcome,
   type StorageUsage,
 } from './types';
@@ -408,6 +410,30 @@ export const liveData: DataSource = {
     if (result.code === 'SOURCE_MISSING') return 'source-missing';
     if (result.code === 'NOT_RETRYABLE') return 'not-retryable';
     // A lost compare-and-set race: the caller refreshes and decides again.
+    if (result.code === 'RETRY_CONFLICT') throw new DataError('conflict');
+    throw new DataError('server');
+  },
+
+  async reprocessPhoto(albumId, photoId): Promise<PhotoReprocessOutcome> {
+    // Independent of demo/UI state: no token read or request before release.
+    if (!photoReprocessReleaseEnabled) throw new DataError('server');
+    if (typeof albumId !== 'string' || !albumId || typeof photoId !== 'string' || !photoId) {
+      throw new DataError('server');
+    }
+    const result = await api<Record<string, unknown>>(
+      `/api/mobile/albums/${encodeURIComponent(albumId)}/photos/${encodeURIComponent(photoId)}/reprocess`, {
+        method: 'POST',
+        body: {},
+        readConflictBody: true,
+      });
+    if (!result || typeof result !== 'object') throw new DataError('server');
+    if (result.success === true) {
+      if (result.queued === true) return 'queued';
+      if (result.queued === false) return 'already-queued';
+      throw new DataError('server');
+    }
+    if (result.code === 'SOURCE_MISSING') return 'source-missing';
+    if (result.code === 'NOT_REPROCESSABLE') return 'not-reprocessable';
     if (result.code === 'RETRY_CONFLICT') throw new DataError('conflict');
     throw new DataError('server');
   },

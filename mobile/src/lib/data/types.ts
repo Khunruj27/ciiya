@@ -165,6 +165,12 @@ export type PhotoDeleteOutcome = 'deleted' | 'gone' | 'processing';
 
 export type PhotoRetryOutcome = 'queued' | 'already-queued' | 'source-missing' | 'not-retryable';
 
+/**
+ * What happened to a request to render a finished photo again. The photo stays
+ * visible with its current image until the new one is ready.
+ */
+export type PhotoReprocessOutcome = 'queued' | 'already-queued' | 'source-missing' | 'not-reprocessable';
+
 export type DataSource = {
   fetchAlbums(): Promise<Album[]>;
   fetchAlbum(albumId: string): Promise<Album>;
@@ -184,6 +190,8 @@ export type DataSource = {
   setAlbumCover(albumId: string, photoId: string): Promise<void>;
   /** Sends one failed/stopped photo back to the photo worker. */
   retryPhotoProcessing(albumId: string, photoId: string): Promise<PhotoRetryOutcome>;
+  /** Renders one finished photo again with its preset (for example after a fix). */
+  reprocessPhoto(albumId: string, photoId: string): Promise<PhotoReprocessOutcome>;
   /** Permanently deletes one photo and its stored files. */
   deletePhoto(albumId: string, photoId: string): Promise<PhotoDeleteOutcome>;
   /** The album's own presets plus account-wide legacy ones, newest first. */

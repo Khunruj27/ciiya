@@ -26,6 +26,12 @@ const SAMPLE_IMAGES = [
 const PAGE_SIZE = 24;
 const delay = (ms = 250) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** A new URL for the same sample image, like a reprocessed photo's new key. */
+function withDemoRevision(url: string): string {
+  const base = url.split('#')[0];
+  return `${base}${base.includes('?') ? '&' : '?'}r=${Date.now().toString(36)}`;
+}
+
 function makePhotos(albumId: string, count: number): Photo[] {
   return Array.from({ length: count }, (_, index) => {
     const url = SAMPLE_IMAGES[index % SAMPLE_IMAGES.length];
@@ -355,6 +361,21 @@ export const demoData: DataSource = {
       photo.processingStatus = 'done';
       photo.isReady = true;
     }, 7000);
+    return 'queued';
+  },
+
+  async reprocessPhoto(albumId, photoId) {
+    await delay(250);
+    findAlbum(albumId);
+    const photo = (photosByAlbum.get(albumId) ?? []).find((item) => item.id === photoId);
+    if (!photo) throw new DataError('not-found');
+    if (photo.processingStatus === 'pending' || photo.processingStatus === 'processing') return 'already-queued';
+    if (!photo.isReady) return 'not-reprocessable';
+    // In-memory only: the photo stays visible, then shows its new render.
+    setTimeout(() => {
+      if (photo.thumbnailUrl) photo.thumbnailUrl = withDemoRevision(photo.thumbnailUrl);
+      if (photo.previewUrl) photo.previewUrl = withDemoRevision(photo.previewUrl);
+    }, 6000);
     return 'queued';
   },
 

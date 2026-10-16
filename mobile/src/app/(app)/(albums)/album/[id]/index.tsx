@@ -29,6 +29,8 @@ import { useAlbumUploads } from '@/hooks/use-uploads';
 import { isAlbumEditingAvailable } from '@/lib/album-edit-release';
 import { isPhotoRetryAvailable } from '@/lib/photo-retry-release';
 import { isPhotoDeleteAvailable } from '@/lib/photo-delete-release';
+import { isPhotoReprocessAvailable } from '@/lib/photo-reprocess-release';
+import { MAX_PHOTO_REPROCESS_PER_BATCH, isPhotoReprocessable, reprocessPhotos } from '@/lib/photo-reprocess';
 import { MAX_PHOTO_DELETES_PER_BATCH, deletePhotos, isPhotoDeletable } from '@/lib/photo-bulk-delete';
 import { MAX_PHOTO_RETRIES_PER_TAP, retryablePhotos, retryPhotos } from '@/lib/photo-retry';
 import { data, DataError } from '@/lib/data';
@@ -124,11 +126,20 @@ function OwnedAlbumScreen({ id }: { id: string }) {
   const [selected, setSelected] = useState<ReadonlySet<string>>(NO_SELECTION);
   const [deleteProgress, setDeleteProgress] = useState<{ done: number; total: number } | null>(null);
   const deletingRef = useRef(false);
+  const [reprocessProgress, setReprocessProgress] = useState<{ done: number; total: number } | null>(null);
+  const reprocessingRef = useRef(false);
+  const selectionBusy = deleteProgress !== null || reprocessProgress !== null;
   // Only photos still loaded and still deletable count; a refresh can change both.
   const selectedIds = useMemo(
     () => list.photos.filter((photo) => selected.has(photo.id) && isPhotoDeletable(photo)).map((photo) => photo.id),
     [list.photos, selected]
   );
+  // Of those, only finished photos can be rendered again.
+  const reprocessIds = useMemo(
+    () => list.photos.filter((photo) => selected.has(photo.id) && isPhotoReprocessable(photo)).map((photo) => photo.id),
+    [list.photos, selected]
+  );
+  const reprocessing = useMemo(() => new Set(list.reprocessingIds), [list.reprocessingIds]);
 
   useEffect(() => {
     void feed.reload();
@@ -188,10 +199,10 @@ function OwnedAlbumScreen({ id }: { id: string }) {
   }, [finishedUploads, isFocused, viewerIndex, refreshAlbum, feed]);
 
   // Photos still being processed turn into thumbnails on their own.
-  const processingKey = list.photos
-    .filter(shouldPollPhoto)
-    .map((photo) => photo.id)
-    .join(',');
+  const processingKey = [
+    ...list.photos.filter(shouldPollPhoto).map((photo) => photo.id),
+    ...list.reprocessingIds,
+  ].join(',');
   useEffect(() => {
     if (!processingKey || !isFocused) return;
 
@@ -278,7 +289,7 @@ function OwnedAlbumScreen({ id }: { id: string }) {
 
   function confirmDeleteSelected() {
     const current = coverGuard.capture();
-    if (!current?.() || deletingRef.current || !isPhotoDeleteAvailable()) return;
+    if (!current?.() || deletingRef.current || reprocessingRef.current || !isPhotoDeleteAvailable()) return;
     const ids = selectedIds.slice(0, MAX_PHOTO_DELETES_PER_BATCH);
     if (!ids.length) return;
 
@@ -290,7 +301,7 @@ function OwnedAlbumScreen({ id }: { id: string }) {
 
   async function runDeleteSelected(ids: string[], isCurrent: () => boolean) {
     // The dialog may outlive its visit: re-check before anything is sent.
-    if (!isCurrent() || deletingRef.current) return;
+    if (!isCurrent() || deletingRef.current || reprocessingRef.current) return;
     deletingRef.current = true;
     setDeleteProgress({ done: 0, total: ids.length });
     try {
@@ -318,6 +329,55 @@ function OwnedAlbumScreen({ id }: { id: string }) {
     } finally {
       deletingRef.current = false;
       if (isCurrent()) setDeleteProgress(null);
+    }
+  }
+
+  function confirmReprocessSelected() {
+    const current = coverGuard.capture();
+    if (!current?.() || reprocessingRef.current || deletingRef.current || !isPhotoReprocessAvailable()) return;
+    const ids = reprocessIds.slice(0, MAX_PHOTO_REPROCESS_PER_BATCH);
+    if (!ids.length) {
+      Alert.alert(t.album.reprocessNoneTitle, t.album.reprocessNoneMessage);
+      return;
+    }
+
+    Alert.alert(t.album.reprocessTitle(ids.length), t.album.reprocessMessage, [
+      { text: t.common.cancel, style: 'cancel' },
+      { text: t.album.reprocessConfirm, onPress: () => { void runReprocessSelected(ids, current); } },
+    ]);
+  }
+
+  async function runReprocessSelected(ids: string[], isCurrent: () => boolean) {
+    // The dialog may outlive its visit: re-check before sending anything.
+    if (!isCurrent() || reprocessingRef.current || deletingRef.current) return;
+    reprocessingRef.current = true;
+    setReprocessProgress({ done: 0, total: ids.length });
+    try {
+      const summary = await reprocessPhotos({
+        photoIds: ids,
+        reprocess: (photoId) => data.reprocessPhoto(id, photoId),
+        isCurrent,
+        onProgress: (done, total) => setReprocessProgress({ done, total }),
+      });
+      if (!isCurrent()) return;
+      feed.markReprocessing(summary.queued);
+      const lines = [
+        summary.queued.length ? t.album.reprocessQueued(summary.queued.length) : null,
+        summary.alreadyQueued ? t.album.reprocessAlready(summary.alreadyQueued) : null,
+        summary.sourceMissing ? t.album.reprocessMissing(summary.sourceMissing) : null,
+        summary.notReprocessable ? t.album.reprocessNotAllowed(summary.notReprocessable) : null,
+        summary.failed ? t.album.retryFailedErrors(summary.failed) : null,
+        summary.skipped ? t.album.retryFailedStopped(summary.skipped) : null,
+      ].filter((line): line is string => Boolean(line));
+      Alert.alert(t.album.reprocessDoneTitle, lines.join('\n'));
+      // Keep anything that was not sent selected, so the owner can try again.
+      const handled = new Set(summary.queued);
+      const remaining = summary.failed || summary.skipped ? ids.filter((photoId) => !handled.has(photoId)) : [];
+      setSelected(new Set(remaining));
+      if (!remaining.length) setSelecting(false);
+    } finally {
+      reprocessingRef.current = false;
+      if (isCurrent()) setReprocessProgress(null);
     }
   }
 
@@ -518,7 +578,7 @@ function OwnedAlbumScreen({ id }: { id: string }) {
                         <View style={styles.selectRow}>
                           <ThemedText type="small" themeColor="textSecondary" style={styles.flex}>{t.album.selectHint}</ThemedText>
                           <Pressable onPress={selectedIds.length ? () => setSelected(new Set()) : selectAllVisible}
-                            accessibilityRole="button" hitSlop={10} disabled={deleteProgress !== null}>
+                            accessibilityRole="button" hitSlop={10} disabled={selectionBusy}>
                             <ThemedText type="smallBold" style={{ color: theme.accentDeep }}>
                               {selectedIds.length ? t.album.selectNone : t.album.selectAllLoaded}
                             </ThemedText>
@@ -595,7 +655,8 @@ function OwnedAlbumScreen({ id }: { id: string }) {
           renderItem={({ item }) => {
             const uri = item.thumbnailUrl || item.previewUrl;
             const processing = photoProcessing(item);
-            const statusLabel = photoProcessingText(t, item);
+            const isReprocessing = reprocessing.has(item.id);
+            const statusLabel = isReprocessing ? t.album.reprocessingPhoto : photoProcessingText(t, item);
 
             return (
               <Pressable
@@ -633,6 +694,11 @@ function OwnedAlbumScreen({ id }: { id: string }) {
                     ) : null}
                   </View>
                 )}
+                {isReprocessing ? (
+                  <View style={styles.reprocessBadge} accessible={false}>
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  </View>
+                ) : null}
                 {selecting ? (
                   <View style={[styles.selectOverlay, selected.has(item.id) && styles.selectedOverlay,
                     !isPhotoDeletable(item) && styles.unselectable]}>
@@ -657,16 +723,30 @@ function OwnedAlbumScreen({ id }: { id: string }) {
           <ThemedText type="smallBold" style={styles.flex} accessibilityLiveRegion="polite">
             {deleteProgress
               ? t.album.deleteSelectedProgress(deleteProgress.done, deleteProgress.total)
-              : t.album.selectedCount(selectedIds.length)}
+              : reprocessProgress
+                ? t.album.reprocessProgress(reprocessProgress.done, reprocessProgress.total)
+                : t.album.selectedCount(selectedIds.length)}
           </ThemedText>
           <Pressable onPress={stopSelecting} accessibilityRole="button" hitSlop={10}
-            disabled={deleteProgress !== null} style={styles.selectBarButton}>
+            disabled={selectionBusy} style={styles.selectBarButton}>
             <ThemedText type="smallBold" style={{ color: theme.text }}>{t.album.selectCancel}</ThemedText>
           </Pressable>
+          {isPhotoReprocessAvailable() ? (
+            <Pressable onPress={confirmReprocessSelected} accessibilityRole="button" hitSlop={10}
+              accessibilityLabel={t.album.reprocessSelected(reprocessIds.length)}
+              disabled={!selectedIds.length || selectionBusy}
+              style={[styles.selectBarButton, styles.iconButton, { backgroundColor: theme.accentDeep },
+                (!selectedIds.length || selectionBusy) && styles.dimmed]}>
+              {reprocessProgress ? <ActivityIndicator color="#ffffff" /> : (
+                <SymbolView name="arrow.triangle.2.circlepath" size={17} tintColor="#ffffff"
+                  fallback={<ThemedText type="smallBold" style={styles.checkText}>↻</ThemedText>} />
+              )}
+            </Pressable>
+          ) : null}
           <Pressable onPress={confirmDeleteSelected} accessibilityRole="button" hitSlop={10}
-            disabled={!selectedIds.length || deleteProgress !== null}
+            disabled={!selectedIds.length || selectionBusy}
             style={[styles.selectBarButton, styles.deleteButton, { backgroundColor: theme.danger },
-              (!selectedIds.length || deleteProgress !== null) && styles.dimmed]}>
+              (!selectedIds.length || selectionBusy) && styles.dimmed]}>
             {deleteProgress ? <ActivityIndicator color="#ffffff" /> : null}
             <ThemedText type="smallBold" style={styles.checkText}>{t.album.deleteSelected(selectedIds.length)}</ThemedText>
           </Pressable>
@@ -747,6 +827,11 @@ const styles = StyleSheet.create({
   },
   selectBarButton: { minHeight: 40, paddingHorizontal: Spacing.three, borderRadius: Radius.pill, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: Spacing.one },
   deleteButton: {},
+  iconButton: { width: 40, paddingHorizontal: 0 },
+  reprocessBadge: {
+    position: 'absolute', left: Spacing.one, top: Spacing.one, width: 26, height: 26,
+    borderRadius: Radius.pill, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center',
+  },
   dimmed: { opacity: 0.5 },
   processing: {
     ...StyleSheet.absoluteFill,

@@ -17,7 +17,7 @@ export const PHOTO_RETRY_COLUMNS =
 /** A photo the owner may send back to the worker. */
 export const RETRYABLE_PHOTO_STATUSES = ['failed', 'cancelled'] as const
 /** Job states that mean the worker already has (or is doing) this photo. */
-const ACTIVE_JOB_STATUSES = new Set(['pending', 'processing'])
+export const ACTIVE_JOB_STATUSES: ReadonlySet<string> = new Set(['pending', 'processing'])
 
 export type PhotoRetryRow = {
   id: string
@@ -113,7 +113,7 @@ export async function photoRetrySourcesExist(admin: SupabaseClient, photo: Photo
   return (await presetAdapter.objectExists(presetRef)).exists
 }
 
-const RESET_JOB_FIELDS = () => ({
+export const RESET_JOB_FIELDS = () => ({
   status: 'pending',
   progress: 0,
   error: null,

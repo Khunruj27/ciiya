@@ -78,7 +78,7 @@ function harness({ locale = 'th', initialPhotos = [photo('a', 'Air 001.jpg'), ph
     useSyncExternalStore: (_subscribe, read) => read(),
   };
   class Feed {
-    constructor() { this.snapshot = { photos: initialPhotos, nextCursor: cursor, status: 'ready', error: null,
+    constructor() { this.snapshot = { photos: initialPhotos, nextCursor: cursor, status: 'ready', error: null, reprocessingIds: [],
       errorSource: null, loadingMore: false, refreshing: false }; this.listeners = new Set(); feeds.push(this); }
     getSnapshot = () => this.snapshot;
     subscribe = fn => { this.listeners.add(fn); return () => this.listeners.delete(fn); };
@@ -121,7 +121,9 @@ function harness({ locale = 'th', initialPhotos = [photo('a', 'Air 001.jpg'), ph
     '@/lib/photo-retry-release': { photoRetryReleaseEnabled: false, isPhotoRetryAvailable: () => false },
     '@/lib/preset-release': { presetReleaseEnabled: false, isPresetPickingAvailable: () => false },
     '@/lib/photo-delete-release': { photoDeleteReleaseEnabled: false, isPhotoDeleteAvailable: () => false },
+    '@/lib/photo-reprocess-release': { photoReprocessReleaseEnabled: false, isPhotoReprocessAvailable: () => false },
     '@/lib/photo-bulk-delete': { MAX_PHOTO_DELETES_PER_BATCH: 100, isPhotoDeletable: () => true, async deletePhotos() { throw Error('Closed gate must not delete'); } },
+    '@/lib/photo-reprocess': { MAX_PHOTO_REPROCESS_PER_BATCH: 100, isPhotoReprocessable: () => true, async reprocessPhotos() { throw Error('Closed gate must not reprocess'); } },
     'expo-symbols': { SymbolView: 'SymbolView' },
     '@/lib/photo-retry': { MAX_PHOTO_RETRIES_PER_TAP: 50, retryablePhotos: () => [], async retryPhotos() { throw Error('Closed retry gate must not send'); } },
     '@/lib/data': { ...types, data: {

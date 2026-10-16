@@ -1,9 +1,11 @@
-import type { Sharp } from 'sharp'
+import sharp, { type ResizeOptions, type Sharp } from 'sharp'
+import { applyColorPixels, hasColorWork, parseXmpColor, type XmpColorSettings } from './xmp-color'
 
 /**
  * The Lightroom / Camera Raw settings the photo worker reproduces. This is an
- * approximation with general image operations, not Lightroom's renderer; tone
- * curves, HSL, colour grading, grain and lens settings are not applied.
+ * approximation with general image operations plus a pixel colour stage (tone
+ * curves, HSL, B&W mix, split toning, calibration), not Lightroom's renderer;
+ * grain, sharpening, clarity and lens settings are not applied.
  */
 export type XmpAdjustments = {
   exposure: number
@@ -18,6 +20,8 @@ export type XmpAdjustments = {
   temperature: number
   tint: number
   grayscale: boolean
+  /** The pixel colour stage; absent for presets parsed before it existed. */
+  color?: XmpColorSettings | null
 }
 
 function escapeKey(key: string) {
@@ -80,7 +84,14 @@ export function parseXmpPreset(xmp: string): XmpAdjustments {
     temperature: relativeTemperature(readXmpNumber(xmp, 'Temperature')),
     tint: clamp(readXmpNumber(xmp, 'Tint'), -150, 150),
     grayscale: readXmpBoolean(xmp, 'ConvertToGrayscale'),
+    color: parseXmpColor(xmp, (key) => readXmpNumber(xmp, key)),
   }
+}
+
+/** The pixel stage runs for colour work, and for B&W so its mixer sees colour. */
+export function needsColorStage(preset: XmpAdjustments | null) {
+  if (!preset?.color) return false
+  return preset.grayscale || hasColorWork(preset.color, preset.grayscale)
 }
 
 export function clamp(value: number, min: number, max: number) {
@@ -94,7 +105,9 @@ export function presetOperations(preset: XmpAdjustments) {
     0.55,
     1.75
   )
-  const saturation = preset.grayscale
+  // With a colour stage, B&W is made there from the mixer; desaturating here
+  // first would leave the mixer nothing to work with.
+  const saturation = preset.grayscale && !needsColorStage(preset)
     ? 0
     : clamp(
         1 + preset.saturation * 0.006 + preset.vibrance * 0.005 + Math.abs(preset.temperature) * 0.0006,
@@ -140,4 +153,26 @@ export function applyXmpAdjustments(image: Sharp, preset: XmpAdjustments | null)
   }
 
   return output
+}
+
+/**
+ * The full preset render: sharp's adjustments, an optional resize, then the
+ * pixel colour stage on the resized pixels. The caller encodes the result.
+ */
+export async function renderPreset(
+  image: Sharp,
+  preset: XmpAdjustments | null,
+  resize?: ResizeOptions
+): Promise<Sharp> {
+  let output = applyXmpAdjustments(image, preset)
+  if (resize) output = output.resize(resize)
+  if (!preset || !preset.color || !needsColorStage(preset)) return output
+
+  const { data, info } = await output
+    .removeAlpha()
+    .toColourspace('srgb')
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+  applyColorPixels(data, info.channels, preset.color, preset.grayscale)
+  return sharp(data, { raw: { width: info.width, height: info.height, channels: info.channels } })
 }

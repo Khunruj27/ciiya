@@ -18,8 +18,8 @@ import {
   type PhotoWorkerSelectedSize,
 } from '../src/lib/storage/photo-worker-plan'
 import {
-  applyXmpAdjustments,
   parseXmpPreset,
+  renderPreset,
   type XmpAdjustments,
 } from '../src/lib/xmp-preset'
 import {
@@ -807,14 +807,13 @@ async function generateResizeBuffer(
   quality = 86,
   preset: XmpAdjustments | null = null
 ) {
-  const image = sharp(buffer).rotate()
+  const image = await renderPreset(sharp(buffer).rotate(), preset, {
+    width,
+    fit: 'inside',
+    withoutEnlargement: true,
+  })
 
-  return applyXmpAdjustments(image, preset)
-    .resize({
-      width,
-      fit: 'inside',
-      withoutEnlargement: true,
-    })
+  return image
     .jpeg({
       quality,
       mozjpeg: true,
@@ -827,9 +826,9 @@ async function generateOriginalProcessedBuffer(
   quality = 90,
   preset: XmpAdjustments | null = null
 ) {
-  const image = sharp(buffer).rotate()
+  const image = await renderPreset(sharp(buffer).rotate(), preset)
 
-  return applyXmpAdjustments(image, preset)
+  return image
     .jpeg({
       quality,
       mozjpeg: true,
@@ -1451,15 +1450,18 @@ async function processPhotoJob(job: PhotoJob) {
           : selectedSize === 'original'
             ? Promise.resolve(originalBuffer)
             : generateResizeBuffer(originalBuffer, previewWidth, 86, xmpPreset),
-      applyXmpAdjustments(sharp(originalBuffer).rotate(), xmpPreset)
-        .resize(480, 480, {
-          fit: 'cover',
-        })
-        .jpeg({
-          quality: 76,
-          mozjpeg: true,
-        })
-        .toBuffer(),
+      renderPreset(sharp(originalBuffer).rotate(), xmpPreset, {
+        width: 480,
+        height: 480,
+        fit: 'cover',
+      }).then((image) =>
+        image
+          .jpeg({
+            quality: 76,
+            mozjpeg: true,
+          })
+          .toBuffer()
+      ),
     ])
 
     jobBuffers.add(previewBuffer)
@@ -1483,12 +1485,14 @@ async function processPhotoJob(job: PhotoJob) {
     const blurSourceBufferPromise =
       storageContext.provider === 'r2' || selectedSize !== 'original'
         ? Promise.resolve(previewBuffer)
-        : applyXmpAdjustments(sharp(originalBuffer).rotate(), xmpPreset)
-            .jpeg({
-              quality: 60,
-              mozjpeg: true,
-            })
-            .toBuffer()
+        : renderPreset(sharp(originalBuffer).rotate(), xmpPreset).then((image) =>
+            image
+              .jpeg({
+                quality: 60,
+                mozjpeg: true,
+              })
+              .toBuffer()
+          )
 
     const uploadTasks = [
       uploadPhotoObject({

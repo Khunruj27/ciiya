@@ -502,7 +502,7 @@ summarizes the outcome. No server change or deployment was needed. 491 offline
 regressions, TypeScript and lint pass; demo mode verified selection, the disabled
 processing tile, confirmation and removal.
 
-### Process finished photos again — prepared, gate closed, 2026-10-16
+### Process finished photos again — released 2026-10-16
 
 In selection mode a round "process again" button re-renders the selected finished
 photos with their current preset (for example after the worker's preset fix). The
@@ -524,8 +524,20 @@ derived object under a new key carrying the revision, because previews are serve
 moves), commits the new paths, moves a stored album cover, then deletes the previous
 render. A failed reprocess leaves the photo and its old render untouched and removes
 its own uploads only on final failure; a photo deleted mid-render leaves no new
-objects. `photoReprocessReleaseEnabled` stays false until the route (Vercel) and the
-worker (Railway) are deployed with the owner's approval.
+objects.
+
+With the owner's explicit approval, the worker went first: Railway deployment
+`67b9d01e` is the running `origin/main` tree (a0a8260) plus exactly the four worker
+files, deployed with `railway up` (the service otherwise auto-deploys from GitHub
+`main`). Then `dpl_8LrpUhkZToRnHVPrHahmEWLJaxng` was built from the `dpl_azvK…`
+source plus exactly the route, its two helpers and `photo-retry.ts` (exports only),
+hash-audited (631 files), staged with `--skip-domain` and promoted. 69 absent/forged-
+credential checks pass locally and on production; the first 50 production logs are
+info with no 5xx. Offline: 15 route contracts, 6 worker runs against an in-memory
+store with real sharp, 7 helper tests, 504 mobile regressions, TypeScript and lint;
+demo mode verified the confirmation, the spinner and its clearing on the new image.
+Device acceptance: select one photo uploaded with a preset before the fix, process it
+again, and check the phone, website and share page all show the new render.
 
 ### Earlier working phases for the first photographer release
 

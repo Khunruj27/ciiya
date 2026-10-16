@@ -77,18 +77,18 @@ const photo = (id, processingStatus, isReady = false, url = `${id}-v1`) => ({
   createdAt: '2026-10-16T00:00:00.000Z',
 });
 
-test('the reprocess release gate is closed in source and independent of environment values', () => {
+test('the reprocess release gate is open in source and independent of environment values', () => {
   const exports = {};
   vm.runInNewContext(transpile('photo-reprocess-release.ts'), {
     exports, require(name) { assert.equal(name, '@/lib/config'); return { isDemoMode: false }; },
   });
-  assert.equal(exports.photoReprocessReleaseEnabled, false);
-  assert.equal(exports.isPhotoReprocessAvailable(), false);
+  assert.equal(exports.photoReprocessReleaseEnabled, true);
+  assert.equal(exports.isPhotoReprocessAvailable(), true);
   const demo = {};
   vm.runInNewContext(transpile('photo-reprocess-release.ts'), {
     exports: demo, require() { return { isDemoMode: true }; },
   });
-  assert.equal(demo.isPhotoReprocessAvailable(), true, 'Demo mode reprocesses in-memory fixtures only');
+  assert.equal(demo.isPhotoReprocessAvailable(), true);
   const source = fs.readFileSync(path.join(__dirname, '../src/lib/photo-reprocess-release.ts'), 'utf8');
   assert.doesNotMatch(source, /process\.env|fetch\(|getSession\(/);
 });

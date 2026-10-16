@@ -237,3 +237,9 @@ test('losing the compare-and-set race is 409 and errors expose no keys or identi
   const text = JSON.stringify(r.body);
   assert.ok(!text.includes(ownerId) && !text.includes(originalPath) && !text.includes(jobId));
 });
+
+test('the legacy /api/worker/retry route runs this same retry, not its old size/preset-changing upsert', () => {
+  const source = fs.readFileSync(path.join(root, 'src/app/api/worker/retry/route.ts'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(source, /export \{ POST \} from '@\/app\/api\/photos\/retry-processing\/route'/);
+  assert.doesNotMatch(source, /upsert|insert|size:\s*'original'/);
+});

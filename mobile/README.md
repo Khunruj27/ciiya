@@ -489,6 +489,19 @@ photo was deleted by the agent. Device acceptance: delete one photo in a disposa
 album, confirm it is gone from the website and the share page, and that the album
 cover/count update.
 
+### Select and delete several photos — app only, 2026-10-16
+
+"Select" on the album screen enters selection mode: tap photos (or "select all
+loaded") to mark them, up to 100 per batch; photos still processing cannot be
+selected. "Delete N" asks for a destructive confirmation, then deletes one photo at
+a time through the already released `DELETE /api/mobile/albums/[id]/photos/[photoId]`
+(`src/lib/photo-bulk-delete.ts`). It stops if the account/album changes, on sign-out
+or after three consecutive network failures, counts already-gone photos as removed,
+never assumes a failed request deleted anything, keeps unfinished photos selected and
+summarizes the outcome. No server change or deployment was needed. 491 offline
+regressions, TypeScript and lint pass; demo mode verified selection, the disabled
+processing tile, confirmation and removal.
+
 ### Earlier working phases for the first photographer release
 
 The owner asked to continue phase 4 on 2026-10-14. These six phases group the

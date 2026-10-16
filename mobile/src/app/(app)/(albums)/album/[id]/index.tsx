@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   ActivityIndicator,
@@ -28,6 +29,7 @@ import { useAlbumUploads } from '@/hooks/use-uploads';
 import { isAlbumEditingAvailable } from '@/lib/album-edit-release';
 import { isPhotoRetryAvailable } from '@/lib/photo-retry-release';
 import { isPhotoDeleteAvailable } from '@/lib/photo-delete-release';
+import { MAX_PHOTO_DELETES_PER_BATCH, deletePhotos, isPhotoDeletable } from '@/lib/photo-bulk-delete';
 import { MAX_PHOTO_RETRIES_PER_TAP, retryablePhotos, retryPhotos } from '@/lib/photo-retry';
 import { data, DataError } from '@/lib/data';
 import { photoProcessing, shouldPollPhoto } from '@/lib/data/types';
@@ -55,6 +57,7 @@ const MAX_PROCESSING_POLLS = 36;
 // Lets the photo picker finish closing before the upload sheet opens over it.
 const SHEET_DELAY_MS = 450;
 const noFilteredPrefetch = () => {};
+const NO_SELECTION: ReadonlySet<string> = new Set();
 
 type ViewerSelection = {
   version: number;
@@ -117,6 +120,15 @@ function OwnedAlbumScreen({ id }: { id: string }) {
   const [retryProgress, setRetryProgress] = useState<{ done: number; total: number } | null>(null);
   // Synchronous single-flight: a double tap must not start two batches.
   const retryingRef = useRef(false);
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(NO_SELECTION);
+  const [deleteProgress, setDeleteProgress] = useState<{ done: number; total: number } | null>(null);
+  const deletingRef = useRef(false);
+  // Only photos still loaded and still deletable count; a refresh can change both.
+  const selectedIds = useMemo(
+    () => list.photos.filter((photo) => selected.has(photo.id) && isPhotoDeletable(photo)).map((photo) => photo.id),
+    [list.photos, selected]
+  );
 
   useEffect(() => {
     void feed.reload();
@@ -228,6 +240,87 @@ function OwnedAlbumScreen({ id }: { id: string }) {
     }
   }
 
+  function startSelecting() {
+    if (!isPhotoDeleteAvailable() || deletingRef.current) return;
+    closeViewer();
+    setSelected(new Set());
+    setSelecting(true);
+  }
+
+  function stopSelecting() {
+    if (deletingRef.current) return;
+    setSelecting(false);
+    setSelected(new Set());
+  }
+
+  function toggleSelected(photoId: string) {
+    if (deletingRef.current) return;
+    const photo = feed.getSnapshot().photos.find((value) => value.id === photoId);
+    if (!photo || !isPhotoDeletable(photo)) return;
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(photoId)) {
+        next.delete(photoId);
+      } else if (next.size >= MAX_PHOTO_DELETES_PER_BATCH) {
+        Alert.alert(t.album.selectLimit(MAX_PHOTO_DELETES_PER_BATCH));
+        return current;
+      } else {
+        next.add(photoId);
+      }
+      return next;
+    });
+  }
+
+  function selectAllVisible() {
+    if (deletingRef.current) return;
+    setSelected(new Set(visiblePhotos.filter(isPhotoDeletable).slice(0, MAX_PHOTO_DELETES_PER_BATCH).map((photo) => photo.id)));
+  }
+
+  function confirmDeleteSelected() {
+    const current = coverGuard.capture();
+    if (!current?.() || deletingRef.current || !isPhotoDeleteAvailable()) return;
+    const ids = selectedIds.slice(0, MAX_PHOTO_DELETES_PER_BATCH);
+    if (!ids.length) return;
+
+    Alert.alert(t.album.deleteSelectedTitle(ids.length), t.album.deleteSelectedMessage, [
+      { text: t.common.cancel, style: 'cancel' },
+      { text: t.album.deleteSelectedConfirm, style: 'destructive', onPress: () => { void runDeleteSelected(ids, current); } },
+    ]);
+  }
+
+  async function runDeleteSelected(ids: string[], isCurrent: () => boolean) {
+    // The dialog may outlive its visit: re-check before anything is sent.
+    if (!isCurrent() || deletingRef.current) return;
+    deletingRef.current = true;
+    setDeleteProgress({ done: 0, total: ids.length });
+    try {
+      const summary = await deletePhotos({
+        photoIds: ids,
+        remove: (photoId) => data.deletePhoto(id, photoId),
+        isCurrent,
+        onProgress: (done, total) => setDeleteProgress({ done, total }),
+      });
+      if (!isCurrent()) return;
+      feed.removePhotos(summary.removed);
+      void album.refresh();
+      const lines = [
+        summary.removed.length ? t.album.deleteSelectedRemoved(summary.removed.length) : null,
+        summary.processing ? t.album.deleteSelectedProcessing(summary.processing) : null,
+        summary.failed ? t.album.deleteSelectedErrors(summary.failed) : null,
+        summary.skipped ? t.album.deleteSelectedStopped(summary.skipped) : null,
+      ].filter((line): line is string => Boolean(line));
+      Alert.alert(t.album.deleteSelectedDoneTitle, lines.join('\n'));
+      // Keep anything not deleted selected, so the owner can decide again.
+      const removed = new Set(summary.removed);
+      const remaining = ids.filter((photoId) => !removed.has(photoId));
+      setSelected(new Set(remaining));
+      if (!remaining.length) setSelecting(false);
+    } finally {
+      deletingRef.current = false;
+      if (isCurrent()) setDeleteProgress(null);
+    }
+  }
+
   function confirmRetryFailed() {
     const current = coverGuard.capture();
     if (!current?.() || retryingRef.current || !isPhotoRetryAvailable()) return;
@@ -331,7 +424,8 @@ function OwnedAlbumScreen({ id }: { id: string }) {
           keyExtractor={(photo) => photo.id}
           numColumns={COLUMNS}
           columnWrapperStyle={styles.row}
-          contentContainerStyle={styles.grid}
+          // Room for the selection bar so it never covers the last row.
+          contentContainerStyle={[styles.grid, selecting && styles.gridSelecting]}
           contentInsetAdjustmentBehavior="automatic"
           // A short/no-match filtered list must not silently drain every page.
           onEndReached={filtered ? undefined : loadMore}
@@ -419,6 +513,22 @@ function OwnedAlbumScreen({ id }: { id: string }) {
                         {t.album.processingReadFailed}
                       </ThemedText>
                     ) : null}
+                    {isPhotoDeleteAvailable() ? (
+                      selecting ? (
+                        <View style={styles.selectRow}>
+                          <ThemedText type="small" themeColor="textSecondary" style={styles.flex}>{t.album.selectHint}</ThemedText>
+                          <Pressable onPress={selectedIds.length ? () => setSelected(new Set()) : selectAllVisible}
+                            accessibilityRole="button" hitSlop={10} disabled={deleteProgress !== null}>
+                            <ThemedText type="smallBold" style={{ color: theme.accentDeep }}>
+                              {selectedIds.length ? t.album.selectNone : t.album.selectAllLoaded}
+                            </ThemedText>
+                          </Pressable>
+                        </View>
+                      ) : list.photos.length > 0 ? (
+                        <Button label={t.album.selectPhotos} onPress={startSelecting} variant="secondary"
+                          disabled={!coverGuard.available} />
+                      ) : null
+                    ) : null}
                     {isPhotoRetryAvailable() && (failedPhotos.length > 0 || retryProgress) ? (
                       <Button
                         label={retryProgress
@@ -489,10 +599,12 @@ function OwnedAlbumScreen({ id }: { id: string }) {
 
             return (
               <Pressable
-                onPress={() => openPhoto(item.id)}
-                accessibilityRole="imagebutton"
+                onPress={() => (selecting ? toggleSelected(item.id) : openPhoto(item.id))}
+                accessibilityRole={selecting ? 'checkbox' : 'imagebutton'}
                 accessibilityLabel={[item.filename, statusLabel].filter(Boolean).join(' · ')}
-                accessibilityState={{ busy: processing.status === 'processing' }}
+                accessibilityState={selecting
+                  ? { checked: selected.has(item.id), disabled: !isPhotoDeletable(item) }
+                  : { busy: processing.status === 'processing' }}
                 accessibilityValue={processing.progress === null ? undefined
                   : { min: 0, max: 100, now: processing.progress }}
                 style={[
@@ -521,11 +633,45 @@ function OwnedAlbumScreen({ id }: { id: string }) {
                     ) : null}
                   </View>
                 )}
+                {selecting ? (
+                  <View style={[styles.selectOverlay, selected.has(item.id) && styles.selectedOverlay,
+                    !isPhotoDeletable(item) && styles.unselectable]}>
+                    {isPhotoDeletable(item) ? (
+                      <View style={[styles.checkCircle, selected.has(item.id) && { backgroundColor: theme.accentDeep, borderColor: theme.accentDeep }]}>
+                        {selected.has(item.id) ? (
+                          <SymbolView name="checkmark" size={13} tintColor="#ffffff"
+                            fallback={<ThemedText type="smallBold" style={styles.checkText}>✓</ThemedText>} />
+                        ) : null}
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
               </Pressable>
             );
           }}
         />
       )}
+
+      {selecting ? (
+        <View style={[styles.selectBar, { backgroundColor: theme.surface, borderColor: theme.line }]}>
+          <ThemedText type="smallBold" style={styles.flex} accessibilityLiveRegion="polite">
+            {deleteProgress
+              ? t.album.deleteSelectedProgress(deleteProgress.done, deleteProgress.total)
+              : t.album.selectedCount(selectedIds.length)}
+          </ThemedText>
+          <Pressable onPress={stopSelecting} accessibilityRole="button" hitSlop={10}
+            disabled={deleteProgress !== null} style={styles.selectBarButton}>
+            <ThemedText type="smallBold" style={{ color: theme.text }}>{t.album.selectCancel}</ThemedText>
+          </Pressable>
+          <Pressable onPress={confirmDeleteSelected} accessibilityRole="button" hitSlop={10}
+            disabled={!selectedIds.length || deleteProgress !== null}
+            style={[styles.selectBarButton, styles.deleteButton, { backgroundColor: theme.danger },
+              (!selectedIds.length || deleteProgress !== null) && styles.dimmed]}>
+            {deleteProgress ? <ActivityIndicator color="#ffffff" /> : null}
+            <ThemedText type="smallBold" style={styles.checkText}>{t.album.deleteSelected(selectedIds.length)}</ThemedText>
+          </Pressable>
+        </View>
+      ) : null}
 
       {picked && album.data ? (
         <UploadSheet album={album.data} assets={picked} onClose={() => setPicked(null)} />
@@ -576,6 +722,7 @@ function OwnedAlbumScreen({ id }: { id: string }) {
 const styles = StyleSheet.create({
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   grid: { flexGrow: 1, gap: GAP },
+  gridSelecting: { paddingBottom: 96 },
   row: { gap: GAP },
   summary: { padding: Spacing.three, gap: Spacing.one },
   tools: { padding: Spacing.three, paddingTop: 0, gap: Spacing.two },
@@ -583,6 +730,24 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, padding: Spacing.three, fontSize: 16, minHeight: 50 },
   clear: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   tile: { overflow: 'hidden' },
+  flex: { flex: 1 },
+  selectRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  selectOverlay: { ...StyleSheet.absoluteFill, alignItems: 'flex-end', padding: Spacing.two },
+  selectedOverlay: { backgroundColor: 'rgba(0,0,0,0.25)' },
+  unselectable: { backgroundColor: 'rgba(255,255,255,0.45)' },
+  checkCircle: {
+    width: 24, height: 24, borderRadius: Radius.pill, borderWidth: 2, borderColor: '#ffffff',
+    backgroundColor: 'rgba(0,0,0,0.2)', alignItems: 'center', justifyContent: 'center',
+  },
+  checkText: { color: '#ffffff' },
+  selectBar: {
+    position: 'absolute', left: Spacing.three, right: Spacing.three, bottom: Spacing.six + Spacing.five,
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.two,
+    padding: Spacing.two, paddingLeft: Spacing.three, borderWidth: 1, borderRadius: Radius.pill,
+  },
+  selectBarButton: { minHeight: 40, paddingHorizontal: Spacing.three, borderRadius: Radius.pill, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: Spacing.one },
+  deleteButton: {},
+  dimmed: { opacity: 0.5 },
   processing: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',

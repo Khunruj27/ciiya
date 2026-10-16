@@ -121,6 +121,8 @@ function harness({ locale = 'th', initialPhotos = [photo('a', 'Air 001.jpg'), ph
     '@/lib/photo-retry-release': { photoRetryReleaseEnabled: false, isPhotoRetryAvailable: () => false },
     '@/lib/preset-release': { presetReleaseEnabled: false, isPresetPickingAvailable: () => false },
     '@/lib/photo-delete-release': { photoDeleteReleaseEnabled: false, isPhotoDeleteAvailable: () => false },
+    '@/lib/photo-bulk-delete': { MAX_PHOTO_DELETES_PER_BATCH: 100, isPhotoDeletable: () => true, async deletePhotos() { throw Error('Closed gate must not delete'); } },
+    'expo-symbols': { SymbolView: 'SymbolView' },
     '@/lib/photo-retry': { MAX_PHOTO_RETRIES_PER_TAP: 50, retryablePhotos: () => [], async retryPhotos() { throw Error('Closed retry gate must not send'); } },
     '@/lib/data': { ...types, data: {
       setAlbumCover: async (id, photoId) => { mutations.push([id, photoId]); if (cover) await cover(); },

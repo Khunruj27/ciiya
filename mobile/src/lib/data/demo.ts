@@ -364,7 +364,7 @@ export const demoData: DataSource = {
     return 'queued';
   },
 
-  async reprocessPhoto(albumId, photoId) {
+  async reprocessPhoto(albumId, photoId, _options) {
     await delay(250);
     findAlbum(albumId);
     const photo = (photosByAlbum.get(albumId) ?? []).find((item) => item.id === photoId);

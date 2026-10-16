@@ -153,10 +153,11 @@ function harness(options = {}) {
   return { state, route };
 }
 
-async function call(h, { auth = 'Bearer offline.user.signature', id = albumId, photo = photoId } = {}) {
+async function call(h, { auth = 'Bearer offline.user.signature', id = albumId, photo = photoId, body = '{}' } = {}) {
   const headers = new Headers();
   if (auth) headers.set('authorization', auth);
-  const response = await h.route.POST({ headers }, { params: Promise.resolve({ id, photoId: photo }) });
+  const text = typeof body === 'string' ? body : JSON.stringify(body);
+  const response = await h.route.POST({ headers, async text() { return text; } }, { params: Promise.resolve({ id, photoId: photo }) });
   return { status: response.status, body: await response.json(), cache: response.headers.get('cache-control') };
 }
 
@@ -329,4 +330,71 @@ test('error responses never include storage keys or identities', async () => {
     const text = JSON.stringify(r.body);
     assert.ok(!text.includes(ownerId) && !text.includes(originalPath) && !text.includes(jobId));
   }
+});
+
+const albumPreset = `${ownerId}/${albumId}/presets/r6-outdoor.xmp`;
+const accountPreset = `${ownerId}/presets/legacy.xmp`;
+
+test('an empty or {} body keeps the photo preset and adds no preset to the job', async () => {
+  for (const body of ['', '{}']) {
+    const h = harness({ photo: donePhoto({ preset_path: albumPreset }), presetRef: { provider: 'r2', bucket: 'b', key: albumPreset } });
+    const r = await call(h, { body });
+    assert.deepEqual(r.body, { success: true, queued: true });
+    const reset = h.state.calls.find((c) => c.op === 'update');
+    assert.ok(!Object.hasOwn(reset.payload.payload, 'presetPath'));
+  }
+});
+
+test('a chosen album or account preset travels in the job payload, never on the photo or job columns', async () => {
+  for (const presetPath of [albumPreset, accountPreset]) {
+    const h = harness({ presetRef: { provider: 'r2', bucket: 'b', key: presetPath } });
+    const r = await call(h, { body: { presetPath } });
+    assert.deepEqual(r.body, { success: true, queued: true });
+    const reset = h.state.calls.find((c) => c.op === 'update');
+    assert.equal(reset.payload.payload.presetPath, presetPath);
+    assert.ok(!Object.hasOwn(reset.payload, 'preset_path'), 'The job column keeps the upload preset');
+  }
+});
+
+test('presetPath null renders without a preset and skips the preset existence check', async () => {
+  const h = harness({ photo: donePhoto({ preset_path: albumPreset }) });
+  const r = await call(h, { body: { presetPath: null } });
+  assert.deepEqual(r.body, { success: true, queued: true });
+  assert.equal(h.state.calls.find((c) => c.op === 'update').payload.payload.presetPath, null);
+});
+
+test('a chosen preset that no longer exists is SOURCE_MISSING before any queue access', async () => {
+  const h = harness();
+  const r = await call(h, { body: { presetPath: albumPreset } });
+  assert.equal(r.status, 409);
+  assert.equal(r.body.code, 'SOURCE_MISSING');
+  assert.ok(!h.state.calls.some((c) => c.table === 'photo_jobs'));
+});
+
+test('malformed bodies and presets from elsewhere are 400 before any database read', async () => {
+  for (const body of [
+    'not json', '[]', 'null', '"x"', { presetPath: 5 }, { presetPath: '' }, { other: 1 },
+    { presetPath: albumPreset, extra: true },
+    { presetPath: `${otherOwnerId}/presets/x.xmp` },
+    { presetPath: `${ownerId}/${otherAlbumId}/presets/x.xmp` },
+    { presetPath: `${ownerId}/${albumId}/presets/../x.xmp` },
+    { presetPath: `${ownerId}/${albumId}/original/x.jpg` },
+    `{"presetPath":"${'a'.repeat(3000)}"}`,
+  ]) {
+    const h = harness();
+    const r = await call(h, { body });
+    assert.equal(r.status, 400, JSON.stringify(body).slice(0, 80));
+    assert.equal(r.body.code, 'INVALID_PRESET');
+    assert.ok(!h.state.calls.some((c) => c.table === 'photos' || c.table === 'photo_jobs'));
+  }
+});
+
+test('a Supabase original-size photo can be re-rendered only without a preset', async () => {
+  const legacy = donePhoto({ storage_provider: 'supabase', storage_bucket: null, selected_size: 'original' });
+  const refused = harness({ photo: legacy, presetRef: { provider: 'supabase', bucket: 'presets', key: albumPreset } });
+  const r = await call(refused, { body: { presetPath: albumPreset } });
+  assert.equal(r.status, 409);
+  assert.equal(r.body.code, 'NOT_REPROCESSABLE');
+  const allowed = harness({ photo: legacy });
+  assert.deepEqual((await call(allowed, { body: { presetPath: null } })).body, { success: true, queued: true });
 });

@@ -30,10 +30,11 @@ import { isAlbumEditingAvailable } from '@/lib/album-edit-release';
 import { isPhotoRetryAvailable } from '@/lib/photo-retry-release';
 import { isPhotoDeleteAvailable } from '@/lib/photo-delete-release';
 import { isPhotoReprocessAvailable } from '@/lib/photo-reprocess-release';
+import { ReprocessSheet } from '@/components/reprocess-sheet';
 import { MAX_PHOTO_REPROCESS_PER_BATCH, isPhotoReprocessable, reprocessPhotos } from '@/lib/photo-reprocess';
 import { MAX_PHOTO_DELETES_PER_BATCH, deletePhotos, isPhotoDeletable } from '@/lib/photo-bulk-delete';
 import { MAX_PHOTO_RETRIES_PER_TAP, retryablePhotos, retryPhotos } from '@/lib/photo-retry';
-import { data, DataError } from '@/lib/data';
+import { data, DataError, type PhotoReprocessOptions } from '@/lib/data';
 import { photoProcessing, shouldPollPhoto } from '@/lib/data/types';
 import { PhotoFeed } from '@/lib/data/photo-feed';
 import {
@@ -128,6 +129,7 @@ function OwnedAlbumScreen({ id }: { id: string }) {
   const deletingRef = useRef(false);
   const [reprocessProgress, setReprocessProgress] = useState<{ done: number; total: number } | null>(null);
   const reprocessingRef = useRef(false);
+  const [reprocessRequest, setReprocessRequest] = useState<{ ids: string[]; isCurrent: () => boolean } | null>(null);
   const selectionBusy = deleteProgress !== null || reprocessProgress !== null;
   // Only photos still loaded and still deletable count; a refresh can change both.
   const selectedIds = useMemo(
@@ -341,13 +343,11 @@ function OwnedAlbumScreen({ id }: { id: string }) {
       return;
     }
 
-    Alert.alert(t.album.reprocessTitle(ids.length), t.album.reprocessMessage, [
-      { text: t.common.cancel, style: 'cancel' },
-      { text: t.album.reprocessConfirm, onPress: () => { void runReprocessSelected(ids, current); } },
-    ]);
+    // The sheet confirms and optionally picks one preset for all of them.
+    setReprocessRequest({ ids, isCurrent: current });
   }
 
-  async function runReprocessSelected(ids: string[], isCurrent: () => boolean) {
+  async function runReprocessSelected(ids: string[], isCurrent: () => boolean, options: PhotoReprocessOptions) {
     // The dialog may outlive its visit: re-check before sending anything.
     if (!isCurrent() || reprocessingRef.current || deletingRef.current) return;
     reprocessingRef.current = true;
@@ -355,7 +355,7 @@ function OwnedAlbumScreen({ id }: { id: string }) {
     try {
       const summary = await reprocessPhotos({
         photoIds: ids,
-        reprocess: (photoId) => data.reprocessPhoto(id, photoId),
+        reprocess: (photoId) => data.reprocessPhoto(id, photoId, options),
         isCurrent,
         onProgress: (done, total) => setReprocessProgress({ done, total }),
       });
@@ -751,6 +751,19 @@ function OwnedAlbumScreen({ id }: { id: string }) {
             <ThemedText type="smallBold" style={styles.checkText}>{t.album.deleteSelected(selectedIds.length)}</ThemedText>
           </Pressable>
         </View>
+      ) : null}
+
+      {reprocessRequest ? (
+        <ReprocessSheet
+          albumId={id}
+          count={reprocessRequest.ids.length}
+          onCancel={() => setReprocessRequest(null)}
+          onConfirm={(options) => {
+            const request = reprocessRequest;
+            setReprocessRequest(null);
+            void runReprocessSelected(request.ids, request.isCurrent, options);
+          }}
+        />
       ) : null}
 
       {picked && album.data ? (

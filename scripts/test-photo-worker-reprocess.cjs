@@ -24,6 +24,8 @@ const presetPath = `${ownerId}/${albumId}/presets/${name}.xmp`;
 const key = (folder, suffix = '') => `${ownerId}/${albumId}/${folder}/${name}${suffix}.jpg`;
 const url = (k) => `https://cdn.offline.invalid/${k}`;
 const PRESET = '<x:xmpmeta><rdf:Description crs:Exposure2012="+0.8" crs:Saturation="-40"/></x:xmpmeta>';
+const darkPresetPath = `${ownerId}/presets/dark.xmp`;
+const DARK_PRESET = '<x:xmpmeta><rdf:Description crs:Exposure2012="-1.5"/></x:xmpmeta>';
 
 function compile(filename, source) {
   return ts.transpileModule(source, {
@@ -124,6 +126,7 @@ async function setup(options = {}) {
   const store = fakeStore({
     ...(options.originalMissing ? {} : { [`${bucket}|${original}`]: originalJpeg }),
     [`${bucket}|${presetPath}`]: PRESET,
+    [`${bucket}|${darkPresetPath}`]: DARK_PRESET,
     [`${bucket}|${key('preview')}`]: 'old preview',
     [`${bucket}|${key('thumbnail')}`]: 'old thumbnail',
     [`${bucket}|${key('hd')}`]: 'old hd',
@@ -308,4 +311,62 @@ test('a reprocess payload on a photo that is not finished is processed as a norm
   const photo = h.tables.photos[0];
   assert.equal(photo.processing_status, 'done');
   assert.equal(photo.preview_path, key('preview'), 'No revision outside a reprocess of a finished photo');
+});
+
+const brightness = async (buffer) => (await sharp(buffer).stats()).channels.slice(0, 3).reduce((sum, c) => sum + c.mean, 0) / 3;
+
+test('a reprocess with a new preset renders with it and stores it on the photo with the commit', async () => {
+  const h = await setup({ payload: { source: 'owner-reprocess', reprocess: true, revision: 'abcdef1234', presetPath: darkPresetPath } });
+  await runJob(h);
+  const photo = h.tables.photos[0];
+  assert.equal(photo.preset_path, darkPresetPath);
+  assert.equal(photo.preview_path, key('preview', '-abcdef1234'));
+  const preview = await brightness(h.store.objects.get(`${bucket}|${key('preview', '-abcdef1234')}`));
+  assert.ok(preview < (await brightness(h.store.objects.get(`${bucket}|${original}`))) - 5, 'The dark preset was applied');
+  assert.equal(h.tables.photo_jobs[0].preset_path, presetPath, 'The job column keeps the upload preset');
+});
+
+test('a reprocess with presetPath null renders without a preset and clears it', async () => {
+  const h = await setup({ payload: { source: 'owner-reprocess', reprocess: true, revision: 'abcdef1234', presetPath: null } });
+  await runJob(h);
+  const photo = h.tables.photos[0];
+  assert.equal(photo.preset_path, null);
+  const preview = await brightness(h.store.objects.get(`${bucket}|${key('preview', '-abcdef1234')}`));
+  const raw = await brightness(h.store.objects.get(`${bucket}|${original}`));
+  assert.ok(Math.abs(preview - raw) < 4, 'No adjustment without a preset');
+});
+
+test('a failed reprocess with a new preset leaves the photo preset unchanged', async () => {
+  const h = await setup({
+    payload: { source: 'owner-reprocess', reprocess: true, revision: 'abcdef1234', presetPath: darkPresetPath },
+    retryCount: 3,
+    dbHooks: {
+      beforeQuery(call) {
+        if (call.table === 'photos' && call.op === 'update' && call.payload.preview_path) throw new Error('offline commit failure');
+      },
+    },
+  });
+  await runJob(h);
+  assert.equal(h.tables.photos[0].preset_path, presetPath);
+  assert.equal(h.tables.photos[0].preview_path, key('preview'));
+});
+
+test('a reprocess preset outside this owner is refused and the photo is untouched', async () => {
+  const foreign = '99999999-9999-4999-8999-999999999999/presets/x.xmp';
+  const h = await setup({ payload: { source: 'owner-reprocess', reprocess: true, revision: 'abcdef1234', presetPath: foreign }, retryCount: 3 });
+  await runJob(h);
+  assert.equal(h.tables.photos[0].preset_path, presetPath);
+  assert.equal(h.tables.photos[0].preview_path, key('preview'));
+  assert.equal(h.tables.photo_jobs[0].status, 'failed');
+});
+
+test('an unreadable reprocess request fails without rewriting the finished photo', async () => {
+  const h = await setup({ payload: { source: 'owner-reprocess', reprocess: true, revision: 'BAD' }, retryCount: 3 });
+  await runJob(h);
+  const photo = h.tables.photos[0];
+  assert.equal(photo.processing_status, 'done');
+  assert.equal(photo.preview_path, key('preview'));
+  assert.equal(photo.faces_count, 3);
+  assert.equal(h.tables.photo_jobs[0].status, 'failed');
+  assert.ok(h.store.has(key('preview')));
 });

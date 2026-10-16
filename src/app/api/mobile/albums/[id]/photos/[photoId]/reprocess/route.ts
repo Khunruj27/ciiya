@@ -2,6 +2,8 @@ import type { NextRequest } from 'next/server'
 import {
   isPhotoReprocessable,
   photoReprocessJson,
+  presetNeedsRawReplacement,
+  readReprocessBody,
   requeueFinishedPhoto,
 } from '@/lib/mobile/photo-reprocess'
 import {
@@ -53,6 +55,20 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return photoReprocessJson({ error: 'Too many requests. Try again shortly.', code: 'RATE_LIMITED' }, 429)
     }
 
+    let body: unknown = {}
+    try {
+      const text = await req.text()
+      // The only field is one preset path; anything larger is not a valid body.
+      if (text.length > 2048) throw new Error('Body too large')
+      body = text.trim() ? JSON.parse(text) : {}
+    } catch {
+      return photoReprocessJson({ error: 'Choose a preset from this album', code: 'INVALID_PRESET' }, 400)
+    }
+    const options = readReprocessBody(body, ownerId, albumId)
+    if (!options) {
+      return photoReprocessJson({ error: 'Choose a preset from this album', code: 'INVALID_PRESET' }, 400)
+    }
+
     const { data: album, error: albumError } = await supabase
       .from('albums')
       .select('id')
@@ -80,7 +96,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     if (status === 'pending' || status === 'processing') {
       return photoReprocessJson({ success: true, queued: false })
     }
-    if (!isPhotoReprocessable(photo)) {
+    const presetPath = options.presetPath === undefined ? photo.preset_path : options.presetPath
+    if (!isPhotoReprocessable(photo) || presetNeedsRawReplacement(photo, presetPath)) {
       return photoReprocessJson(
         { error: 'This photo cannot be processed again', code: 'NOT_REPROCESSABLE' },
         409
@@ -90,14 +107,15 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const admin = createPhotoRetryAdminClient()
     if (!admin) return photoReprocessJson({ error: 'Unable to reprocess photo' }, 500)
 
-    if (!(await photoRetrySourcesExist(admin, photo))) {
+    // The original and the preset this render will use must both still exist.
+    if (!(await photoRetrySourcesExist(admin, { ...photo, preset_path: presetPath }))) {
       return photoReprocessJson(
         { error: 'The original file for this photo is no longer available', code: 'SOURCE_MISSING' },
         409
       )
     }
 
-    const { httpStatus, ...result } = await requeueFinishedPhoto(admin, photo)
+    const { httpStatus, ...result } = await requeueFinishedPhoto(admin, photo, options)
     return photoReprocessJson(result, httpStatus)
   } catch {
     // Never expose storage keys, identities or database errors.

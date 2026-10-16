@@ -40,6 +40,17 @@ test('only a well-formed reprocess payload is read back', () => {
   assert.throws(() => photoReprocessPayload('bad/one'))
 })
 
+test('a reprocess payload may carry a preset, or null for none; absent means keep', () => {
+  const preset = `${ownerId}/${albumId}/presets/r6.xmp`
+  assert.deepEqual(readPhotoReprocessRequest(photoReprocessPayload('abcdef1234', preset)), { revision: 'abcdef1234', presetPath: preset })
+  assert.deepEqual(readPhotoReprocessRequest(photoReprocessPayload('abcdef1234', null)), { revision: 'abcdef1234', presetPath: null })
+  assert.ok(!('presetPath' in photoReprocessPayload('abcdef1234')))
+  for (const bad of [5, '', 'x.jpg', '../a.xmp', 'a//b.xmp', 'a\\b.xmp', `${'a'.repeat(500)}.xmp`]) {
+    assert.equal(readPhotoReprocessRequest({ ...photoReprocessPayload('abcdef1234'), presetPath: bad }), null, String(bad))
+    assert.throws(() => photoReprocessPayload('abcdef1234', bad as string))
+  }
+})
+
 test('only a raw upload in this album can be rendered again', () => {
   assert.equal(isReprocessableOriginalPath(original, ownerId, albumId), true)
   for (const path of [

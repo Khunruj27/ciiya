@@ -539,6 +539,20 @@ demo mode verified the confirmation, the spinner and its clearing on the new ima
 Device acceptance: select one photo uploaded with a preset before the fix, process it
 again, and check the phone, website and share page all show the new render.
 
+### Choose a preset when processing again — prepared 2026-10-16
+
+The "process again" action now opens a sheet: keep each photo's own preset
+(default), or choose one preset — or "No preset" — for every selected photo
+(`src/components/reprocess-sheet.tsx`, reusing the upload preset picker). The route
+accepts an optional body of exactly `{ presetPath }` (an album or account preset of
+this owner, or `null`); `{}` keeps presets. The chosen preset must exist, and an older
+Supabase photo delivered at original size can only be rendered again without a
+preset (adding one would replace its raw upload). The preset travels in the job
+payload; the worker renders with it and stores `preset_path` only with the commit,
+so a failed attempt leaves the photo's preset and image unchanged. A reprocess
+payload the worker cannot read now fails the job instead of rendering normally.
+Needs the worker deployed before the route.
+
 ### Earlier working phases for the first photographer release
 
 The owner asked to continue phase 4 on 2026-10-14. These six phases group the

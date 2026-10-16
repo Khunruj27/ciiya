@@ -23,6 +23,7 @@ import {
   type XmpAdjustments,
 } from '../src/lib/xmp-preset'
 import {
+  PHOTO_REPROCESS_SOURCE,
   readPhotoReprocessRequest,
   supersededPhotoObjectKeys,
 } from '../src/lib/photo-reprocess'
@@ -1344,7 +1345,6 @@ async function processPhotoJob(job: PhotoJob) {
 
     const storageContext = await getPhotoStorageContext(job)
     const originalPath = storageContext.originalPath
-    const presetPath = storageContext.presetPath
     const allowedPrefix = `${job.owner_id}/${job.album_id}/`
 
     // Only a finished photo is re-rendered beside its current one; any other
@@ -1354,6 +1354,25 @@ async function processPhotoJob(job: PhotoJob) {
         ? readPhotoReprocessRequest(job.payload)
         : null
     isReprocess = Boolean(reprocess)
+
+    if (
+      !reprocess &&
+      storageContext.previous.processingStatus === 'done' &&
+      (job.payload as { source?: unknown } | null)?.source === PHOTO_REPROCESS_SOURCE
+    ) {
+      // A reprocess request that cannot be read must not fall back to a normal
+      // render, which would rewrite the current keys and reset faces.
+      isReprocess = true
+      throw new Error('Invalid reprocess request')
+    }
+
+    // A reprocess may name a different preset (or none). It is stored on the
+    // photo only with the commit, so a failed attempt never leaves the row
+    // describing a render it does not have.
+    const presetChanged = reprocess?.presetPath !== undefined
+    const presetPath = presetChanged
+      ? reprocess!.presetPath ?? null
+      : storageContext.presetPath
 
     if (
       !originalPath ||
@@ -1688,6 +1707,8 @@ if (!stillOwnsJob) {
         : {}),
 
       blur_data_url: blurDataUrl,
+
+      ...(presetChanged ? { preset_path: presetPath } : {}),
 
       processing_status: 'done',
       processing_progress: 100,

@@ -414,16 +414,21 @@ export const liveData: DataSource = {
     throw new DataError('server');
   },
 
-  async reprocessPhoto(albumId, photoId): Promise<PhotoReprocessOutcome> {
+  async reprocessPhoto(albumId, photoId, options = {}): Promise<PhotoReprocessOutcome> {
     // Independent of demo/UI state: no token read or request before release.
     if (!photoReprocessReleaseEnabled) throw new DataError('server');
     if (typeof albumId !== 'string' || !albumId || typeof photoId !== 'string' || !photoId) {
       throw new DataError('server');
     }
+    const presetPath = options?.presetPath;
+    if (presetPath !== undefined && presetPath !== null && (typeof presetPath !== 'string' || !presetPath)) {
+      throw new DataError('server');
+    }
     const result = await api<Record<string, unknown>>(
       `/api/mobile/albums/${encodeURIComponent(albumId)}/photos/${encodeURIComponent(photoId)}/reprocess`, {
         method: 'POST',
-        body: {},
+        // Only the one field the route accepts; absent keeps each photo's preset.
+        body: presetPath === undefined ? {} : { presetPath },
         readConflictBody: true,
       });
     if (!result || typeof result !== 'object') throw new DataError('server');

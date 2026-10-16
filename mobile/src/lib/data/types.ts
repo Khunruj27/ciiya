@@ -171,6 +171,12 @@ export type PhotoRetryOutcome = 'queued' | 'already-queued' | 'source-missing' |
  */
 export type PhotoReprocessOutcome = 'queued' | 'already-queued' | 'source-missing' | 'not-reprocessable';
 
+/**
+ * `presetPath` absent: each photo keeps its own preset. A path: render with
+ * that album/account preset (stored on the photo once rendered). `null`: none.
+ */
+export type PhotoReprocessOptions = { presetPath?: string | null };
+
 export type DataSource = {
   fetchAlbums(): Promise<Album[]>;
   fetchAlbum(albumId: string): Promise<Album>;
@@ -191,7 +197,7 @@ export type DataSource = {
   /** Sends one failed/stopped photo back to the photo worker. */
   retryPhotoProcessing(albumId: string, photoId: string): Promise<PhotoRetryOutcome>;
   /** Renders one finished photo again with its preset (for example after a fix). */
-  reprocessPhoto(albumId: string, photoId: string): Promise<PhotoReprocessOutcome>;
+  reprocessPhoto(albumId: string, photoId: string, options?: PhotoReprocessOptions): Promise<PhotoReprocessOutcome>;
   /** Permanently deletes one photo and its stored files. */
   deletePhoto(albumId: string, photoId: string): Promise<PhotoDeleteOutcome>;
   /** The album's own presets plus account-wide legacy ones, newest first. */

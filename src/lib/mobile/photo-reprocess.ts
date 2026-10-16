@@ -5,6 +5,7 @@ import {
   isReprocessableOriginalPath,
   photoReprocessPayload,
 } from '@/lib/photo-reprocess'
+import { isUsablePresetPath } from '@/lib/mobile/album-presets'
 import { ACTIVE_JOB_STATUSES, RESET_JOB_FIELDS, type PhotoRetryRow } from '@/lib/mobile/photo-retry'
 
 const NO_STORE = { 'Cache-Control': 'private, no-store, max-age=0' }
@@ -28,6 +29,34 @@ export function isPhotoReprocessable(photo: PhotoRetryRow) {
   )
 }
 
+/**
+ * The optional body: `{}` keeps each photo's preset, `{ presetPath: null }`
+ * renders without one, `{ presetPath }` uses that album/account preset.
+ * Anything else is refused (`undefined` result means malformed).
+ */
+export function readReprocessBody(
+  body: unknown,
+  ownerId: string,
+  albumId: string
+): { presetPath?: string | null } | undefined {
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) return undefined
+  const keys = Object.keys(body)
+  if (keys.length === 0) return {}
+  if (keys.length !== 1 || keys[0] !== 'presetPath') return undefined
+  const presetPath = (body as { presetPath: unknown }).presetPath
+  if (presetPath === null) return { presetPath: null }
+  return isUsablePresetPath(presetPath, ownerId, albumId) ? { presetPath } : undefined
+}
+
+/**
+ * A Supabase photo delivered at original size gets its preset by replacing the
+ * raw upload, which a reprocess must never do; such a photo can only be
+ * rendered again without a preset.
+ */
+export function presetNeedsRawReplacement(photo: PhotoRetryRow & { storage_provider: string | null }, presetPath: string | null) {
+  return Boolean(presetPath) && photo.storage_provider !== 'r2' && photo.selected_size === 'original'
+}
+
 async function activeJobExists(admin: SupabaseClient, photoId: string) {
   const { data } = await admin
     .from('photo_jobs')
@@ -47,7 +76,8 @@ async function activeJobExists(admin: SupabaseClient, photoId: string) {
  */
 export async function requeueFinishedPhoto(
   admin: SupabaseClient,
-  photo: PhotoRetryRow
+  photo: PhotoRetryRow,
+  options: { presetPath?: string | null } = {}
 ): Promise<PhotoReprocessResult & { httpStatus: number }> {
   const { data: job, error: jobError } = await admin
     .from('photo_jobs')
@@ -56,7 +86,8 @@ export async function requeueFinishedPhoto(
     .maybeSingle()
   if (jobError) return { error: 'Unable to reprocess photo', httpStatus: 500 }
 
-  const payload = photoReprocessPayload(createPhotoReprocessRevision())
+  // The preset travels with the job; the worker stores it with the new render.
+  const payload = photoReprocessPayload(createPhotoReprocessRevision(), options.presetPath)
 
   if (job) {
     if (job.owner_id !== photo.owner_id || job.album_id !== photo.album_id) {

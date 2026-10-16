@@ -252,9 +252,31 @@ test('a reprocess watch ends when the photo is removed or after the watch window
 
 test('the album screen confirms, fences repeats and never runs a reprocess beside a delete', () => {
   const source = fs.readFileSync(path.join(__dirname, '../src/app/(app)/(albums)/album/[id]/index.tsx'), 'utf8');
-  assert.match(source, /t\.album\.reprocessTitle\(ids\.length\), t\.album\.reprocessMessage/);
+  // The sheet confirms; the chosen options reach every request of the batch.
+  assert.match(source, /setReprocessRequest\(\{ ids, isCurrent: current \}\)/);
+  assert.match(source, /<ReprocessSheet[\s\S]*?onConfirm=\{\(options\) => \{[\s\S]*?setReprocessRequest\(null\);[\s\S]*?runReprocessSelected\(request\.ids, request\.isCurrent, options\)/);
+  assert.match(source, /data\.reprocessPhoto\(id, photoId, options\)/);
   assert.match(source, /async function runReprocessSelected[\s\S]*?if \(!isCurrent\(\) \|\| reprocessingRef\.current \|\| deletingRef\.current\) return;/);
   assert.match(source, /feed\.markReprocessing\(summary\.queued\)/);
   assert.match(source, /isPhotoReprocessAvailable\(\) \? \(\s*<Pressable onPress=\{confirmReprocessSelected\}/);
-  assert.match(source, /data\.reprocessPhoto\(id, photoId\)/);
+});
+
+test('the live client sends only the chosen preset field, or an empty body to keep presets', async () => {
+  const h = liveHarness();
+  await h.liveData.reprocessPhoto('a', 'p');
+  await h.liveData.reprocessPhoto('a', 'p', {});
+  await h.liveData.reprocessPhoto('a', 'p', { presetPath: 'owner/album/presets/r6.xmp' });
+  await h.liveData.reprocessPhoto('a', 'p', { presetPath: null });
+  assert.deepEqual(h.requests.map((r) => r.body), ['{}', '{}', '{"presetPath":"owner/album/presets/r6.xmp"}', '{"presetPath":null}']);
+  for (const presetPath of ['', 5, {}]) {
+    await assert.rejects(h.liveData.reprocessPhoto('a', 'p', { presetPath }), { kind: 'server' });
+  }
+  assert.equal(h.requests.length, 4, 'A malformed preset never reaches the network');
+});
+
+test('the reprocess sheet keeps presets by default and sends a chosen preset or none for all', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../src/components/reprocess-sheet.tsx'), 'utf8');
+  assert.match(source, /useState<PresetMode>\('keep'\)/);
+  assert.match(source, /onConfirm\(presetsAvailable && mode === 'choose' \? \{ presetPath \} : \{\}\)/);
+  assert.match(source, /if \(presetBusy\) return;/);
 });

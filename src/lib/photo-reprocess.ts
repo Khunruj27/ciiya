@@ -14,7 +14,17 @@ const REVISION_PATTERN = /^[a-z0-9]{8,16}$/
 /** Folders the worker writes for a photo; the raw original is never replaced. */
 const DERIVED_PHOTO_FOLDERS = ['preview', 'thumbnail', 'sd', 'hd', 'uhd'] as const
 
-export type PhotoReprocessRequest = { revision: string }
+/**
+ * `presetPath` absent: render with the photo's current preset. A string: render
+ * with that preset and store it on the photo. `null`: render without a preset.
+ */
+export type PhotoReprocessRequest = { revision: string; presetPath?: string | null }
+
+/** Shape only; the worker still checks the owner/album prefix before use. */
+function isPresetPathShape(value: unknown): value is string {
+  return typeof value === 'string' && value.length <= 500 && /\.xmp$/i.test(value) &&
+    !value.includes('..') && !value.includes('\\') && !value.includes('//')
+}
 
 export function createPhotoReprocessRevision(): string {
   // 10 lowercase base-36 characters from 64 random bits.
@@ -27,16 +37,27 @@ export function isPhotoReprocessRevision(value: unknown): value is string {
 }
 
 /** The job payload a reprocess request writes and the worker reads back. */
-export function photoReprocessPayload(revision: string) {
+export function photoReprocessPayload(revision: string, presetPath?: string | null) {
   if (!isPhotoReprocessRevision(revision)) throw new Error('Invalid reprocess revision')
-  return { source: PHOTO_REPROCESS_SOURCE, reprocess: true, revision }
+  if (presetPath !== undefined && presetPath !== null && !isPresetPathShape(presetPath)) {
+    throw new Error('Invalid reprocess preset')
+  }
+  return {
+    source: PHOTO_REPROCESS_SOURCE,
+    reprocess: true,
+    revision,
+    ...(presetPath === undefined ? {} : { presetPath }),
+  }
 }
 
 export function readPhotoReprocessRequest(payload: unknown): PhotoReprocessRequest | null {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
   const value = payload as Record<string, unknown>
   if (value.source !== PHOTO_REPROCESS_SOURCE || value.reprocess !== true) return null
-  return isPhotoReprocessRevision(value.revision) ? { revision: value.revision } : null
+  if (!isPhotoReprocessRevision(value.revision)) return null
+  if (!Object.hasOwn(value, 'presetPath')) return { revision: value.revision }
+  if (value.presetPath === null) return { revision: value.revision, presetPath: null }
+  return isPresetPathShape(value.presetPath) ? { revision: value.revision, presetPath: value.presetPath } : null
 }
 
 /**

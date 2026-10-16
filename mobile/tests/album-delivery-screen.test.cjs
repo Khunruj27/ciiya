@@ -218,6 +218,7 @@ function harness({ relative = shareRoute, locale = 'th', platform = 'ios', query
     '@/lib/photo-delete-release': { photoDeleteReleaseEnabled: false, isPhotoDeleteAvailable: () => false },
     '@/lib/photo-reprocess-release': { photoReprocessReleaseEnabled: false, isPhotoReprocessAvailable: () => false },
     '@/lib/photo-bulk-delete': { MAX_PHOTO_DELETES_PER_BATCH: 100, isPhotoDeletable: () => true, async deletePhotos() { throw Error('Closed gate must not delete'); } },
+    '@/components/reprocess-sheet': { ReprocessSheet: () => null },
     '@/lib/photo-reprocess': { MAX_PHOTO_REPROCESS_PER_BATCH: 100, isPhotoReprocessable: () => true, async reprocessPhotos() { throw Error('Closed gate must not reprocess'); } },
     'expo-symbols': { SymbolView: 'SymbolView' },
     '@/lib/photo-retry': { MAX_PHOTO_RETRIES_PER_TAP: 50, retryablePhotos: () => [], async retryPhotos() { throw Error('Closed retry gate must not send'); } },

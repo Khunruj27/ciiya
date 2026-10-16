@@ -185,6 +185,14 @@ export class PhotoFeed {
    * waiting right away (only while still failed/stopped here) so the normal
    * processing poll follows them; a later server read stays authoritative.
    */
+  /** Drops photos the server confirmed are deleted (or already gone). */
+  removePhotos = (ids: string[]) => {
+    if (this.disposed || !ids.length) return;
+    const removed = new Set(ids);
+    const photos = this.state.photos.filter((photo) => !removed.has(photo.id));
+    if (photos.length !== this.state.photos.length) this.publish({ ...this.state, photos });
+  };
+
   markRequeued = (ids: string[]) => {
     if (this.disposed || !ids.length) return;
     const requeued = new Set(ids);

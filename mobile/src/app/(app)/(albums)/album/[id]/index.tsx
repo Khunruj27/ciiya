@@ -27,6 +27,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useAlbumUploads } from '@/hooks/use-uploads';
 import { isAlbumEditingAvailable } from '@/lib/album-edit-release';
 import { isPhotoRetryAvailable } from '@/lib/photo-retry-release';
+import { isPhotoDeleteAvailable } from '@/lib/photo-delete-release';
 import { MAX_PHOTO_RETRIES_PER_TAP, retryablePhotos, retryPhotos } from '@/lib/photo-retry';
 import { data, DataError } from '@/lib/data';
 import { photoProcessing, shouldPollPhoto } from '@/lib/data/types';
@@ -540,6 +541,19 @@ function OwnedAlbumScreen({ id }: { id: string }) {
           captureCoverContext={coverGuard.capture}
           onClose={closeViewer}
           onEndReached={viewer?.photoIds ? noFilteredPrefetch : loadMore}
+          onDeletePhoto={isPhotoDeleteAvailable() ? async (photo) => {
+            const current = coverGuard.capture();
+            if (!current || !current()) throw new DataError('unauthenticated');
+            const outcome = await data.deletePhoto(id, photo.id);
+            if (!current()) return;
+            if (outcome === 'processing') {
+              Alert.alert(t.viewer.deleteProcessing);
+              return;
+            }
+            // Deleted now or by an earlier request: either way it is gone.
+            feed.removePhotos([photo.id]);
+            void album.refresh();
+          } : undefined}
           onSetCover={async (photo) => {
             const current = coverGuard.capture();
             if (!current || !current()) throw new DataError('unauthenticated');

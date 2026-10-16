@@ -4,6 +4,7 @@ import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   Pressable,
@@ -47,7 +48,15 @@ type PhotoViewerProps = {
   coverAvailable?: boolean;
   /** Capture the current account/focus generation before an intentional write. */
   captureCoverContext?: () => (() => boolean) | null;
+  /**
+   * Deletes the photo after the owner confirmed. Resolves once the server
+   * settled it (the parent removes it from the list); rejects on failure.
+   * Omitted while deletion is not available.
+   */
+  onDeletePhoto?: (photo: Photo) => Promise<void>;
 };
+
+const ACTIVE_PROCESSING = new Set(['pending', 'processing', 'uploading', 'finalizing']);
 
 // Tied to a photo id so a save that finishes after the photographer has swiped
 // on never shows its result against a different photo.
@@ -66,6 +75,7 @@ export function PhotoViewer({
   onSetCover,
   coverAvailable = false,
   captureCoverContext = () => () => true,
+  onDeletePhoto,
 }: PhotoViewerProps) {
   const t = useT();
   const insets = useSafeAreaInsets();
@@ -136,6 +146,46 @@ export function PhotoViewer({
     }
   }, [isCurrentActivation, version]);
   const coverStatus = current && coverState?.photoId === current.id ? coverState.status : 'idle';
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Synchronous fence: one deletion at a time, even before the button re-renders.
+  const deletingRef = useRef(false);
+  const currentProcessing = ACTIVE_PROCESSING.has(String(current?.processingStatus ?? ''));
+
+  function confirmDelete() {
+    const page = activePage.current;
+    const photo = page.photos[page.index];
+    if (!onDeletePhoto || !viewerActive.current || deletingRef.current || !photo || page.key !== zoomKey) return;
+    if (ACTIVE_PROCESSING.has(String(photo.processingStatus ?? ''))) {
+      Alert.alert(t.viewer.deleteProcessing);
+      return;
+    }
+    const contextCurrent = captureCoverContext();
+    if (!contextCurrent || !contextCurrent()) return;
+
+    Alert.alert(t.viewer.deleteTitle, t.viewer.deleteMessage(photo.filename || t.viewer.deletePhoto), [
+      { text: t.common.cancel, style: 'cancel' },
+      {
+        text: t.viewer.deleteConfirm,
+        style: 'destructive',
+        onPress: () => { void runDelete(photo, contextCurrent); },
+      },
+    ]);
+  }
+
+  async function runDelete(photo: Photo, contextCurrent: () => boolean) {
+    // The dialog may outlive this visit: re-check before anything is sent.
+    if (!onDeletePhoto || !viewerActive.current || deletingRef.current || !contextCurrent()) return;
+    deletingRef.current = true;
+    setDeletingId(photo.id);
+    try {
+      await onDeletePhoto(photo);
+    } catch {
+      if (viewerActive.current && contextCurrent()) Alert.alert(t.viewer.deleteFailed);
+    } finally {
+      deletingRef.current = false;
+      if (viewerActive.current) setDeletingId(null);
+    }
+  }
 
   async function handleSetCover() {
     const page = activePage.current;
@@ -304,7 +354,29 @@ export function PhotoViewer({
               />
             </Pressable>
           </View>
-          <View style={styles.roundButtonSpacer} />
+          {onDeletePhoto ? (
+            <Pressable
+              onPress={confirmDelete}
+              disabled={deletingId !== null || currentProcessing}
+              accessibilityRole="button"
+              accessibilityLabel={deletingId ? t.viewer.deleting : t.viewer.deletePhoto}
+              accessibilityState={{ disabled: deletingId !== null || currentProcessing, busy: deletingId !== null }}
+              hitSlop={12}
+              style={[styles.roundButton, (deletingId !== null || currentProcessing) && styles.disabled]}>
+              {deletingId ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <SymbolView
+                  name="trash"
+                  size={18}
+                  tintColor="#ffffff"
+                  fallback={<Text style={styles.overlayText}>⌫</Text>}
+                />
+              )}
+            </Pressable>
+          ) : (
+            <View style={styles.roundButtonSpacer} />
+          )}
         </View>
 
         {current?.isReady ? (

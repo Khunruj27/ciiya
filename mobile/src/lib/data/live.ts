@@ -3,6 +3,7 @@ import { albumEditReleaseEnabled } from '@/lib/album-edit-release';
 import { albumAccessReleaseEnabled } from '@/lib/album-access-release';
 import { photoRetryReleaseEnabled } from '@/lib/photo-retry-release';
 import { presetReleaseEnabled } from '@/lib/preset-release';
+import { photoDeleteReleaseEnabled } from '@/lib/photo-delete-release';
 import { supabase } from '@/lib/supabase';
 
 import {
@@ -18,6 +19,7 @@ import {
   type CreateAlbumInput,
   type DataSource,
   type Photo,
+  type PhotoDeleteOutcome,
   type PhotoPage,
   type PhotoRetryOutcome,
   type StorageUsage,
@@ -31,7 +33,7 @@ import {
 async function api<T>(
   path: string,
   init: {
-    method?: 'GET' | 'POST' | 'PATCH';
+    method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
     body?: unknown;
     signal?: AbortSignal;
     /** Only the bounded access editor interprets a revision mismatch as conflict. */
@@ -40,6 +42,8 @@ async function api<T>(
     accessContext?: AlbumAccessContext;
     /** Return a 409 body to the caller instead of a generic server error. */
     readConflictBody?: boolean;
+    /** Resolve a 404 as null (the target is already gone) instead of failing. */
+    notFoundAsNull?: boolean;
   } = {}
 ): Promise<T> {
   if (init.signal?.aborted) throw new DataError('network');
@@ -124,6 +128,11 @@ async function api<T>(
     if (init.accessContext && !init.accessContext.isCurrent()) {
       controller.abort();
       throw new DataError('unauthenticated');
+    }
+
+    if (response.status === 404 && init.notFoundAsNull === true) {
+      controller.abort();
+      return null as T;
     }
 
     // These statuses are authoritative even if their body never arrives.
@@ -400,6 +409,26 @@ export const liveData: DataSource = {
     if (result.code === 'NOT_RETRYABLE') return 'not-retryable';
     // A lost compare-and-set race: the caller refreshes and decides again.
     if (result.code === 'RETRY_CONFLICT') throw new DataError('conflict');
+    throw new DataError('server');
+  },
+
+  async deletePhoto(albumId, photoId): Promise<PhotoDeleteOutcome> {
+    // Independent of demo/UI state: no token read or request before release.
+    if (!photoDeleteReleaseEnabled) throw new DataError('server');
+    if (typeof albumId !== 'string' || !albumId || typeof photoId !== 'string' || !photoId) {
+      throw new DataError('server');
+    }
+    // One attempt only: a lost reply may still have deleted the photo, and a
+    // later request then answers 404, which is reported as already gone.
+    const result = await api<Record<string, unknown> | null>(
+      `/api/mobile/albums/${encodeURIComponent(albumId)}/photos/${encodeURIComponent(photoId)}`, {
+        method: 'DELETE',
+        readConflictBody: true,
+        notFoundAsNull: true,
+      });
+    if (result === null) return 'gone';
+    if (result.success === true) return 'deleted';
+    if (result.code === 'PHOTO_PROCESSING') return 'processing';
     throw new DataError('server');
   },
 

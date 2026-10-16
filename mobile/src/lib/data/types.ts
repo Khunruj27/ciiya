@@ -156,6 +156,13 @@ export type AlbumPreset = {
 /** One .xmp file read on the phone, sent as text. */
 export type AlbumPresetUpload = { fileName: string; content: string };
 
+/**
+ * What happened to a deletion request. `gone` means the photo no longer exists
+ * (for example an earlier request whose reply was lost); `processing` means the
+ * server refused because the worker may still write previews for it.
+ */
+export type PhotoDeleteOutcome = 'deleted' | 'gone' | 'processing';
+
 export type PhotoRetryOutcome = 'queued' | 'already-queued' | 'source-missing' | 'not-retryable';
 
 export type DataSource = {
@@ -177,6 +184,8 @@ export type DataSource = {
   setAlbumCover(albumId: string, photoId: string): Promise<void>;
   /** Sends one failed/stopped photo back to the photo worker. */
   retryPhotoProcessing(albumId: string, photoId: string): Promise<PhotoRetryOutcome>;
+  /** Permanently deletes one photo and its stored files. */
+  deletePhoto(albumId: string, photoId: string): Promise<PhotoDeleteOutcome>;
   /** The album's own presets plus account-wide legacy ones, newest first. */
   fetchAlbumPresets(albumId: string): Promise<AlbumPreset[]>;
   /** Stores a new preset for this album and returns it. */

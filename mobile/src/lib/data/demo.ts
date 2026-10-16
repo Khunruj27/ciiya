@@ -307,6 +307,19 @@ export const demoData: DataSource = {
     accessRevisions.delete(albumId);
   },
 
+  async deletePhoto(albumId, photoId) {
+    await delay(300);
+    const album = findAlbum(albumId);
+    const photos = photosByAlbum.get(albumId) ?? [];
+    const photo = photos.find((item) => item.id === photoId);
+    if (!photo) return 'gone';
+    if (['pending', 'processing', 'uploading', 'finalizing'].includes(String(photo.processingStatus))) return 'processing';
+    photosByAlbum.set(albumId, photos.filter((item) => item.id !== photoId));
+    album.photoCount = Math.max(0, album.photoCount - 1);
+    if (album.coverUrl && album.coverUrl === (photo.previewUrl || photo.thumbnailUrl)) album.coverUrl = null;
+    return 'deleted';
+  },
+
   async fetchAlbumPresets(albumId) {
     await delay(150);
     findAlbum(albumId);

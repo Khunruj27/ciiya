@@ -25,6 +25,7 @@ function liveHarness({ enabled = true, send } = {}) {
     '@/lib/album-access-release': { albumAccessReleaseEnabled: true },
     '@/lib/photo-retry-release': { photoRetryReleaseEnabled: true },
     '@/lib/preset-release': { presetReleaseEnabled: enabled },
+    '@/lib/photo-delete-release': { photoDeleteReleaseEnabled: false, isPhotoDeleteAvailable: () => false },
     '@/lib/supabase': { supabase: { auth: { getSession() {
       authCalls.push('getSession');
       return Promise.resolve({ data: { session: { access_token: 'mock-token', user: { id: 'owner' } } }, error: null });

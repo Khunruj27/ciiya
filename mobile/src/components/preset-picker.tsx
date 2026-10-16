@@ -9,6 +9,7 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { data, type AlbumPreset } from '@/lib/data';
 import { useT } from '@/lib/i18n';
+import { uniquePresets, visiblePresets } from '@/lib/preset-list';
 
 /** Mirrors the server's limit, so an oversized file is refused before sending. */
 const MAX_PRESET_BYTES = 2 * 1024 * 1024;
@@ -43,6 +44,7 @@ export function PresetPicker({
   const theme = useTheme();
   const [list, setList] = useState<ListState>({ status: 'loading' });
   const [adding, setAdding] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const addingRef = useRef(false);
   const mounted = useRef(true);
   const loadSequence = useRef(0);
@@ -59,7 +61,7 @@ export function PresetPicker({
     data.fetchAlbumPresets(albumId).then(
       (presets) => {
         if (!mounted.current || request !== loadSequence.current) return;
-        setList({ status: 'ready', presets });
+        setList({ status: 'ready', presets: uniquePresets(presets, preferredPath) });
         // Preselect the last-used preset only if this album still offers it.
         if (preferredPath && presets.some((preset) => preset.path === preferredPath)) onChange(preferredPath);
       },
@@ -104,9 +106,10 @@ export function PresetPicker({
 
       const preset = await data.uploadAlbumPreset(albumId, { fileName, content });
       if (!mounted.current) return;
+      // The new upload replaces any older copy with the same name.
       setList((current) => ({
         status: 'ready',
-        presets: [preset, ...(current.status === 'ready' ? current.presets.filter((p) => p.path !== preset.path) : [])],
+        presets: uniquePresets([preset, ...(current.status === 'ready' ? current.presets : [])], preset.path),
       }));
       onChange(preset.path);
     } catch {
@@ -118,10 +121,11 @@ export function PresetPicker({
     }
   }
 
+  const visible = list.status === 'ready' ? visiblePresets(list.presets, value, expanded) : { shown: [], hidden: 0 };
   const options: { path: string | null; name: string; detail?: string }[] = [
     { path: null, name: t.uploads.presetNone },
     ...(list.status === 'ready'
-      ? list.presets.map((preset) => ({
+      ? visible.shown.map((preset) => ({
           path: preset.path,
           name: preset.name,
           detail: preset.path.split('/')[1] === 'presets' ? t.uploads.presetAccountWide : undefined,
@@ -163,6 +167,16 @@ export function PresetPicker({
           })}
         </View>
 
+        {visible.hidden > 0 ? (
+          <Pressable onPress={() => setExpanded(true)} accessibilityRole="button" hitSlop={8} style={styles.more}>
+            <ThemedText type="smallBold" style={{ color: theme.accentDeep }}>{t.uploads.presetShowAll(visible.hidden)}</ThemedText>
+          </Pressable>
+        ) : expanded && list.status === 'ready' && list.presets.length > 4 ? (
+          <Pressable onPress={() => setExpanded(false)} accessibilityRole="button" hitSlop={8} style={styles.more}>
+            <ThemedText type="smallBold" style={{ color: theme.accentDeep }}>{t.uploads.presetShowFewer}</ThemedText>
+          </Pressable>
+        ) : null}
+
         {list.status === 'loading' ? (
           <ThemedText type="small" themeColor="textSecondary">{t.uploads.presetLoading}</ThemedText>
         ) : list.status === 'error' ? (
@@ -189,6 +203,7 @@ export function PresetPicker({
 
 const styles = StyleSheet.create({
   options: { gap: Spacing.two },
+  more: { alignSelf: 'flex-start', paddingVertical: Spacing.one },
   option: {
     minHeight: 48,
     flexDirection: 'row',

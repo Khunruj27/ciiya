@@ -96,3 +96,36 @@ test('adding a preset posts exactly the file name and text once and returns the 
     await assert.rejects(failing.liveData.uploadAlbumPreset('album', { fileName: 'Warm.xmp', content: xmp }), { kind });
   }
 });
+
+function loadList() {
+  const exports = {};
+  vm.runInNewContext(transpile('preset-list.ts'), { exports, Date, Map, Number });
+  return exports;
+}
+const preset = (path, name, createdAt) => ({ path, name, createdAt });
+
+test('re-uploaded copies collapse to one entry per name, newest first, keeping the remembered copy', () => {
+  const { uniquePresets } = loadList();
+  const list = [
+    preset('o/presets/1-cool.xmp', 'CNP-Cool', '2026-01-01T00:00:00Z'),
+    preset('o/presets/2-cool.xmp', 'CNP-Cool', '2026-03-01T00:00:00Z'),
+    preset('o/presets/3-cool.xmp', 'cnp-cool ', null),
+    preset('o/presets/warm.xmp', 'CNP-Warm', '2026-02-01T00:00:00Z'),
+    preset('o/a/presets/x.xmp', 'Film', '2026-04-01T00:00:00Z'),
+  ];
+  assert.deepEqual([...uniquePresets(list).map((p) => p.path)], ['o/a/presets/x.xmp', 'o/presets/2-cool.xmp', 'o/presets/warm.xmp']);
+  assert.deepEqual([...uniquePresets(list, 'o/presets/1-cool.xmp').map((p) => p.path)], ['o/a/presets/x.xmp', 'o/presets/warm.xmp', 'o/presets/1-cool.xmp']);
+});
+
+test('the sheet shows a few presets and always keeps the selected one visible', () => {
+  const { visiblePresets, COLLAPSED_PRESET_COUNT } = loadList();
+  const list = Array.from({ length: 9 }, (_, i) => preset(`p${i}`, `P${i}`, null));
+  const collapsed = visiblePresets(list, null, false);
+  assert.equal(collapsed.shown.length, COLLAPSED_PRESET_COUNT);
+  assert.equal(collapsed.hidden, 9 - COLLAPSED_PRESET_COUNT);
+  const withSelected = visiblePresets(list, 'p8', false);
+  assert.ok(withSelected.shown.some((p) => p.path === 'p8'));
+  assert.equal(withSelected.hidden, 9 - COLLAPSED_PRESET_COUNT - 1);
+  assert.equal(visiblePresets(list, null, true).shown.length, 9);
+  assert.equal(visiblePresets(list.slice(0, 3), null, false).hidden, 0);
+});

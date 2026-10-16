@@ -44,7 +44,7 @@ function load(relative, mocks, cache = new Map()) {
 
 function harness(options = {}) {
   const album = Object.hasOwn(options, 'album') ? options.album : { id: albumId, owner_id: ownerId, status: 'active' };
-  const state = { calls: [], uploads: [], deletes: [], clients: [], bodyReads: 0, authCalls: 0 };
+  const state = { calls: [], uploads: [], deletes: [], clients: [], bodyReads: 0, authCalls: 0, quotaClient: null };
   const assets = options.assets ?? [
     { object_key: `${ownerId}/${albumId}/presets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.xmp`, original_name: '1700000000-Warm Film.xmp', created_at: '2026-10-15T01:00:00.000Z', secret: 'never-return' },
     { object_key: `${ownerId}/${otherAlbumId}/presets/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.xmp`, original_name: 'Other album.xmp', created_at: '2026-10-14T01:00:00.000Z' },
@@ -108,7 +108,14 @@ function harness(options = {}) {
       },
     },
     '@/lib/rate-limit': { async rateLimit(_r, opts) { assert.equal(opts.identifier, ownerId); return { allowed: !options.rateLimited }; } },
-    '@/lib/get-user-storage-plan': { async getUserStoragePlan(id) { assert.equal(id, ownerId); return { remainingBytes: options.remainingBytes ?? 10_000_000 }; } },
+    '@/lib/get-user-storage-plan': { async getUserStoragePlan(id, client) {
+      assert.equal(id, ownerId);
+      // Without a client the helper uses the browser cookie session, which a
+      // native request does not have: production refused it (permission denied).
+      assert.ok(client && typeof client.from === 'function', 'The quota must be read with the caller\'s token client');
+      state.quotaClient = client;
+      return { remainingBytes: options.remainingBytes ?? 10_000_000 };
+    } },
     '@/lib/storage': {
       createStorageRef: (ref) => ref,
       getStorageAssetTarget: (kind, id) => { assert.equal(kind, 'preset'); assert.equal(id, ownerId); return { provider: 'r2', bucket: 'offline-media' }; },

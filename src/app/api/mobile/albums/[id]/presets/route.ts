@@ -112,7 +112,7 @@ export async function POST(req: NextRequest, context: RouteParams) {
     // Ownership is verified before reading the request body.
     const owned = await ownedAlbum(req, context)
     if ('response' in owned) return owned.response
-    const { ownerId, albumId } = owned
+    const { supabase, ownerId, albumId } = owned
 
     const rate = await rateLimit(req, {
       bucket: 'mobile-preset-upload',
@@ -132,7 +132,10 @@ export async function POST(req: NextRequest, context: RouteParams) {
     if (!input) return albumPresetJson({ error: 'Choose an XMP preset up to 2 MB', code: 'INVALID_PRESET' }, 400)
 
     const buffer = Buffer.from(input.content, 'utf8')
-    const plan = await getUserStoragePlan(ownerId)
+    // Read the quota with the caller's own token. Without a client the helper
+    // falls back to the browser cookie session, which a native request does not
+    // have, and the read is refused.
+    const plan = await getUserStoragePlan(ownerId, supabase)
     if (buffer.length > plan.remainingBytes) {
       return albumPresetJson({ error: 'Storage full', code: 'STORAGE_LIMIT_EXCEEDED' }, 403)
     }
@@ -176,7 +179,9 @@ export async function POST(req: NextRequest, context: RouteParams) {
         createdAt: typeof asset.created_at === 'string' ? asset.created_at : null,
       },
     }, 201)
-  } catch {
+  } catch (error) {
+    // Only the failing step's message: no keys, identities or file content.
+    console.error('[mobile/presets] upload failed:', error instanceof Error ? error.message : 'unknown error')
     // The object was stored but not registered: remove it so nothing is orphaned.
     if (uploadedRef) {
       await getStorageAdapter(uploadedRef.provider).deleteObject(uploadedRef).catch(() => {})

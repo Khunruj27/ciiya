@@ -4,7 +4,6 @@ config({ path: '.env.local' })
 
 import { createClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
-import type { Sharp } from 'sharp'
 import WebSocket from 'ws'
 import {
   createStorageRef,
@@ -18,6 +17,11 @@ import {
   buildPhotoWorkerObjectPlan,
   type PhotoWorkerSelectedSize,
 } from '../src/lib/storage/photo-worker-plan'
+import {
+  applyXmpAdjustments,
+  parseXmpPreset,
+  type XmpAdjustments,
+} from '../src/lib/xmp-preset'
 
 function getSafeIntegerEnv(
   value: string | undefined,
@@ -110,19 +114,6 @@ type PhotoStorageContext = {
   presetPath: string | null
 }
 
-type XmpAdjustments = {
-  exposure: number
-  contrast: number
-  saturation: number
-  vibrance: number
-  highlights: number
-  shadows: number
-  whites: number
-  blacks: number
-  temperature: number
-  tint: number
-  grayscale: boolean
-}
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -329,10 +320,6 @@ async function withRetry<T>(
       )
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value))
-}
-
 function hasUnsafeStoragePath(path: string) {
   const lowerPath = path.toLowerCase()
 
@@ -344,24 +331,6 @@ function hasUnsafeStoragePath(path: string) {
     lowerPath.includes('%2f') ||
     lowerPath.includes('%5c')
   )
-}
-
-function getXmpNumber(xmp: string, key: string) {
-  const patterns = [
-    new RegExp(`${key}="([^"]+)"`),
-    new RegExp(`crs:${key}="([^"]+)"`),
-  ]
-
-  for (const pattern of patterns) {
-    const match = xmp.match(pattern)
-
-    if (match?.[1]) {
-      const value = Number(match[1])
-      if (Number.isFinite(value)) return value
-    }
-  }
-
-  return 0
 }
 
 async function loadXmpAdjustments(
@@ -396,19 +365,7 @@ async function loadXmpAdjustments(
     )
     const xmp = buffer.toString('utf-8')
 
-const preset: XmpAdjustments = {
-  exposure: getXmpNumber(xmp, 'Exposure2012'),
-  contrast: getXmpNumber(xmp, 'Contrast2012'),
-  saturation: getXmpNumber(xmp, 'Saturation'),
-  vibrance: getXmpNumber(xmp, 'Vibrance'),
-  highlights: getXmpNumber(xmp, 'Highlights2012'),
-  shadows: getXmpNumber(xmp, 'Shadows2012'),
-  whites: getXmpNumber(xmp, 'Whites2012'),
-  blacks: getXmpNumber(xmp, 'Blacks2012'),
-  temperature: getXmpNumber(xmp, 'Temperature'),
-  tint: getXmpNumber(xmp, 'Tint'),
-  grayscale: getXmpBoolean(xmp, 'ConvertToGrayscale'),
-}
+    const preset: XmpAdjustments = parseXmpPreset(xmp)
 
     console.log('[PhotoWorker] loaded xmp:', preset)
 
@@ -420,84 +377,6 @@ const preset: XmpAdjustments = {
     setPresetCache(cacheKey, null)
     return null
   }
-}
-
-function getXmpBoolean(xmp: string, key: string) {
-  const patterns = [
-    new RegExp(`${key}="([^"]+)"`),
-    new RegExp(`crs:${key}="([^"]+)"`),
-  ]
-
-  for (const pattern of patterns) {
-    const match = xmp.match(pattern)
-
-    if (match?.[1]) {
-      return match[1] === 'True' || match[1] === 'true'
-    }
-  }
-
-  return false
-}
-
-function applyXmpAdjustments(image: Sharp, preset: XmpAdjustments | null) {
-  if (!preset) return image
-
-  const brightness = clamp(
-    1 +
-      preset.exposure * 0.2 +
-      preset.whites * 0.0015 -
-      preset.blacks * 0.001,
-    0.55,
-    1.75
-  )
-
-  const saturation = preset.grayscale
-    ? 0
-    : clamp(
-        1 +
-          preset.saturation * 0.006 +
-          preset.vibrance * 0.005 +
-          Math.abs(preset.temperature) * 0.0006,
-        0.15,
-        2.25
-      )
-
-  const contrast = clamp(
-    1 +
-      preset.contrast * 0.005 +
-      preset.highlights * 0.001 -
-      preset.shadows * 0.001,
-    0.65,
-    1.85
-  )
-
-  const gamma = clamp(
-    1 - preset.shadows * 0.0015 + preset.highlights * 0.001,
-    0.75,
-    1.35
-  )
-
-  let output = image
-    .modulate({
-      brightness,
-      saturation,
-    })
-    .linear(contrast, 128 - 128 * contrast)
-    .gamma(clamp(gamma, 1, 3))
-
-  if (preset.temperature || preset.tint) {
-    const red = clamp(1 + preset.temperature * 0.0012, 0.85, 1.18)
-    const blue = clamp(1 - preset.temperature * 0.0012, 0.85, 1.18)
-    const green = clamp(1 + preset.tint * 0.001, 0.9, 1.12)
-
-    output = output.recomb([
-      [red, 0, 0],
-      [0, green, 0],
-      [0, 0, blue],
-    ])
-  }
-
-  return output
 }
 
 function normalizeSelectedSize(size: string): SelectedSize {

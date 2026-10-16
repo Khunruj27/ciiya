@@ -539,7 +539,7 @@ demo mode verified the confirmation, the spinner and its clearing on the new ima
 Device acceptance: select one photo uploaded with a preset before the fix, process it
 again, and check the phone, website and share page all show the new render.
 
-### Choose a preset when processing again — prepared 2026-10-16
+### Choose a preset when processing again — released 2026-10-16
 
 The "process again" action now opens a sheet: keep each photo's own preset
 (default), or choose one preset — or "No preset" — for every selected photo
@@ -551,7 +551,17 @@ preset (adding one would replace its raw upload). The preset travels in the job
 payload; the worker renders with it and stores `preset_path` only with the commit,
 so a failed attempt leaves the photo's preset and image unchanged. A reprocess
 payload the worker cannot read now fails the job instead of rendering normally.
-Needs the worker deployed before the route.
+
+With the owner's approval the worker went first (Railway `5d01a33e`: `origin/main`
+plus the four worker files from 62f8a77), then `dpl_DZShEUsWKrjwzvQnz3L9yQi5nSQb`.
+The scratchpad copy of the live source was gone, so `dpl_8Lrp…`'s source was rebuilt
+from git using the deployment's own file listing (`vercel api
+/v6/deployments/<id>/files`; every one of its 631 files SHA-1 verified, with
+`.vercelignore` fetched from the deployment). Exactly the route and its two helpers
+changed. 77 absent/forged-credential checks pass locally and on production; first 50
+production logs info, no 5xx. Offline: 21 route contracts, 11 worker runs, 8 helper
+tests, 506 mobile regressions; demo mode verified the sheet, the preset list and a
+21-photo batch.
 
 ### Earlier working phases for the first photographer release
 

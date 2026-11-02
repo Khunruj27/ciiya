@@ -82,7 +82,8 @@
     "maintenance": "tsx scripts/auto-maintenance.ts",
     "faces:cluster": "tsx scripts/cluster-faces.ts",
     "simulator": "open -a Simulator && next dev --webpack -H 0.0.0.0",
-    "ios": "npm run simulator"
+    "ios": "npm run simulator",
+    "test:typography:b2b": "node --test scripts/test-b2b-web-typography.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1136.0",

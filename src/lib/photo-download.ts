@@ -1,6 +1,8 @@
+import { createHash } from 'node:crypto'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
 import {
+  StorageAdapterError,
   createStorageRef,
   getStorageAdapter,
   type StorageAdapter,
@@ -152,6 +154,18 @@ function makeOutputPath(
   }
 
   return `generated/${size}/${name}.jpg`
+}
+
+function sha256(buffer: Buffer) {
+  return createHash('sha256').update(buffer).digest('hex')
+}
+
+const UHD_SOURCE_FIELDS = ['storage_path', 'preview_path', 'original_path'] as const
+
+function isCreateConflict(error: unknown) {
+  if (!(error instanceof StorageAdapterError)) return false
+  const cause = error.cause as { $metadata?: { httpStatusCode?: number } } | null
+  return cause?.$metadata?.httpStatusCode === 412
 }
 
 export function getSafeContentType(value?: string | null) {
@@ -322,6 +336,7 @@ async function saveGeneratedSize(params: {
   size: Exclude<DownloadSize, 'original'>
   path: string
   buffer: Buffer
+  r2UhdPhoto?: DownloadPhotoRecord
 }) {
   const {
     supabase,
@@ -332,6 +347,7 @@ async function saveGeneratedSize(params: {
     size,
     path,
     buffer,
+    r2UhdPhoto,
   } = params
   const bucket = storageProvider === 'r2' ? storageBucket : BUCKET
 
@@ -345,11 +361,23 @@ async function saveGeneratedSize(params: {
     key: path,
   })
 
-  await adapter.uploadObject(objectRef, buffer, {
-    contentType: 'image/jpeg',
-    cacheControl: '31536000',
-    upsert: true,
-  })
+  try {
+    await adapter.uploadObject(objectRef, buffer, {
+      contentType: 'image/jpeg',
+      cacheControl: '31536000',
+      upsert: !r2UhdPhoto,
+    })
+  } catch (error) {
+    if (!r2UhdPhoto || !isCreateConflict(error)) throw error
+
+    // A concurrent request can create the same content-addressed object first.
+    const existing = await adapter.downloadObject(objectRef)
+    try {
+      if (!existing.equals(buffer)) throw new Error('UHD download object already exists with different bytes')
+    } finally {
+      existing.fill(0)
+    }
+  }
 
   // R2 delivery tiers stay private and are returned only through this
   // authorized endpoint. Supabase keeps its legacy public derivative URLs.
@@ -377,11 +405,35 @@ async function saveGeneratedSize(params: {
 
   updatePayload.updated_at = new Date().toISOString()
 
-  const { error: updateError } = await supabase
+  const update = supabase
     .from('photos')
     .update(updatePayload)
     .eq('id', photoId)
 
+  if (r2UhdPhoto) {
+    let guarded = update.eq('storage_provider', 'r2').eq('storage_bucket', bucket)
+    for (const field of [...UHD_SOURCE_FIELDS, 'uhd_path'] as const) {
+      const observed = r2UhdPhoto[field]
+      guarded = observed == null ? guarded.is(field, null) : guarded.eq(field, observed)
+    }
+
+    const saved = await guarded.select('id').maybeSingle()
+    if (saved.error) throw new Error('Failed to save generated UHD image')
+    if (saved.data) return
+
+    const latest = await supabase.from('photos')
+      .select('storage_provider,storage_bucket,storage_path,preview_path,original_path,uhd_path')
+      .eq('id', photoId).maybeSingle()
+    const current = latest.data
+    if (latest.error || !current || current.storage_provider !== 'r2' ||
+        current.storage_bucket !== bucket || current.uhd_path !== path ||
+        UHD_SOURCE_FIELDS.some((field) => (current[field] ?? null) !== (r2UhdPhoto[field] ?? null))) {
+      throw new PhotoDownloadError('Photo changed while preparing UHD download', 409)
+    }
+    return
+  }
+
+  const { error: updateError } = await update
   if (updateError) {
     console.error(
       '[photo-download] generated path update failed:',
@@ -491,9 +543,10 @@ export async function resolvePhotoDownload(params: {
     return { buffer, filename, contentType, size }
   }
 
+  const r2UhdPhoto = storageProvider === 'r2' && size === 'uhd' ? photo : undefined
   const existingPath = getExistingSizePath(photo, size)
 
-  if (existingPath) {
+  if (existingPath && (!r2UhdPhoto || existingPath !== photo.original_path)) {
     try {
       const buffer = await downloadStorageFile({
         adapter,
@@ -526,7 +579,9 @@ export async function resolvePhotoDownload(params: {
 
   try {
     resizedBuffer = await getOrCreateGeneratedBuffer({
-      cacheKey: `${storageProvider}:${photo.id}:${size}`,
+      cacheKey: r2UhdPhoto
+        ? `${storageProvider}:${photo.id}:${size}:${sha256(sourceBuffer)}`
+        : `${storageProvider}:${photo.id}:${size}`,
       originalBuffer: sourceBuffer,
       width,
     })
@@ -534,9 +589,18 @@ export async function resolvePhotoDownload(params: {
     sourceBuffer.fill(0)
   }
 
-  const generatedPath = makeOutputPath(sourcePath, size)
+  const generatedPath = r2UhdPhoto
+    ? `${ownerId}/${photo.album_id}/uhd/download-${sha256(Buffer.from(photo.id)).slice(0, 16)}-${sha256(resizedBuffer)}.jpg`
+    : makeOutputPath(sourcePath, size)
 
   try {
+    if (r2UhdPhoto && (
+      !isAllowedPhotoStoragePath(generatedPath, ownerId, photo.album_id) ||
+      [photo.storage_path, photo.original_path, photo.preview_path, photo.thumbnail_path, photo.sd_path, photo.hd_path].includes(generatedPath)
+    )) {
+      throw new Error('UHD download destination overlaps an existing photo reference')
+    }
+
     await saveGeneratedSize({
       supabase,
       adapter,
@@ -546,6 +610,7 @@ export async function resolvePhotoDownload(params: {
       size,
       path: generatedPath,
       buffer: resizedBuffer,
+      r2UhdPhoto,
     })
   } catch (error) {
     resizedBuffer.fill(0)

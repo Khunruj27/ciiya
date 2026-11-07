@@ -611,6 +611,19 @@ if (uploadPrincipal?.kind === 'ciiya-sync' && storageProvider !== 'r2') {
   )
 }
 
+// Mobile JWT uploads are R2-only. Preserve legacy browser-cookie and worker
+// paths, but never enable Supabase-source registration for the new capability.
+if (
+  uploadPrincipal?.kind === 'browser' &&
+  req.headers.has('authorization') &&
+  storageProvider !== 'r2'
+) {
+  return NextResponse.json(
+    { error: 'Mobile uploads require R2 storage' },
+    { status: 400 }
+  )
+}
+
 if (
   storageProvider === 'r2' &&
   isWorkerRequest &&

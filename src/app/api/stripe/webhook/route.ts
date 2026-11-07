@@ -13,6 +13,7 @@ import {
 import {
   getCheckoutSubscriptionId,
   getInvoiceSubscriptionId,
+  getInvoiceSubscriptionPriceIds,
   isUuid,
 } from '@/lib/stripe-billing'
 
@@ -58,25 +59,6 @@ function getCurrentPeriod(subscription: StripeSubscriptionWithPeriod) {
     start: item?.current_period_start ?? subscription.current_period_start ?? null,
     end: item?.current_period_end ?? subscription.current_period_end ?? null,
   }
-}
-
-function getInvoiceSubscriptionPriceIds(
-  invoice: Stripe.Invoice,
-  subscriptionId: string
-) {
-  return invoice.lines.data.flatMap((line) => {
-    const lineSubscriptionId =
-      typeof line.subscription === 'string'
-        ? line.subscription
-        : line.subscription?.id
-
-    if (lineSubscriptionId !== subscriptionId) return []
-
-    const price = line.pricing?.price_details?.price
-    const priceId = typeof price === 'string' ? price : price?.id
-
-    return priceId ? [priceId] : []
-  })
 }
 
 function getAdminSupabase() {

@@ -8,12 +8,7 @@ import "./globals.css"
 import AutoWorker from '@/components/auto-worker'
 import '@/lib/env'
 
-/*
- * Manrope is the primary face for the whole app. It carries Latin only, so it
- * is paired with FC Mittraphap below: the browser reaches for Manrope first
- * and falls through to FC Mittraphap for any Thai glyph, keeping one look
- * across both scripts even within a single sentence.
- */
+// B2B handles Thai and digits only; existing Latin and specialist fonts stay in place.
 const manrope = Manrope({
   variable: "--font-manrope",
   subsets: ["latin"],
@@ -21,21 +16,23 @@ const manrope = Manrope({
   display: "swap",
 })
 
-const fcMittraphap = localFont({
-  variable: "--font-fc-mittraphap",
+const b2bHybridText = localFont({
+  variable: "--font-b2b-hybrid-text",
   src: [
-    { path: "./fonts/FCMittraphap-Light.ttf", weight: "300", style: "normal" },
-    { path: "./fonts/FCMittraphap-Regular.ttf", weight: "400", style: "normal" },
-    { path: "./fonts/FCMittraphap-Italic.ttf", weight: "400", style: "italic" },
-    { path: "./fonts/FCMittraphap-Medium.ttf", weight: "500", style: "normal" },
-    { path: "./fonts/FCMittraphap-MediumItalic.ttf", weight: "500", style: "italic" },
-    { path: "./fonts/FCMittraphap-SemiBold.ttf", weight: "600", style: "normal" },
-    { path: "./fonts/FCMittraphap-Bold.ttf", weight: "700", style: "normal" },
-    { path: "./fonts/FCMittraphap-Black.ttf", weight: "900", style: "normal" },
+    { path: "./fonts/b2b-hybrid/B2BHybridText-Thin.woff2", weight: "100", style: "normal" },
+    { path: "./fonts/b2b-hybrid/B2BHybridText-ExtraLight.woff2", weight: "200", style: "normal" },
+    { path: "./fonts/b2b-hybrid/B2BHybridText-Light.woff2", weight: "300", style: "normal" },
+    { path: "./fonts/b2b-hybrid/B2BHybridText-Regular.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/b2b-hybrid/B2BHybridText-Medium.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/b2b-hybrid/B2BHybridText-SemiBold.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/b2b-hybrid/B2BHybridText-Bold.woff2", weight: "700", style: "normal" },
+    { path: "./fonts/b2b-hybrid/B2BHybridText-ExtraBold.woff2", weight: "800", style: "normal" },
+    { path: "./fonts/b2b-hybrid/B2BHybridText-Black.woff2", weight: "900", style: "normal" },
   ],
   display: "swap",
   preload: false,
-  fallback: ["Arial", "sans-serif"],
+  adjustFontFallback: false,
+  declarations: [{ prop: "unicode-range", value: "U+0030-0039, U+0E00-0E7F" }],
 })
 
 const siteUrl = getSiteUrl()
@@ -106,7 +103,7 @@ export default async function RootLayout({
   return (
     <html
       lang={locale}
-      className={`${manrope.variable} ${fcMittraphap.variable} h-full antialiased`}
+      className={`${manrope.variable} ${b2bHybridText.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <I18nProvider locale={locale}>{children}</I18nProvider>

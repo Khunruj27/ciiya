@@ -25,34 +25,22 @@ export default async function AlbumsPage() {
 
   if (!user) redirect('/login')
 
-  const { t, locale } = await getServerDictionary()
+  const [{ t, locale }, unreadNotificationCount, albums] = await Promise.all([
+    getServerDictionary(),
+    getUnreadNotificationCount(supabase, user.id),
+    (async () => {
+      const { data: albumsData } = await supabase
+        .from('albums')
+        .select(`
+          id,owner_id,user_id,title,description,cover_url,cover_photo_id,
+          share_token,photo_count,view_count,share_count,status,created_at,updated_at
+        `)
+        .eq('owner_id', user.id)
+        .order('created_at', { ascending: false })
 
-  const { data: albumsData } = await supabase
-  .from('albums')
-  .select(
-    `
-    id,
-    owner_id,
-    user_id,
-    title,
-    description,
-    cover_url,
-    cover_photo_id,
-    share_token,
-    photo_count,
-    view_count,
-    share_count,
-    status,
-    created_at,
-    updated_at
-    `
-  )
-  .eq('owner_id', user.id)
-  .order('created_at', { ascending: false })
-
-  const albums = await resolveAlbumCoverDeliveries(supabase, albumsData ?? [])
-
-  const unreadNotificationCount = await getUnreadNotificationCount(supabase, user.id)
+      return resolveAlbumCoverDeliveries(supabase, albumsData ?? [])
+    })(),
+  ])
 
   const photoCountMap = albums.reduce<Record<string, number>>((acc, album) => {
     acc[album.id] = album.photo_count || 0

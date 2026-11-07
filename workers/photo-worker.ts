@@ -4,7 +4,6 @@ config({ path: '.env.local' })
 
 import { createClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
-import type { Sharp } from 'sharp'
 import WebSocket from 'ws'
 import {
   createStorageRef,
@@ -18,6 +17,16 @@ import {
   buildPhotoWorkerObjectPlan,
   type PhotoWorkerSelectedSize,
 } from '../src/lib/storage/photo-worker-plan'
+import {
+  parseXmpPreset,
+  renderPreset,
+  type XmpAdjustments,
+} from '../src/lib/xmp-preset'
+import {
+  PHOTO_REPROCESS_SOURCE,
+  readPhotoReprocessRequest,
+  supersededPhotoObjectKeys,
+} from '../src/lib/photo-reprocess'
 
 function getSafeIntegerEnv(
   value: string | undefined,
@@ -89,6 +98,8 @@ type PhotoJob = {
 
   retry_count?: number | null
   retries?: number | null
+
+  payload?: unknown
 }
 
 type PhotoStorageRecord = {
@@ -101,6 +112,15 @@ type PhotoStorageRecord = {
   storage_provider?: string | null
   storage_bucket?: string | null
   preset_path?: string | null
+  processing_status?: string | null
+  preview_path?: string | null
+  thumbnail_path?: string | null
+  sd_path?: string | null
+  hd_path?: string | null
+  uhd_path?: string | null
+  preview_url?: string | null
+  thumbnail_url?: string | null
+  public_url?: string | null
 }
 
 type PhotoStorageContext = {
@@ -108,21 +128,14 @@ type PhotoStorageContext = {
   bucket: string | null
   originalPath: string
   presetPath: string | null
+  /** The finished render a reprocess replaces (only read in that mode). */
+  previous: {
+    processingStatus: string | null
+    objectKeys: Array<string | null>
+    urls: Array<string | null>
+  }
 }
 
-type XmpAdjustments = {
-  exposure: number
-  contrast: number
-  saturation: number
-  vibrance: number
-  highlights: number
-  shadows: number
-  whites: number
-  blacks: number
-  temperature: number
-  tint: number
-  grayscale: boolean
-}
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -329,10 +342,6 @@ async function withRetry<T>(
       )
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value))
-}
-
 function hasUnsafeStoragePath(path: string) {
   const lowerPath = path.toLowerCase()
 
@@ -344,24 +353,6 @@ function hasUnsafeStoragePath(path: string) {
     lowerPath.includes('%2f') ||
     lowerPath.includes('%5c')
   )
-}
-
-function getXmpNumber(xmp: string, key: string) {
-  const patterns = [
-    new RegExp(`${key}="([^"]+)"`),
-    new RegExp(`crs:${key}="([^"]+)"`),
-  ]
-
-  for (const pattern of patterns) {
-    const match = xmp.match(pattern)
-
-    if (match?.[1]) {
-      const value = Number(match[1])
-      if (Number.isFinite(value)) return value
-    }
-  }
-
-  return 0
 }
 
 async function loadXmpAdjustments(
@@ -396,19 +387,7 @@ async function loadXmpAdjustments(
     )
     const xmp = buffer.toString('utf-8')
 
-const preset: XmpAdjustments = {
-  exposure: getXmpNumber(xmp, 'Exposure2012'),
-  contrast: getXmpNumber(xmp, 'Contrast2012'),
-  saturation: getXmpNumber(xmp, 'Saturation'),
-  vibrance: getXmpNumber(xmp, 'Vibrance'),
-  highlights: getXmpNumber(xmp, 'Highlights2012'),
-  shadows: getXmpNumber(xmp, 'Shadows2012'),
-  whites: getXmpNumber(xmp, 'Whites2012'),
-  blacks: getXmpNumber(xmp, 'Blacks2012'),
-  temperature: getXmpNumber(xmp, 'Temperature'),
-  tint: getXmpNumber(xmp, 'Tint'),
-  grayscale: getXmpBoolean(xmp, 'ConvertToGrayscale'),
-}
+    const preset: XmpAdjustments = parseXmpPreset(xmp)
 
     console.log('[PhotoWorker] loaded xmp:', preset)
 
@@ -420,84 +399,6 @@ const preset: XmpAdjustments = {
     setPresetCache(cacheKey, null)
     return null
   }
-}
-
-function getXmpBoolean(xmp: string, key: string) {
-  const patterns = [
-    new RegExp(`${key}="([^"]+)"`),
-    new RegExp(`crs:${key}="([^"]+)"`),
-  ]
-
-  for (const pattern of patterns) {
-    const match = xmp.match(pattern)
-
-    if (match?.[1]) {
-      return match[1] === 'True' || match[1] === 'true'
-    }
-  }
-
-  return false
-}
-
-function applyXmpAdjustments(image: Sharp, preset: XmpAdjustments | null) {
-  if (!preset) return image
-
-  const brightness = clamp(
-    1 +
-      preset.exposure * 0.2 +
-      preset.whites * 0.0015 -
-      preset.blacks * 0.001,
-    0.55,
-    1.75
-  )
-
-  const saturation = preset.grayscale
-    ? 0
-    : clamp(
-        1 +
-          preset.saturation * 0.006 +
-          preset.vibrance * 0.005 +
-          Math.abs(preset.temperature) * 0.0006,
-        0.15,
-        2.25
-      )
-
-  const contrast = clamp(
-    1 +
-      preset.contrast * 0.005 +
-      preset.highlights * 0.001 -
-      preset.shadows * 0.001,
-    0.65,
-    1.85
-  )
-
-  const gamma = clamp(
-    1 - preset.shadows * 0.0015 + preset.highlights * 0.001,
-    0.75,
-    1.35
-  )
-
-  let output = image
-    .modulate({
-      brightness,
-      saturation,
-    })
-    .linear(contrast, 128 - 128 * contrast)
-    .gamma(clamp(gamma, 1, 3))
-
-  if (preset.temperature || preset.tint) {
-    const red = clamp(1 + preset.temperature * 0.0012, 0.85, 1.18)
-    const blue = clamp(1 - preset.temperature * 0.0012, 0.85, 1.18)
-    const green = clamp(1 + preset.tint * 0.001, 0.9, 1.12)
-
-    output = output.recomb([
-      [red, 0, 0],
-      [0, green, 0],
-      [0, 0, blue],
-    ])
-  }
-
-  return output
 }
 
 function normalizeSelectedSize(size: string): SelectedSize {
@@ -570,6 +471,21 @@ async function getPhotoStorageContext(
         : job.preset_path != null
           ? String(job.preset_path)
           : null,
+    previous: {
+      processingStatus: photo.processing_status ?? null,
+      objectKeys: [
+        photo.preview_path ?? null,
+        photo.thumbnail_path ?? null,
+        photo.sd_path ?? null,
+        photo.hd_path ?? null,
+        photo.uhd_path ?? null,
+      ],
+      urls: [
+        photo.preview_url ?? null,
+        photo.thumbnail_url ?? null,
+        photo.public_url ?? null,
+      ],
+    },
   }
 }
 
@@ -891,14 +807,13 @@ async function generateResizeBuffer(
   quality = 86,
   preset: XmpAdjustments | null = null
 ) {
-  const image = sharp(buffer).rotate()
+  const image = await renderPreset(sharp(buffer).rotate(), preset, {
+    width,
+    fit: 'inside',
+    withoutEnlargement: true,
+  })
 
-  return applyXmpAdjustments(image, preset)
-    .resize({
-      width,
-      fit: 'inside',
-      withoutEnlargement: true,
-    })
+  return image
     .jpeg({
       quality,
       mozjpeg: true,
@@ -911,9 +826,9 @@ async function generateOriginalProcessedBuffer(
   quality = 90,
   preset: XmpAdjustments | null = null
 ) {
-  const image = sharp(buffer).rotate()
+  const image = await renderPreset(sharp(buffer).rotate(), preset)
 
-  return applyXmpAdjustments(image, preset)
+  return image
     .jpeg({
       quality,
       mozjpeg: true,
@@ -1226,7 +1141,8 @@ function isTransientError(message: string) {
 
 async function markJobFailedOrRetry(
   job: PhotoJob,
-  message: string
+  message: string,
+  options: { keepPhotoStatus?: boolean } = {}
 ) {
   const retryCount = Number(
     job.retry_count ||
@@ -1279,7 +1195,9 @@ async function markJobFailedOrRetry(
     return false
   }
 
-  if (job.photo_id) {
+  // A failed reprocess leaves the finished photo, and its previous render,
+  // exactly as it was.
+  if (job.photo_id && !options.keepPhotoStatus) {
     await updatePhoto(
       String(job.photo_id),
       {
@@ -1290,13 +1208,133 @@ async function markJobFailedOrRetry(
     )
   }
 
-  return true
+  return nextStatus
+}
+
+async function deleteObjectsQuietly(params: {
+  provider: StorageProvider
+  bucket: string
+  keys: string[]
+  label: string
+}) {
+  let removed = 0
+  const adapter = getWorkerStorageAdapter(params.provider)
+
+  for (const key of params.keys) {
+    try {
+      await withRetry(() =>
+        adapter.deleteObject(
+          createStorageRef({
+            provider: params.provider,
+            bucket: params.bucket,
+            key,
+          })
+        )
+      )
+      removed += 1
+    } catch (error) {
+      console.warn(
+        `[PhotoWorker] ${params.label} not removed:`,
+        error instanceof Error ? error.message : error
+      )
+    }
+  }
+
+  return removed
+}
+
+/**
+ * After a reprocess commits: faces were found on the same pixels, so they are
+ * kept and only their source image moves; a stored album cover pointing at the
+ * previous render follows it; then the previous objects are removed. Every step
+ * is best effort, because the photo itself is already complete.
+ */
+async function finishPhotoReprocess(params: {
+  job: PhotoJob
+  storageContext: PhotoStorageContext
+  outputBucket: string
+  currentKeys: Array<string | null>
+  previewUrl: string
+  faceImagePath: string
+}) {
+  const { job, storageContext } = params
+  const photoId = String(job.photo_id)
+  const ownerId = String(job.owner_id)
+  const albumId = String(job.album_id)
+
+  try {
+    const result = await withRetry(() =>
+      supabase
+        .from('face_jobs')
+        .update({
+          image_path: params.faceImagePath,
+          image_url: params.previewUrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('photo_id', photoId)
+        .eq('owner_id', ownerId)
+    )
+    if (result.error) throw new Error(result.error.message)
+  } catch (error) {
+    console.warn(
+      '[PhotoWorker] face job source not updated:',
+      error instanceof Error ? error.message : error
+    )
+  }
+
+  const previousUrls = storageContext.previous.urls.filter(
+    (url): url is string => Boolean(url)
+  )
+
+  if (previousUrls.length > 0) {
+    try {
+      const result = await withRetry(() =>
+        supabase
+          .from('albums')
+          .update({ cover_url: params.previewUrl })
+          .eq('id', albumId)
+          .eq('cover_photo_id', photoId)
+          .in('cover_url', previousUrls)
+      )
+      if (result.error) throw new Error(result.error.message)
+    } catch (error) {
+      console.warn(
+        '[PhotoWorker] album cover not updated:',
+        error instanceof Error ? error.message : error
+      )
+    }
+  }
+
+  const stale = supersededPhotoObjectKeys({
+    ownerId,
+    albumId,
+    originalPath: storageContext.originalPath,
+    previous: storageContext.previous.objectKeys,
+    current: params.currentKeys,
+  })
+  const removed = await deleteObjectsQuietly({
+    provider: storageContext.provider,
+    bucket: params.outputBucket,
+    keys: stale,
+    label: 'previous render',
+  })
+
+  console.log(
+    `[PhotoWorker] reprocessed: ${job.id} (removed ${removed}/${stale.length} previous objects)`
+  )
 }
 
 async function processPhotoJob(job: PhotoJob) {
   activeJobsCount += 1
 
   const jobBuffers = new Set<Buffer>()
+  let isReprocess = false
+  // New objects a reprocess wrote but has not committed to the photo row yet.
+  let uncommittedReprocessObjects: {
+    provider: StorageProvider
+    bucket: string
+    keys: string[]
+  } | null = null
 
   try {
     console.log('[PhotoWorker] processing:', job.id)
@@ -1306,8 +1344,34 @@ async function processPhotoJob(job: PhotoJob) {
 
     const storageContext = await getPhotoStorageContext(job)
     const originalPath = storageContext.originalPath
-    const presetPath = storageContext.presetPath
     const allowedPrefix = `${job.owner_id}/${job.album_id}/`
+
+    // Only a finished photo is re-rendered beside its current one; any other
+    // state is processed as a normal job.
+    const reprocess =
+      storageContext.previous.processingStatus === 'done'
+        ? readPhotoReprocessRequest(job.payload)
+        : null
+    isReprocess = Boolean(reprocess)
+
+    if (
+      !reprocess &&
+      storageContext.previous.processingStatus === 'done' &&
+      (job.payload as { source?: unknown } | null)?.source === PHOTO_REPROCESS_SOURCE
+    ) {
+      // A reprocess request that cannot be read must not fall back to a normal
+      // render, which would rewrite the current keys and reset faces.
+      isReprocess = true
+      throw new Error('Invalid reprocess request')
+    }
+
+    // A reprocess may name a different preset (or none). It is stored on the
+    // photo only with the commit, so a failed attempt never leaves the row
+    // describing a render it does not have.
+    const presetChanged = reprocess?.presetPath !== undefined
+    const presetPath = presetChanged
+      ? reprocess!.presetPath ?? null
+      : storageContext.presetPath
 
     if (
       !originalPath ||
@@ -1329,10 +1393,14 @@ async function processPhotoJob(job: PhotoJob) {
       throw new Error('Invalid preset_path')
     }
 
-    await updatePhoto(String(job.photo_id), {
-      processing_status: 'processing',
-      processing_progress: 10,
-    })
+    // A reprocess keeps the photo `done`, so the gallery shows the previous
+    // render until the new one is committed.
+    if (!reprocess) {
+      await updatePhoto(String(job.photo_id), {
+        processing_status: 'processing',
+        processing_progress: 10,
+      })
+    }
 
     // The photo row is canonical for provider, bucket, and path. This prevents
     // stale or forged queue payloads from redirecting a worker to another
@@ -1356,7 +1424,13 @@ async function processPhotoJob(job: PhotoJob) {
       originalKey: originalPath,
       selectedSize,
       hasPreset: Boolean(xmpPreset),
+      revision: reprocess?.revision ?? null,
     })
+
+    if (reprocess && objectPlan.shouldReplaceSupabaseRawOriginal) {
+      // That path deletes the raw upload; a reprocess must never lose it.
+      throw new Error('Reprocess would replace the raw original')
+    }
     const previewPath = objectPlan.previewKey
     const thumbnailPath = objectPlan.thumbnailKey
     const outputBucket =
@@ -1376,15 +1450,18 @@ async function processPhotoJob(job: PhotoJob) {
           : selectedSize === 'original'
             ? Promise.resolve(originalBuffer)
             : generateResizeBuffer(originalBuffer, previewWidth, 86, xmpPreset),
-      applyXmpAdjustments(sharp(originalBuffer).rotate(), xmpPreset)
-        .resize(480, 480, {
-          fit: 'cover',
-        })
-        .jpeg({
-          quality: 76,
-          mozjpeg: true,
-        })
-        .toBuffer(),
+      renderPreset(sharp(originalBuffer).rotate(), xmpPreset, {
+        width: 480,
+        height: 480,
+        fit: 'cover',
+      }).then((image) =>
+        image
+          .jpeg({
+            quality: 76,
+            mozjpeg: true,
+          })
+          .toBuffer()
+      ),
     ])
 
     jobBuffers.add(previewBuffer)
@@ -1408,12 +1485,14 @@ async function processPhotoJob(job: PhotoJob) {
     const blurSourceBufferPromise =
       storageContext.provider === 'r2' || selectedSize !== 'original'
         ? Promise.resolve(previewBuffer)
-        : applyXmpAdjustments(sharp(originalBuffer).rotate(), xmpPreset)
-            .jpeg({
-              quality: 60,
-              mozjpeg: true,
-            })
-            .toBuffer()
+        : renderPreset(sharp(originalBuffer).rotate(), xmpPreset).then((image) =>
+            image
+              .jpeg({
+                quality: 60,
+                mozjpeg: true,
+              })
+              .toBuffer()
+          )
 
     const uploadTasks = [
       uploadPhotoObject({
@@ -1444,6 +1523,22 @@ async function processPhotoJob(job: PhotoJob) {
           body: selectedDerivativeBuffer,
         })
       )
+    }
+
+    if (reprocess) {
+      const previousKeys = new Set(storageContext.previous.objectKeys)
+      uncommittedReprocessObjects = {
+        provider: storageContext.provider,
+        bucket: outputBucket,
+        keys: [
+          thumbnailPath,
+          objectPlan.shouldUploadPreview ? previewPath : null,
+          objectPlan.selectedDerivativeKey,
+        ].filter(
+          (key): key is string =>
+            Boolean(key) && key !== originalPath && !previousKeys.has(key)
+        ),
+      }
     }
 
     await Promise.all(uploadTasks)
@@ -1506,9 +1601,11 @@ async function processPhotoJob(job: PhotoJob) {
       }
     }
 
-    await updatePhoto(String(job.photo_id), {
-      processing_progress: 60,
-    })
+    if (!reprocess) {
+      await updatePhoto(String(job.photo_id), {
+        processing_progress: 60,
+      })
+    }
 
     const previewUrl = getPhotoPublicUrl({
       provider: storageContext.provider,
@@ -1556,6 +1653,25 @@ if (!stillOwnsJob) {
     job.id
   )
 
+  // Another worker that took the job over writes the same keys, so they are
+  // removed only when the photo itself was deleted mid-reprocess.
+  if (uncommittedReprocessObjects) {
+    const photoResult = await withRetry(() =>
+      supabase
+        .from('photos')
+        .select('id')
+        .eq('id', String(job.photo_id))
+        .maybeSingle()
+    )
+
+    if (!photoResult.data) {
+      await deleteObjectsQuietly({
+        ...uncommittedReprocessObjects,
+        label: 'reprocess object of a deleted photo',
+      })
+    }
+  }
+
   return
 }
 
@@ -1596,33 +1712,78 @@ if (!stillOwnsJob) {
 
       blur_data_url: blurDataUrl,
 
+      ...(presetChanged ? { preset_path: presetPath } : {}),
+
       processing_status: 'done',
       processing_progress: 100,
 
-      face_scan_status: FACE_SCAN_ENABLED ? 'pending' : 'skipped',
-      face_scan_progress: FACE_SCAN_ENABLED ? 0 : 100,
-      face_scan_error: FACE_SCAN_ENABLED ? null : 'FACE_SCAN_ENABLED is false',
-      faces_count: 0,
+      // A reprocess keeps the faces already found on these pixels.
+      ...(reprocess
+        ? {}
+        : {
+            face_scan_status: FACE_SCAN_ENABLED ? 'pending' : 'skipped',
+            face_scan_progress: FACE_SCAN_ENABLED ? 0 : 100,
+            face_scan_error: FACE_SCAN_ENABLED
+              ? null
+              : 'FACE_SCAN_ENABLED is false',
+            faces_count: 0,
+          }),
 
       updated_at: new Date().toISOString(),
     }
 
     const updateResult = await withRetry(() =>
-      supabase.from('photos').update(finalPayload).eq('id', String(job.photo_id))
+      supabase
+        .from('photos')
+        .update(finalPayload)
+        .eq('id', String(job.photo_id))
+        .select('id')
     )
 
     if (updateResult.error) {
       throw new Error(updateResult.error.message)
     }
 
-    await queueFaceJob({
-      job,
-      imagePath:
-        storageContext.provider === 'r2' ? previewPath : hdPath || previewPath,
-      imageUrl: previewUrl,
-      storageProvider: storageContext.provider,
-      storageBucket: outputBucket,
-    })
+    if (uncommittedReprocessObjects && !updateResult.data?.length) {
+      // The photo was deleted while it was being rendered again.
+      await deleteObjectsQuietly({
+        ...uncommittedReprocessObjects,
+        label: 'reprocess object of a deleted photo',
+      })
+      uncommittedReprocessObjects = null
+      return
+    }
+
+    // The photo row now references the new objects.
+    uncommittedReprocessObjects = null
+
+    const faceImagePath =
+      storageContext.provider === 'r2' ? previewPath : hdPath || previewPath
+
+    if (reprocess) {
+      await finishPhotoReprocess({
+        job,
+        storageContext,
+        outputBucket,
+        currentKeys: [
+          previewPath,
+          thumbnailPath,
+          sdPath,
+          hdPath,
+          uhdPath,
+        ],
+        previewUrl,
+        faceImagePath,
+      })
+    } else {
+      await queueFaceJob({
+        job,
+        imagePath: faceImagePath,
+        imageUrl: previewUrl,
+        storageProvider: storageContext.provider,
+        storageBucket: outputBucket,
+      })
+    }
 
     const jobMarkedDone = await markJobDone(job)
 
@@ -1644,12 +1805,23 @@ console.log('[PhotoWorker] done:', job.id)
     const failureRecorded =
   await markJobFailedOrRetry(
     job,
-    message
+    message,
+    { keepPhotoStatus: isReprocess }
   )
 
 if (failureRecorded) {
   failedJobsCount += 1
 }
+
+    // A retry rewrites the same keys, so only a final failure (still owned by
+    // this worker) removes what the reprocess added; the photo keeps its
+    // previous render either way.
+    if (failureRecorded === 'failed' && uncommittedReprocessObjects) {
+      await deleteObjectsQuietly({
+        ...uncommittedReprocessObjects,
+        label: 'uncommitted reprocess object',
+      })
+    }
   } finally {
   for (const buffer of jobBuffers) {
     buffer.fill(0)

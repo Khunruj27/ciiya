@@ -78,11 +78,10 @@
   --shadow-lift: var(--ciiya-shadow-lift);
   --shadow-float: var(--ciiya-shadow-float);
 
-  /* Manrope leads for Latin; FC Mittraphap catches every Thai glyph Manrope
-     does not carry. Keep this order everywhere a font is set below. */
-  --font-sans: var(--font-manrope), var(--font-fc-mittraphap);
-  --font-serif: var(--font-manrope), var(--font-fc-mittraphap);
-  --font-mono: var(--font-manrope), var(--font-fc-mittraphap);
+  /* B2B serves Thai and digits; Manrope continues to serve Latin. */
+  --font-sans: var(--font-b2b-hybrid-text), var(--font-manrope);
+  --font-serif: var(--font-b2b-hybrid-text), var(--font-manrope);
+  --font-mono: var(--font-b2b-hybrid-text), var(--font-manrope);
 }
 
 /*
@@ -95,7 +94,7 @@
 body {
   background: var(--ciiya-ground);
   color: var(--ciiya-ink);
-  font-family: var(--font-manrope), var(--font-fc-mittraphap), "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-b2b-hybrid-text), var(--font-manrope), "Helvetica Neue", Arial, sans-serif;
   font-kerning: normal;
   font-synthesis: none;
   letter-spacing: 0;
@@ -104,10 +103,8 @@ body {
 }
 
 /*
- * FC Mittraphap has a wider, more geometric rhythm than the previous family.
- * The old negative tracking and sub-1.0 display leading pulled Thai vowels and
- * tone marks too close together. Keep display type compact, but leave enough
- * room for Thai marks on every responsive breakpoint.
+ * Keep display type compact while leaving enough room for B2B Hybrid
+ * Thai's vowels and tone marks on every responsive breakpoint.
  */
 :where(h1, h2, h3, h4, h5, h6) {
   font-kerning: normal;
@@ -207,17 +204,16 @@ a {
   --pf-accent-soft: #f7eae6;
 }
 
-/* Portfolio display styles use the same family as the app: Manrope for Latin,
-   FC Mittraphap for Thai. */
+/* Portfolio display styles share the app's B2B Thai/digit and Manrope Latin faces. */
 .pf-display {
-  font-family: var(--font-manrope), var(--font-fc-mittraphap), "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-b2b-hybrid-text), var(--font-manrope), "Helvetica Neue", Arial, sans-serif;
   font-weight: 600;
   letter-spacing: -0.015em;
   line-height: 1.08;
 }
 
 .pf-serif {
-  font-family: var(--font-manrope), var(--font-fc-mittraphap), "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-b2b-hybrid-text), var(--font-manrope), "Helvetica Neue", Arial, sans-serif;
 }
 
 /* An editorial section marker: a hairline, a two-digit index, and a tracked

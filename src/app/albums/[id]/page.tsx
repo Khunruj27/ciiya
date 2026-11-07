@@ -9,6 +9,7 @@ import CoverCropUpload from '@/components/cover-crop-upload'
 import AlbumRealtimeRefresher from '@/components/album-realtime-refresher'
 import AppIcon from '@/components/app-icon'
 import AlbumCameraStatus from '@/components/album-camera-status'
+import { supportsServerUsbCamera } from '@/lib/camera-runtime'
 import UploadPhotoModal from '@/components/upload-photo-modal'
 import AlbumPhotoGridPreview from '@/components/album-photo-grid-preview'
 import { getServerDictionary } from '@/lib/i18n-server'
@@ -301,7 +302,7 @@ const cameraProcessingGridItems = (cameraImportsData || [])
   </Link>
 </section>
 
-<AlbumCameraStatus albumId={album.id} />
+<AlbumCameraStatus albumId={album.id} albumTitle={album.title} localUsbEnabled={supportsServerUsbCamera()} />
 
 
         {/* PHOTO GRID */}

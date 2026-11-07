@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import NextImage from 'next/image'
 import { getGuestId } from '@/lib/guest-id'
 import { useI18n } from '@/components/i18n-provider'
@@ -9,10 +9,7 @@ import {
   Grid3Icon,
   Grid4Icon,
 } from '@/components/gallery-grid-icons'
-import {
-  FixedSizeGrid as VirtualGrid,
-  type GridChildComponentProps,
-} from 'react-window'
+import PageWindowedGrid from '@/components/page-windowed-grid'
 
 type Photo = {
   id: string
@@ -324,7 +321,7 @@ const VirtualPhotoCell = memo(function VirtualPhotoCell({
   rowIndex,
   style,
   data,
-}: GridChildComponentProps<VirtualPhotoCellData>) {
+}: { columnIndex: number; rowIndex: number; style: CSSProperties; data: VirtualPhotoCellData }) {
   const index = rowIndex * data.gridCols + columnIndex
   const photo = data.photos[index]
 
@@ -406,7 +403,8 @@ export default function PublicGallery({
     return () => observer.disconnect()
   }, [])
 
-  const popularPhotos = useMemo(() => {
+  const displayPhotos = useMemo(() => {
+    if (tab === 'live') return photos
     return [...photos].sort((a, b) => {
       const aViews = Number(a.view_count || 0)
       const bViews = Number(b.view_count || 0)
@@ -414,12 +412,7 @@ export default function PublicGallery({
       if (bViews !== aViews) return bViews - aViews
       return a.id.localeCompare(b.id)
     })
-  }, [photos])
-
-  const displayPhotos = useMemo(
-    () => (tab === 'live' ? photos : popularPhotos),
-    [photos, popularPhotos, tab]
-  )
+  }, [photos, tab])
 
   const activePosition = displayPhotos.findIndex((photo) => photo.id === activePhotoId)
   const activeIndex = activePosition < 0 ? null : activePosition
@@ -834,30 +827,21 @@ useEffect(() => {
               )
 
               return (
-                // Height is the full content height so the grid flows with the
-                // page (one natural scroll) instead of scrolling inside a fixed
-                // box. overflow:visible stops react-window adding its own scroll.
-                <VirtualGrid
-                  height={rowCount * rowHeight}
-                  width={safeWidth}
+                // Preserve natural page scrolling without mounting every row.
+                <PageWindowedGrid
                   columnCount={responsiveCols}
                   columnWidth={columnWidth}
                   rowCount={rowCount}
                   rowHeight={rowHeight}
-                  overscanRowCount={3}
-                  style={{ overflow: 'visible' }}
-                  itemData={{ ...gridData, gridCols: responsiveCols }}
-                  itemKey={({ columnIndex, rowIndex, data }) => {
-                    const photoIndex =
-                      rowIndex * data.gridCols + columnIndex
-                    return (
-                      data.photos[photoIndex]?.id ||
-                      `${rowIndex}-${columnIndex}`
-                    )
-                  }}
                 >
-                  {VirtualPhotoCell}
-                </VirtualGrid>
+                  {({ columnIndex, rowIndex, style }) => (
+                    <VirtualPhotoCell
+                      key={displayPhotos[rowIndex * responsiveCols + columnIndex]?.id || `${rowIndex}-${columnIndex}`}
+                      columnIndex={columnIndex} rowIndex={rowIndex} style={style}
+                      data={{ ...gridData, gridCols: responsiveCols }}
+                    />
+                  )}
+                </PageWindowedGrid>
               )
             })()
           : null}

@@ -1,0 +1,22 @@
+{
+  "cli": { "appVersionSource": "local" },
+  "build": {
+    "base": {
+      "node": "24.10.0",
+      "env": { "EXPO_PUBLIC_SITE_URL": "https://www.ciiya.app", "EXPO_PUBLIC_DEMO": "0" }
+    },
+    "preview": {
+      "extends": "base",
+      "distribution": "internal",
+      "android": { "buildType": "apk" }
+    },
+    "preview-simulator": {
+      "extends": "preview",
+      "ios": { "simulator": true }
+    },
+    "production": {
+      "extends": "base",
+      "distribution": "store"
+    }
+  }
+}

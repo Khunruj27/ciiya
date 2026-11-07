@@ -9,11 +9,13 @@ import { CIIYA_SYNC_INSTALLERS, ciiyaSyncInstallerKey } from '../src/lib/ciiya-s
 
 config({ path: '.env.local', quiet: true })
 const files = {
-  'mac-arm64': 'release/ciiya-sync-macos-style/Ciiya-Sync-0.1.0-macOS-style-arm64.dmg',
-  windows: 'release/ciiya-sync-windows-style/Ciiya-Sync-0.1.0-win.exe',
+  'mac-arm64': 'release/ciiya-sync-domain-20261007/mac/Ciiya-Sync-0.1.0-mac-arm64.dmg',
+  windows: 'release/ciiya-sync-domain-20261007/windows/Ciiya-Sync-0.1.0-win.exe',
 }
 
 async function main() {
+  const verifyOnly = process.argv.includes('--verify-only')
+  if (verifyOnly && process.argv.includes('--apply')) throw new Error('CONFLICTING_MODES')
   // Validate both local files before any remote writes.
   for (const installer of CIIYA_SYNC_INSTALLERS) {
     const file = files[installer.id]
@@ -24,7 +26,7 @@ async function main() {
     }
     console.log(`${installer.id}: local SHA-256 verified`)
   }
-  if (!process.argv.includes('--apply')) {
+  if (!process.argv.includes('--apply') && !verifyOnly) {
     console.log('Dry run: pass --apply to publish the two verified installers (no overwrite).')
     return
   }
@@ -48,6 +50,7 @@ async function main() {
         if ((error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode !== 404) throw error
       }
       if (!exists) {
+        if (verifyOnly) throw new Error(`REMOTE_ARTIFACT_MISSING: ${installer.id}`)
         console.log(`${installer.id}: uploading verified installer`)
         await client.send(new PutObjectCommand({
           ...object, Body: createReadStream(files[installer.id]), ContentLength: installer.bytes,

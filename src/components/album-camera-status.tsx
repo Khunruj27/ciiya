@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '@/components/i18n-provider'
+import AlbumCameraSync from '@/components/album-camera-sync'
 
 const AUTO_DETECT_POLL_MS = 3000
 // After this many consecutive "no camera" polls, back off from the fast 3s
@@ -14,6 +15,8 @@ const AUTO_START_FAILURE_LIMIT = 3
 
 type Props = {
   albumId: string
+  albumTitle?: string
+  localUsbEnabled?: boolean
 }
 
 type CameraState = {
@@ -29,7 +32,12 @@ type PresetItem = {
 }
 
 
-export default function AlbumCameraStatus({ albumId }: Props) {
+export default function AlbumCameraStatus(props: Props) {
+  if (!props.localUsbEnabled) return <AlbumCameraSync albumTitle={props.albumTitle} />
+  return <LocalUsbCameraStatus albumId={props.albumId} />
+}
+
+function LocalUsbCameraStatus({ albumId }: { albumId: string }) {
   const { t } = useI18n()
   const [cameraState, setCameraState] = useState<CameraState | null>(null)
   const [autoUploadActive, setAutoUploadActive] = useState(false)

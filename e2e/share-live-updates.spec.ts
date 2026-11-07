@@ -30,9 +30,9 @@ test.beforeAll(async () => {
       import Gallery from './src/components/public-gallery-infinite';
       import { I18nProvider } from './src/components/i18n-provider';
       const root = createRoot(document.getElementById('root'));
-      window.renderGallery = (photos) => root.render(<I18nProvider locale="en"><Gallery
+      window.renderGallery = (photos, cursor = null) => root.render(<I18nProvider locale="en"><Gallery
         initialPhotos={photos} totalCount={photos.length} albumId="fixture-album"
-        albumTitle="Live fixture" shareToken="fixture-token" initialCursor={null}
+        albumTitle="Live fixture" shareToken="fixture-token" initialCursor={cursor}
         initialSyncSince="${since}" /></I18nProvider>);
     `, resolveDir: process.cwd(), loader: 'tsx' },
     bundle: true, write: false, platform: 'browser', format: 'iife', jsx: 'automatic',
@@ -48,18 +48,68 @@ test.beforeAll(async () => {
   bundle = result.outputFiles[0].text
 })
 
-async function mount(page: Page, initialPhotos: SharedPhoto[] = []) {
+async function mount(page: Page, initialPhotos: SharedPhoto[] = [], options: {
+  cursor?: string
+  setupRoutes?: () => Promise<void>
+} = {}) {
   await page.route('**/__share_live_fixture', (route) => route.fulfill({ contentType: 'text/html', body: `
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>${css}</style><div id="root"></div>` }))
   // Block all other API calls, including the gallery's view tracker.
   await page.route('**/api/**', (route) => route.fulfill({ json: { success: true } }))
+  await options.setupRoutes?.()
   await page.goto('/__share_live_fixture')
   await page.addScriptTag({ content: bundle })
-  await page.evaluate((photos) => {
-    (window as unknown as { renderGallery: (photos: SharedPhoto[]) => void }).renderGallery(photos)
-  }, initialPhotos)
+  await page.evaluate(({ photos, cursor }) => {
+    (window as unknown as { renderGallery: (photos: SharedPhoto[], cursor: string | null) => void }).renderGallery(photos, cursor)
+  }, { photos: initialPhotos, cursor: options.cursor ?? null })
 }
+
+test('photo pagination retries the same boundary despite live inserts and deduplicates tied photos', async ({ page }) => {
+  const cursor = JSON.stringify({ createdAt: '2026-10-01T00:00:00.123456Z', id: '00000000-0000-4000-8000-000000000002' })
+  const boundary = photo('boundary', '2026-10-01T00:00:00.123456Z')
+  const cursors: Array<string | null> = []
+  let live: SharedPhoto[] = []
+  await mount(page, [boundary], { cursor, setupRoutes: async () => {
+    await page.route('**/api/share/photos?*', async (route) => {
+      cursors.push(new URL(route.request().url()).searchParams.get('cursor'))
+      if (cursors.length === 1) {
+        await route.fulfill({ status: 503, json: { error: 'Temporary failure' } })
+      } else {
+        await route.fulfill({ json: { success: true, photos: [boundary, photo('tied', boundary.created_at)], hasMore: false, nextCursor: null } })
+      }
+    })
+    await page.route('**/api/share/photos/updates?*', (route) => route.fulfill({ json: { success: true, photos: live, nextCursor: null } }))
+  } })
+  await expect(page.getByRole('button', { name: 'Try again', exact: true })).toBeVisible()
+  live = [photo('new-live', '2026-10-02T00:00:00Z')]
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await expect(page.locator('img[alt="new-live.jpg"]')).toHaveCount(1)
+  await page.getByRole('button', { name: 'Try again', exact: true }).click()
+  await expect(page.locator('img[alt="tied.jpg"]')).toHaveCount(1)
+  await expect(page.locator('img[alt="boundary.jpg"]')).toHaveCount(1)
+  expect(cursors).toEqual([cursor, cursor])
+})
+
+test('photo pagination continues automatically through empty visible pages', async ({ page }) => {
+  const cursors = [3, 2, 1].map((id) => JSON.stringify({
+    createdAt: '2026-10-01T00:00:00.123456Z', id: `00000000-0000-4000-8000-${String(id).padStart(12, '0')}`,
+  }))
+  const requested: Array<string | null> = []
+  await mount(page, [], { cursor: cursors[0], setupRoutes: async () => {
+    await page.route('**/api/share/photos?*', async (route) => {
+      const cursor = new URL(route.request().url()).searchParams.get('cursor')
+      requested.push(cursor)
+      const next = cursors[cursors.indexOf(cursor ?? '') + 1] ?? null
+      await route.fulfill({ json: {
+        success: true, photos: next ? [] : [photo('older-ready')], hasMore: Boolean(next), nextCursor: next,
+      } })
+    })
+  } })
+  await expect(page.locator('img[alt="older-ready.jpg"]')).toHaveCount(1)
+  expect(requested).toEqual(cursors)
+  await expect(page.getByRole('button', { name: 'Load more photos', exact: true })).toHaveCount(0)
+})
 
 test('empty album receives first photo, delayed completion and pages without navigation', async ({ page }) => {
   await mount(page)
@@ -136,6 +186,31 @@ test('incoming photos do not change the open lightbox or selected photo', async 
   await expect(page.locator('img[alt="newest.jpg"]')).toHaveCount(1)
   await expect(page.getByText(/selected 1\/5 photos/)).toBeVisible()
   await expect(page.getByRole('button', { name: /Download/ })).toBeEnabled()
+})
+
+test('large albums mount only nearby rows and retain selection across page scrolling', async ({ page }) => {
+  await page.route('**/api/share/photos/updates?*', (route) => route.fulfill({
+    json: { success: true, photos: [], nextCursor: null },
+  }))
+  await mount(page, Array.from({ length: 1_000 }, (_, index) => photo(`large-${index}`)))
+  const grid = page.locator('[data-page-windowed-grid]')
+  const tiles = grid.locator('img')
+  await expect(grid.locator('img[alt="large-0.jpg"]')).toBeVisible()
+  await expect.poll(() => tiles.count()).toBeLessThan(120)
+  await page.getByRole('button', { name: /select photos/i }).click()
+  await grid.locator('img[alt="large-0.jpg"]').click()
+  await expect(page.getByText(/selected 1\/5 photos/)).toBeVisible()
+
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+  await expect(grid.locator('img[alt="large-999.jpg"]')).toBeVisible()
+  await expect(grid.locator('img[alt="large-0.jpg"]')).toHaveCount(0)
+  await expect.poll(() => tiles.count()).toBeLessThan(120)
+  await expect(page.getByText(/selected 1\/5 photos/)).toBeVisible()
+
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await expect(grid.locator('img[alt="large-0.jpg"]')).toBeVisible()
+  await expect(grid.locator('button').filter({ has: page.locator('img[alt="large-0.jpg"]') })
+    .locator('.border-gold.bg-gold')).toHaveCount(1)
 })
 
 test('existing shared album uses the real token-gated update endpoint', async ({ page }) => {

@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { CiiyaSyncDesktopApi } from '../desktop/ciiya-sync/src/api-client'
+import { CIIYA_SYNC_DEFAULT_API_URL } from '../desktop/ciiya-sync/src/contracts'
 import {
   CiiyaSyncCredentialStore,
   CiiyaSyncSettingsStore,
@@ -20,6 +21,33 @@ function source(relativePath: string) {
     fileURLToPath(new URL(`../${relativePath}`, import.meta.url)),
     'utf8'
   )
+}
+
+async function canonicalDefaultSettingsTest(root: string) {
+  assert.equal(CIIYA_SYNC_DEFAULT_API_URL, 'https://www.ciiya.app')
+  const settingsPath = path.join(root, 'canonical', 'settings.json')
+  const store = new CiiyaSyncSettingsStore(settingsPath)
+  const initial = await store.load()
+  assert.equal(initial.apiBaseUrl, 'https://www.ciiya.app')
+
+  // Rebuilding with a new default must not migrate an existing installation's
+  // saved origin, device identity, or upload preferences without consent.
+  const saved = await store.update({
+    apiBaseUrl: 'https://ciiya.vercel.app',
+    albumId: ALBUM_ID,
+    folderPath: path.join(root, 'existing-export'),
+    deviceId: DEVICE_ID,
+    ownerId: OWNER_ID,
+    autoStart: true,
+  })
+  const reloaded = await new CiiyaSyncSettingsStore(settingsPath).load()
+  assert.equal(reloaded.apiBaseUrl, 'https://ciiya.vercel.app')
+  assert.equal(reloaded.clientDeviceId, initial.clientDeviceId)
+  assert.equal(reloaded.deviceId, DEVICE_ID)
+  assert.equal(reloaded.ownerId, OWNER_ID)
+  assert.equal(reloaded.albumId, ALBUM_ID)
+  assert.equal(reloaded.folderPath, saved.folderPath)
+  assert.equal(reloaded.autoStart, true)
 }
 
 async function settingsAndCredentialsTest(root: string) {
@@ -87,7 +115,7 @@ async function desktopApiTest() {
           pairingId: '44444444-4444-4444-8444-444444444444',
           userCode: 'ABCD-EFGH',
           pollSecret: 'p'.repeat(43),
-          verificationUriComplete: 'https://ciiya.test/connect/ciiya-sync?code=ABCD-EFGH',
+          verificationUriComplete: 'https://www.ciiya.app/connect/ciiya-sync?code=ABCD-EFGH',
           expiresAt: '2026-09-23T12:00:00.000Z',
           interval: 3,
         },
@@ -131,7 +159,7 @@ async function desktopApiTest() {
     throw new Error(`Unexpected desktop API request: ${url}`)
   }
 
-  const api = new CiiyaSyncDesktopApi('https://ciiya.test/', mockFetch)
+  const api = new CiiyaSyncDesktopApi(CIIYA_SYNC_DEFAULT_API_URL, mockFetch)
   const started = await api.startPairing({
     clientDeviceId: DEVICE_ID,
     deviceName: 'Studio Mac',
@@ -139,6 +167,7 @@ async function desktopApiTest() {
     appVersion: '0.1.0',
   })
   assert.equal(started.userCode, 'ABCD-EFGH')
+  assert.equal(new URL(started.verificationUriComplete).origin, CIIYA_SYNC_DEFAULT_API_URL)
   assert.equal(
     (await api.pairingStatus({
       pairingId: started.pairingId,
@@ -155,6 +184,7 @@ async function desktopApiTest() {
   assert.equal(albums[0].id, ALBUM_ID)
   assert.equal(albums[0].photoCount, 14)
   assert.equal(calls.filter((call) => call.authorization).length, 1)
+  assert.ok(calls.every((call) => new URL(call.url).origin === CIIYA_SYNC_DEFAULT_API_URL))
 }
 
 async function desktopSecurityContractTest() {
@@ -249,6 +279,7 @@ async function main() {
   try {
     assert.equal(desktopPlatform('darwin'), 'macos')
     assert.equal(desktopPlatform('win32'), 'windows')
+    await canonicalDefaultSettingsTest(root)
     await settingsAndCredentialsTest(root)
     await desktopApiTest()
     await desktopSecurityContractTest()

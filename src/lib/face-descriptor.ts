@@ -19,6 +19,8 @@
  * different detector.
  */
 
+import { loadModelsInParallel } from '@/lib/parallel-model-loader'
+
 type FaceApiModule = typeof import('@vladmandic/face-api')
 
 let faceapi: FaceApiModule | null = null
@@ -79,12 +81,19 @@ async function ensureModels(
   if (!modelsPromise) {
     modelsPromise = (async () => {
       onProgress?.({ progress: 24, stage: 'detector' })
-      await faceapi!.nets.ssdMobilenetv1.loadFromUri('/models')
-      onProgress?.({ progress: 58, stage: 'landmarks' })
-      await faceapi!.nets.faceLandmark68Net.loadFromUri('/models')
-      onProgress?.({ progress: 72, stage: 'recognition' })
-      await faceapi!.nets.faceRecognitionNet.loadFromUri('/models')
-    })()
+      let loaded = 0
+      await loadModelsInParallel([
+        faceapi!.nets.ssdMobilenetv1,
+        faceapi!.nets.faceLandmark68Net,
+        faceapi!.nets.faceRecognitionNet,
+      ], '/models', () => {
+        loaded += 1
+        onProgress?.({ progress: 24 + loaded * 20, stage: 'recognition' })
+      })
+    })().catch((error) => {
+      modelsPromise = null
+      throw error
+    })
   }
 
   await modelsPromise

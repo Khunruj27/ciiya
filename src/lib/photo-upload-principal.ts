@@ -1,4 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { readBearerAccessToken } from '@/lib/bearer-token'
+import { createMobileSupabaseClient } from '@/lib/mobile/server-client'
 import { authenticateCiiyaSyncDevice } from '@/lib/ciiya-sync/server'
 import { getCiiyaSyncRolloutDecision } from '@/lib/ciiya-sync/rollout'
 
@@ -26,6 +28,11 @@ export type PhotoUploadPrincipalResult = {
  * Resolve the caller without ever handing a Supabase user session to Ciiya
  * Sync. An Authorization header is treated as an explicit device credential;
  * when it is invalid we do not fall back to a browser cookie.
+ *
+ * The one other explicit credential is a signed-in user's own access token
+ * (the mobile app). It is JWT-shaped, so it can never be mistaken for a device
+ * token, and it is verified with a fresh token-only client. That same client
+ * performs the user's database/RPC work under RLS; browser cookies play no part.
  */
 export async function resolvePhotoUploadPrincipal(params: {
   request: Request
@@ -35,7 +42,36 @@ export async function resolvePhotoUploadPrincipal(params: {
     params.request.headers.get('authorization') || ''
   ).trim()
 
-  if (authorization) {
+  const userAccessToken = readBearerAccessToken(authorization)
+
+  if (userAccessToken) {
+    const mobileClient = await createMobileSupabaseClient(authorization)
+
+    if (!mobileClient) {
+      return { principal: null, explicitCredential: true, rolloutDisabled: false }
+    }
+
+    const {
+      data: { user },
+      error,
+    } = await mobileClient.auth.getUser()
+
+    return {
+      principal:
+        error || !user
+          ? null
+          : {
+              kind: 'browser',
+              ownerId: user.id,
+              deviceId: null,
+              client: mobileClient,
+            },
+      explicitCredential: true,
+      rolloutDisabled: false,
+    }
+  }
+
+  if (params.request.headers.has('authorization')) {
     const authenticated = await authenticateCiiyaSyncDevice(
       params.request,
       'photos:upload'

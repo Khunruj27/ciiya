@@ -10,6 +10,8 @@ const entitlementMigrationPath =
 const originVerificationMigrationPath =
   'supabase/migrations/202609280004_stripe_webhook_origin_verification.sql'
 const schemaPath = 'supabase/schema.sql'
+const snapshotColumnsMigrationPath =
+  'supabase/migrations/202610070001_stripe_subscription_snapshot_columns.sql'
 
 function normalized(source: string) {
   return source.replace(/\s+/g, ' ').trim().toLowerCase()
@@ -601,6 +603,22 @@ function assertAtomicEntitlementReconciliation(sql: string, label: string) {
 }
 
 async function main() {
+  const snapshotColumnsMigration = normalized(
+    await readFile(snapshotColumnsMigrationPath, 'utf8')
+  )
+  assert.match(
+    snapshotColumnsMigration,
+    /alter table public\.subscriptions add column if not exists current_period_start timestamptz, add column if not exists cancel_at_period_end boolean default false/i
+  )
+  assert.match(snapshotColumnsMigration, /set local lock_timeout = '5s'/i)
+  assert.match(
+    snapshotColumnsMigration,
+    /notify pgrst, 'reload schema'; commit;$/i
+  )
+  assert.doesNotMatch(
+    snapshotColumnsMigration,
+    /\b(delete from|drop table|update public\.)\b/i
+  )
   const [
     migrationSource,
     checkoutLockSource,

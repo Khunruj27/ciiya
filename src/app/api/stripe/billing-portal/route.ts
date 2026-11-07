@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { stripe, stripeConfig } from '@/lib/stripe'
-import { getStripeSiteUrl } from '@/lib/stripe-config'
+import { getStripeBillingReturnUrls } from '@/lib/stripe-config'
 import { rateLimit, tooManyRequests } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
@@ -51,11 +51,11 @@ export async function POST(request: Request) {
       )
     }
 
-    const siteUrl = getStripeSiteUrl()
+    const billingReturnUrls = getStripeBillingReturnUrls()
 
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: subscription.stripe_customer_id,
-      return_url: `${siteUrl}/me`,
+      return_url: billingReturnUrls.portalReturnUrl,
     })
 
     return NextResponse.json({ url: portalSession.url })

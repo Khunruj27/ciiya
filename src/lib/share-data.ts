@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resolvePhotoDeliveries } from '@/lib/storage/delivery'
 import { resolveAlbumCoverDeliveries } from '@/lib/storage/album-covers'
 import { overlapPhotoUpdateTimestamp } from '@/lib/share-photo-updates'
+import { paginatePhotoRows, type PhotoPageCursor } from '@/lib/share-photo-pagination'
 
 // Public share-page reads run entirely server-side with the service role, and
 // the share token is validated in application code before any read (every
@@ -200,22 +201,26 @@ export const getSharedAlbumPhotos = unstable_cache(
           .eq('album_id', albumId)
           .eq('processing_status', 'done')
           .order('created_at', { ascending: false })
-          .limit(SHARE_PAGE_SIZE),
+          .order('id', { ascending: false })
+          .limit(SHARE_PAGE_SIZE + 1),
       ])
 
     if (photosError) throw new Error(photosError.message)
 
+    const page = paginatePhotoRows(photos ?? [], SHARE_PAGE_SIZE)
     return {
-      photos: resolvePhotoDeliveries(photos ?? []).filter(
+      photos: resolvePhotoDeliveries(page.rows).filter(
         (photo) => photo.preview_url && photo.thumbnail_url
       ),
+      hasMore: page.hasMore,
+      nextCursor: page.nextCursor,
       photoCount: photoCountResult || 0,
       syncSince: latest?.updated_at
         ? overlapPhotoUpdateTimestamp(latest.updated_at)
         : new Date(0).toISOString(),
     }
   },
-  ['shared-album-photos-v2'],
+  ['shared-album-photos-v3'],
   { revalidate: SHARE_CACHE_TTL_SECONDS }
 )
 
@@ -264,7 +269,7 @@ export async function getPreviewSample() {
 // what lets many concurrent viewers scrolling the same album share one DB
 // round trip per page instead of one each.
 export const getSharedAlbumPhotosPage = unstable_cache(
-  async (albumId: string, cursor: string | null, limit: number) => {
+  async (albumId: string, cursor: PhotoPageCursor | null, limit: number) => {
     const supabase = getServiceClient()
 
     let query = supabase
@@ -291,24 +296,30 @@ export const getSharedAlbumPhotosPage = unstable_cache(
       .eq('album_id', albumId)
       .eq('processing_status', 'done')
       .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
       .limit(limit + 1)
 
     if (cursor) {
-      query = query.lt('created_at', cursor)
+      // Route validation bounds both values before they enter this filter.
+      query = cursor.id
+        ? query.or(`created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`)
+        : query.lte('created_at', cursor.createdAt)
     }
 
     const { data, error } = await query
 
     if (error) throw new Error(error.message)
 
-    const rows = resolvePhotoDeliveries(data ?? [])
-    const hasMore = rows.length > limit
+    const page = paginatePhotoRows(data ?? [], limit)
 
     return {
-      photos: hasMore ? rows.slice(0, limit) : rows,
-      hasMore,
+      photos: resolvePhotoDeliveries(page.rows).filter(
+        (photo) => photo.public_url && photo.preview_url && photo.thumbnail_url
+      ),
+      hasMore: page.hasMore,
+      nextCursor: page.nextCursor,
     }
   },
-  ['shared-album-photos-page'],
+  ['shared-album-photos-page-v2'],
   { revalidate: SHARE_CACHE_TTL_SECONDS }
 )

@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useState, type ReactNode } from 'react'
-import GuestMoments from '@/components/guest-moments'
+import dynamic from 'next/dynamic'
 import { useI18n } from '@/components/i18n-provider'
+
+const GuestMoments = dynamic(() => import('@/components/guest-moments'))
 
 type Props = {
   token: string
@@ -39,6 +41,8 @@ export default function ShareGalleryTabs({
   // Seeded from the server; GuestMoments refines it once its feed loads (e.g.
   // after a new post), via onCountChange.
   const [momentCount, setMomentCount] = useState(initialMomentCount)
+  // Mount on first use, then preserve drafts/story state when changing tabs.
+  const [momentsOpened, setMomentsOpened] = useState(activeTab === 'moments')
   const { t } = useI18n()
   const [galleryLikes, setGalleryLikes] = useState(initialGalleryLikes)
 
@@ -85,7 +89,7 @@ export default function ShareGalleryTabs({
 
         <button
           type="button"
-          onClick={() => setActiveTab('moments')}
+          onClick={() => { setMomentsOpened(true); setActiveTab('moments') }}
           aria-pressed={activeTab === 'moments'}
           className={tabClass('moments', 'flex shrink-0 items-center justify-center gap-2')}
         >
@@ -120,7 +124,7 @@ export default function ShareGalleryTabs({
       </div>
 
       <div className={activeTab === 'moments' ? 'block' : 'hidden'} aria-hidden={activeTab !== 'moments'}>
-        <GuestMoments token={token} active={activeTab === 'moments'} onCountChange={setMomentCount} />
+        {momentsOpened && <GuestMoments token={token} active={activeTab === 'moments'} onCountChange={setMomentCount} />}
       </div>
 
       {contact ? (

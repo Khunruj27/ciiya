@@ -1,7 +1,27 @@
 # Stripe Live readiness for Ciiya
 
-Status: prepared, **not activated**. Ciiya must remain in Stripe Test mode until
-every required preflight check passes and a cutover window is approved.
+Status (2026-10-07): **public Live Checkout enabled** following the user's
+approval, successful real Starter payment, and configuration-bound Stripe-origin
+webhook verification. Production uses `STRIPE_LIVE_CHECKOUT_ROLLOUT_MODE=all`.
+Future renewal delivery remains an operational observation, not a completed
+real-renewal test.
+
+## October 7 cutover preparation
+
+- Reset the two legacy Test Starter entitlements to Free without deleting photos.
+- Applied `202610070001_stripe_subscription_snapshot_columns.sql` to add the
+  legacy table's missing `current_period_start` and `cancel_at_period_end` fields.
+  The existing entitlement RPC referenced these columns but `CREATE TABLE IF NOT
+  EXISTS` had not upgraded the existing Production table.
+- Tested paid grant, cancellation, and stale-event fencing through the actual
+  Production RPC inside a rolled-back transaction. Usage/counts stayed unchanged.
+- Added an explicit snapshot-column check to Live preflight.
+- Backed up billing tables locally before switching modes. Live signature,
+  route, and ledger smoke passed with Checkout initially closed.
+- Canary owner selected by the user and pinned by UUID in the Production
+  allowlist, Starter 299 THB/month.
+  No payment has been submitted by the agent. Tax registration and Stripe Tax
+  configuration were not changed.
 
 ## Safety model
 
@@ -187,6 +207,76 @@ Configure Stripe's failed-payment recovery with a finite retry window and a
 terminal transition to `unpaid` or `canceled`. Do not leave subscriptions in
 `past_due` indefinitely, because Ciiya deliberately preserves the last paid
 storage entitlement during that recovery state.
+
+### Browser returns on the canonical domain
+
+Production Live Checkout returns directly to `https://www.ciiya.app/me`.
+Cancellation returns to `https://www.ciiya.app/pricing?canceled=1`, and Customer
+Portal returns to the same canonical `/me` page. The existing webhook URL and
+its verification fingerprint stay on `ciiya.vercel.app`; do not change
+`NEXT_PUBLIC_SITE_URL` just to change the browser return. Entitlements still
+come only from verified webhooks, never from visiting `/me`. Existing sessions
+created before this deployment retain their original return URL. A valid login
+session on `www.ciiya.app` is needed; expired sessions still require login.
+
+### Invoice line compatibility
+
+Paid invoice evidence reads modern subscription lines from
+`parent.subscription_item_details.subscription` and the price from
+`pricing.price_details.price`. Legacy subscription/price fields remain supported
+when modern fields are absent. Manual invoice items and lines belonging to a
+different subscription are excluded; duplicate prices are deduplicated.
+The canonical subscription's latest invoice and current plan price must still
+match before granting entitlement. This parser does not grant access from the
+browser return page or require broader Stripe API permissions.
+
+Regression checks cover modern and legacy fields, expanded objects, conflicting
+associations, manual invoice items, missing prices, and empty invoices. A read-only
+check of the October 7 Starter payment's canonical `invoice.paid` event on API
+`2026-08-26.dahlia` matched the paid THB 299 invoice, subscription, latest invoice,
+and Starter price. No payment was created and no completed webhook was replayed;
+future renewal delivery remains an operational check.
+
+## Public Live rollout — 2026-10-07
+
+- Read-only Live preflight passed before and after rollout: zero failures.
+  The single generic signing-secret warning was reviewed; both the internal
+  signature/route/ledger smoke and canonical Stripe-origin proof passed.
+- The real Starter subscription is active in Stripe and Ciiya with paid
+  entitlement. Its `checkout.session.completed`, `invoice.paid`, and
+  `customer.subscription.created` ledger entries are completed; the Live ledger
+  has no failed or processing entries in the inspected history.
+- The exact Live catalog is Starter 299 THB/20 GB, Pro 499 THB/50 GB, and
+  Business 699 THB/100 GB, all recurring monthly. No prices or quotas changed.
+- The default Live Customer Portal permits payment-method updates, invoice
+  history, immediate plan changes, and cancellation at period end. Period-end
+  cancellation deliberately preserves paid access until the period ends.
+- Stripe Dashboard confirms card Smart Retries are enabled for up to eight
+  attempts within two weeks, followed by subscription cancellation if recovery
+  fails. These settings were inspected only, not modified.
+- Only `STRIPE_LIVE_CHECKOUT_ROLLOUT_MODE` changed, from `canary` to `all`, in
+  Vercel Production. Environment metadata confirms no other variable changed
+  after the prior deployment. Keys, webhook identity, Ciiya Sync rollout, storage
+  migration gates, and Phase 15 cleanup gates were untouched.
+- Redeployed the existing Production source snapshot, not the dirty local
+  worktree. Deployment `dpl_BSE9GxTG4boEpVfphMazHLVqoRZS`
+  (`ciiya-hexvaznu3-ciiya.vercel.app`) is `READY` and active on `www.ciiya.app`.
+  It retains the canonical `/me` payment return and invoice-line compatibility
+  fixes, plus the October 7 installer catalog.
+- Post-deploy `/pricing`, `/login`, and `/me` returned HTTP 200. Anonymous
+  Checkout and Portal requests returned 401; an unsigned webhook returned 400.
+  The new deployment's error-log query returned no error records.
+- Local Live-readiness and billing-security migration contract checks passed.
+  No new Checkout Session, payment, cancellation, refund, entitlement mutation,
+  credential expansion, tax change, or storage deletion was performed for this
+  rollout. Another user's paid Checkout was not simulated in Live.
+
+Continue observing real renewals and customer recovery deliveries. Refunds stay
+manual under the existing cancellation/reconciliation policy below; neither a
+real cancellation nor a real refund was executed merely to validate this launch.
+If new Checkout must be closed, set `STRIPE_CHECKOUT_ENABLED=false` in Production
+and redeploy the current compatible source. Do not disable Live webhooks or
+Customer Portal, which existing paying subscribers still need.
 
 ## 6. Approved cutover
 

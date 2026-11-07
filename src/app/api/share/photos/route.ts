@@ -4,7 +4,9 @@ import {
   hasValidSharePasswordAccess,
   isAlbumPubliclyVisible,
 } from '@/lib/share-access'
-import { getSharedAlbumByToken, getSharedAlbumPhotosPage } from '@/lib/share-data'
+import { getSharedAlbumPhotosPage } from '@/lib/share-data'
+import { getFreshShareGuard } from '@/lib/share-photo-updates-server'
+import { parsePhotoPageCursor } from '@/lib/share-photo-pagination'
 import { rateLimit, tooManyRequests } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
@@ -12,6 +14,7 @@ export const dynamic = 'force-dynamic'
 
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 100
+const headers = { 'Cache-Control': 'private, no-store, max-age=0' }
 
 export async function GET(req: NextRequest) {
   try {
@@ -28,36 +31,35 @@ export async function GET(req: NextRequest) {
     }
 
     const token = String(req.nextUrl.searchParams.get('token') || '').trim()
-    const cursor = req.nextUrl.searchParams.get('cursor')
+    const rawCursor = req.nextUrl.searchParams.get('cursor')
+    const cursor = parsePhotoPageCursor(rawCursor)
     const rawLimit = Number(req.nextUrl.searchParams.get('limit') || DEFAULT_LIMIT)
     const limit = Math.min(Math.max(rawLimit, 1), MAX_LIMIT)
 
-    if (!token) {
-      return NextResponse.json({ error: 'share token is required' }, { status: 400 })
+    if (!token || token.length > 256) {
+      return NextResponse.json({ error: 'share token is required' }, { status: 400, headers })
     }
 
-    let album: Awaited<ReturnType<typeof getSharedAlbumByToken>> | null = null
-
-    try {
-      album = await getSharedAlbumByToken(token)
-    } catch (error) {
+    if ((rawCursor !== null && !cursor) || !Number.isInteger(rawLimit) || rawLimit < 1) {
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Shared album not found' },
-        { status: 500 }
+        { error: 'Invalid photo page request' },
+        { status: 400, headers }
       )
     }
 
+    const album = await getFreshShareGuard(token)
+
     if (!album || !isAlbumPubliclyVisible(album)) {
-      return NextResponse.json({ error: 'Shared album not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Shared album not found' }, { status: 404, headers })
     }
 
     const shareCookie = req.cookies.get(getShareAuthCookieName(album.id))?.value
 
     if (!hasValidSharePasswordAccess(album, shareCookie)) {
-      return NextResponse.json({ error: 'Password required' }, { status: 401 })
+      return NextResponse.json({ error: 'Password required' }, { status: 401, headers })
     }
 
-    const { photos: rows, hasMore } = await getSharedAlbumPhotosPage(
+    const { photos: rows, hasMore, nextCursor } = await getSharedAlbumPhotosPage(
       album.id,
       cursor,
       limit
@@ -82,21 +84,16 @@ export async function GET(req: NextRequest) {
         success: true,
         photos: safePhotos,
         hasMore,
-        nextCursor:
-          hasMore && safePhotos.length > 0
-            ? safePhotos[safePhotos.length - 1].created_at
-            : null,
+        nextCursor,
       },
       {
-        headers: {
-          'Cache-Control': 'no-store, max-age=0',
-        },
+        headers,
       }
     )
-  } catch (error) {
+  } catch {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Load photos failed' },
-      { status: 500 }
+      { error: 'Load photos failed' },
+      { status: 500, headers }
     )
   }
 }

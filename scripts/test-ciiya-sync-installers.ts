@@ -5,6 +5,12 @@ import { CIIYA_SYNC_INSTALLERS, ciiyaSyncInstallerKey, findCiiyaSyncInstaller } 
 import type { StorageAdapter } from '../src/lib/storage/types'
 
 async function main() {
+  for (const artifact of CIIYA_SYNC_INSTALLERS) {
+    assert.equal(artifact.build, '2026-10-07')
+    assert.equal(artifact.version, '0.1.0')
+    assert.match(artifact.sha256, /^[a-f0-9]{64}$/)
+    assert.equal(ciiyaSyncInstallerKey(artifact), `releases/ciiya-sync/0.1.0/${artifact.sha256}/${artifact.filename}`)
+  }
   const installer = CIIYA_SYNC_INSTALLERS[0]
   let storageCalls = 0
   const adapter: Pick<StorageAdapter, 'objectExists' | 'getSignedDownloadUrl'> = {

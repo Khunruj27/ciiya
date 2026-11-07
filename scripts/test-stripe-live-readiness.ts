@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import {
+  getStripeBillingReturnUrls,
   getStripePriceId,
   getStripeRuntimeConfig,
   getStripeSiteUrl,
@@ -15,6 +16,7 @@ import {
 } from '../src/lib/stripe-config'
 import {
   getInvoiceSubscriptionId,
+  getInvoiceSubscriptionPriceIds,
   STRIPE_MANAGED_SUBSCRIPTION_STATUSES,
 } from '../src/lib/stripe-billing'
 
@@ -110,6 +112,39 @@ async function main() {
         NEXT_PUBLIC_SITE_URL: 'http://localhost:3000',
       }),
     /public HTTPS URL/
+  )
+
+  const liveReturnEnv = {
+    NODE_ENV: 'production',
+    STRIPE_MODE: 'live',
+    STRIPE_LIVE_ENABLED: 'true',
+    NEXT_PUBLIC_SITE_URL: 'https://ciiya.vercel.app',
+  }
+  assert.deepEqual(getStripeBillingReturnUrls(liveReturnEnv), {
+    successUrl: 'https://www.ciiya.app/me',
+    cancelUrl: 'https://www.ciiya.app/pricing?canceled=1',
+    portalReturnUrl: 'https://www.ciiya.app/me',
+  })
+  assert.equal(getStripeSiteUrl(liveReturnEnv), 'https://ciiya.vercel.app')
+  assert.deepEqual(
+    getStripeBillingReturnUrls({
+      ...liveReturnEnv,
+      NODE_ENV: 'development',
+      NEXT_PUBLIC_SITE_URL: 'http://localhost:3000',
+    }),
+    {
+      successUrl: 'http://localhost:3000/me',
+      cancelUrl: 'http://localhost:3000/pricing?canceled=1',
+      portalReturnUrl: 'http://localhost:3000/me',
+    }
+  )
+  assert.equal(
+    getStripeBillingReturnUrls({ ...liveReturnEnv, STRIPE_MODE: 'test' }).successUrl,
+    'https://ciiya.vercel.app/me'
+  )
+  assert.throws(
+    () => getStripeBillingReturnUrls({ ...liveReturnEnv, NEXT_PUBLIC_SITE_URL: '' }),
+    /required/
   )
 
   const mismatch = inspectStripeEnvironment({
@@ -230,6 +265,57 @@ async function main() {
       },
     } as never),
     'sub_modern'
+  )
+
+  const subscriptionLine = (subscription: string, price: unknown) => ({
+    parent: {
+      type: 'subscription_item_details',
+      subscription_item_details: { subscription },
+    },
+    pricing: { price_details: { price } },
+  })
+  const invoiceWithLines = (data: unknown[]) => ({ lines: { data } }) as never
+  assert.deepEqual(
+    getInvoiceSubscriptionPriceIds(invoiceWithLines([
+      subscriptionLine('sub_current', 'price_starter'),
+      subscriptionLine('sub_current', { id: 'price_starter' }),
+      subscriptionLine('sub_other', 'price_pro'),
+      subscriptionLine('sub_current', null),
+      { pricing: { price_details: { price: 'price_unlinked' } } },
+    ]), 'sub_current'),
+    ['price_starter']
+  )
+  assert.deepEqual(
+    getInvoiceSubscriptionPriceIds(invoiceWithLines([
+      { subscription: 'sub_legacy', pricing: { price_details: { price: 'price_old' } } },
+      { subscription: { id: 'sub_legacy' }, price: { id: 'price_legacy' } },
+    ]), 'sub_legacy'),
+    ['price_old', 'price_legacy']
+  )
+  assert.deepEqual(
+    getInvoiceSubscriptionPriceIds(invoiceWithLines([
+      // Modern association wins over a conflicting legacy subscription ID.
+      { ...subscriptionLine('sub_other', 'price_pro'), subscription: 'sub_current' },
+      {
+        parent: { type: 'subscription_item_details', subscription_item_details: null },
+        subscription: 'sub_current',
+        price: 'price_incomplete',
+      },
+      {
+        parent: {
+          type: 'invoice_item_details',
+          invoice_item_details: { subscription: 'sub_current' },
+        },
+        subscription: 'sub_current',
+        price: 'price_manual',
+      },
+      { type: 'invoiceitem', subscription: 'sub_current', price: 'price_manual_legacy' },
+    ]), 'sub_current'),
+    []
+  )
+  assert.deepEqual(
+    getInvoiceSubscriptionPriceIds(invoiceWithLines([]), 'sub_current'),
+    []
   )
 
   const webhook = await readFile(
@@ -357,6 +443,13 @@ async function main() {
     new URL('../src/app/api/stripe/checkout/route.ts', import.meta.url),
     'utf8'
   )
+  assert.match(checkout, /success_url: billingReturnUrls\.successUrl/)
+  assert.match(checkout, /cancel_url: billingReturnUrls\.cancelUrl/)
+  const portal = await readFile(
+    new URL('../src/app/api/stripe/billing-portal/route.ts', import.meta.url),
+    'utf8'
+  )
+  assert.match(portal, /return_url: billingReturnUrls\.portalReturnUrl/)
   assert.match(checkout, /getAdminSupabase/)
   assert.match(checkout, /STRIPE_MANAGED_SUBSCRIPTION_STATUSES/)
   assert.match(checkout, /createHash\('sha256'\)/)

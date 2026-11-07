@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { useEffect, useRef, useState, type TouchEvent } from 'react'
 import type { Portfolio } from '@/lib/portfolio-types'
 import { useI18n } from '@/components/i18n-provider'
-import PortfolioGalleryLayout, { UPDATED_GALLERY_LAYOUTS } from './portfolio-gallery-layout'
+import PortfolioGalleryLayout from './portfolio-gallery-layout'
 
 type GalleryLayout = Portfolio['gallery_layout']
 
@@ -91,89 +91,14 @@ export default function PortfolioGallery({
     }
   }, [activeIndex, images.length])
 
-  const isCollage = layout.startsWith('collage')
-  const containerClass =
-    layout === 'grid'
-      ? 'grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4'
-      : layout === 'masonry'
-        ? 'columns-2 gap-2 sm:columns-3 sm:gap-4'
-        : layout === 'collage_overlap'
-          ? 'pf-gallery-scroll flex snap-x snap-mandatory items-center overflow-x-auto py-8 pl-5 pr-[28vw] sm:py-12 sm:pl-10'
-          : layout === 'collage_frames'
-            ? 'flex flex-col gap-7 bg-[#eee7dc] px-4 py-8 sm:gap-12 sm:px-10 sm:py-14'
-        : isCollage
-          ? 'grid grid-cols-4 auto-rows-[24vw] gap-2 sm:auto-rows-[16vw] sm:gap-4 lg:auto-rows-[180px]'
-        : layout === 'carousel'
-          ? 'pf-gallery-scroll flex snap-x snap-mandatory gap-0 overflow-x-auto pb-3'
-          : 'pf-gallery-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-3 sm:gap-5'
-
   return (
     <>
-      {UPDATED_GALLERY_LAYOUTS.some(key => key === layout) ? <PortfolioGalleryLayout images={images} layout={layout} photoLabel={index => t.portfolioGallery.openPhoto(index + 1, ownerName)} onSelect={openImage} /> : <div className={containerClass}>
-        {images.map((url, index) => {
-          const frameClass =
-            layout === 'grid'
-              ? `${index % 5 === 0 ? 'col-span-2 aspect-[16/10] sm:col-span-1 sm:aspect-[4/5]' : 'aspect-[4/5]'}`
-              : layout === 'masonry'
-                ? `${['aspect-[3/4]', 'aspect-square', 'aspect-[4/5]'][index % 3]} mb-2 break-inside-avoid sm:mb-4`
-                : layout === 'collage'
-                  ? ['col-span-3 row-span-2', 'col-span-1 row-span-1', 'col-span-1 row-span-1', 'col-span-2 row-span-2', 'col-span-2 row-span-1', 'col-span-2 row-span-1'][index % 6]
-                  : layout === 'collage_story'
-                    ? ['col-span-2 row-span-3', 'col-span-2 row-span-1', 'col-span-1 row-span-2', 'col-span-1 row-span-2', 'col-span-3 row-span-2', 'col-span-1 row-span-2'][index % 6]
-                    : layout === 'collage_panorama'
-                      ? ['col-span-4 row-span-2', 'col-span-2 row-span-2', 'col-span-2 row-span-1', 'col-span-1 row-span-1', 'col-span-1 row-span-1'][index % 5]
-                    : layout === 'collage_tiles'
-                        ? ['col-span-2 row-span-2', 'col-span-2 row-span-1', 'col-span-1 row-span-2', 'col-span-1 row-span-1', 'col-span-2 row-span-2', 'col-span-1 row-span-1'][index % 6]
-                      : layout === 'collage_overlap'
-                        ? `aspect-[3/4] w-[72vw] shrink-0 snap-center border-[7px] border-white shadow-[0_18px_50px_rgba(23,21,18,0.18)] sm:w-[42vw] ${index === 0 ? '' : '-ml-[24vw] sm:-ml-[12vw]'} ${index % 2 ? 'rotate-[2deg]' : '-rotate-[2deg]'}`
-                      : layout === 'collage_frames'
-                        ? `aspect-[4/5] w-[86%] border-[10px] border-white shadow-[0_14px_38px_rgba(69,55,38,0.14)] sm:w-[68%] sm:border-[16px] ${index % 2 ? 'self-end rotate-[1.5deg]' : 'self-start -rotate-[1.5deg]'}`
-                : layout === 'filmstrip'
-                  ? 'aspect-[16/10] w-[88vw] shrink-0 snap-center sm:w-[64vw] lg:w-[48vw]'
-                  : 'aspect-[4/5] w-[92vw] shrink-0 snap-center rounded-none sm:w-[70vw] lg:w-[52vw]'
-
-          return (
-            <button
-              key={`${url}-${index}`}
-              type="button"
-              onClick={() => openImage(index)}
-              className={`group relative block overflow-hidden rounded-[10px] bg-ground-sunken text-left ring-1 ring-ink/[0.06] ${frameClass}`}
-              aria-label={t.portfolioGallery.openPhoto(index + 1, ownerName)}
-            >
-              <Image
-                src={url}
-                alt={t.portfolioGallery.photoAlt(ownerName, index + 1)}
-                fill
-                unoptimized
-                sizes={
-                  layout === 'grid' || layout === 'masonry' || (isCollage && layout !== 'collage_overlap' && layout !== 'collage_frames')
-                    ? '(max-width: 640px) 50vw, 33vw'
-                    : layout === 'collage_overlap' || layout === 'collage_frames'
-                      ? '(max-width: 640px) 86vw, 68vw'
-                    : layout === 'filmstrip'
-                      ? '(max-width: 640px) 88vw, (max-width: 1024px) 64vw, 48vw'
-                      : '(max-width: 640px) 76vw, (max-width: 1024px) 42vw, 30vw'
-                }
-                className="object-cover transition duration-[900ms] ease-out group-hover:scale-[1.035]"
-              />
-
-              {/* A magazine plate number and an open cue, revealed under a soft
-                  scrim on hover. The serif index ties the gallery back to the
-                  editorial headings. */}
-              <span
-                aria-hidden
-                className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0f0e0c]/55 via-transparent to-transparent opacity-0 transition duration-500 group-hover:opacity-100"
-              />
-              <span className="pf-serif pointer-events-none absolute bottom-2.5 left-3.5 text-[15px] font-medium italic text-white opacity-0 transition duration-500 group-hover:opacity-100">
-                {String(index + 1).padStart(2, '0')}
-              </span>
-              <span className="pointer-events-none absolute bottom-3 right-3 grid h-8 w-8 translate-y-1.5 place-items-center rounded-full bg-white/15 text-white opacity-0 backdrop-blur-md transition duration-500 group-hover:translate-y-0 group-hover:opacity-100">
-                <ExpandIcon />
-              </span>
-            </button>
-          )
-        })}
-      </div>}
+      <PortfolioGalleryLayout
+        images={images}
+        layout={layout}
+        photoLabel={index => t.portfolioGallery.openPhoto(index + 1, ownerName)}
+        onSelect={openImage}
+      />
 
       {activeIndex !== null ? (
         <div
@@ -237,9 +162,6 @@ export default function PortfolioGallery({
   )
 }
 
-function ExpandIcon() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="h-4 w-4"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" /></svg>
-}
 
 function CloseIcon() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden className="h-5 w-5"><path d="m6 6 12 12M18 6 6 18" /></svg>

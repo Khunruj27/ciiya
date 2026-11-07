@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { cameraDesktopRequiredResponse, supportsServerUsbCamera } from '@/lib/camera-runtime'
 
 export const dynamic = 'force-dynamic'
 
@@ -178,6 +179,8 @@ export async function POST(req: Request) {
     if (albumError || !album) {
       return NextResponse.json({ error: 'Album not found' }, { status: 404 })
     }
+
+    if (!supportsServerUsbCamera()) return cameraDesktopRequiredResponse()
 
     const cameraBrand =
       typeof body?.cameraBrand === 'string'

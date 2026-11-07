@@ -5,7 +5,7 @@ import type {
 import type { CiiyaSyncSessionSummary } from './session-telemetry'
 
 export const CIIYA_SYNC_DESKTOP_SETTINGS_VERSION = 1
-export const CIIYA_SYNC_DEFAULT_API_URL = 'https://ciiya.vercel.app'
+export const CIIYA_SYNC_DEFAULT_API_URL = 'https://www.ciiya.app'
 
 export type CiiyaSyncDesktopPlatform = 'macos' | 'windows' | 'linux' | 'unknown'
 

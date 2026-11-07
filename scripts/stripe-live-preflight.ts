@@ -221,6 +221,18 @@ async function main() {
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
+  const { error: snapshotSchemaError } = await supabase
+    .from('subscriptions')
+    .select('id, current_period_start, cancel_at_period_end')
+    .limit(1)
+  add(
+    checks,
+    snapshotSchemaError ? 'fail' : 'pass',
+    'Subscription snapshot schema',
+    snapshotSchemaError
+      ? 'Cannot read Stripe snapshot columns. Apply 202610070001_stripe_subscription_snapshot_columns before cutover.'
+      : 'Billing period and scheduled-cancellation columns are available to the entitlement RPC.'
+  )
   const stripe = new Stripe(secretKey)
   const runtimeStripe = new Stripe(runtimeSecretKey)
 

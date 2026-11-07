@@ -1,0 +1,14 @@
+{
+  "name": "@ciiya/decode-uri-component-compat",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CommonJS adapter for the unmodified patched decode-uri-component package",
+  "main": "index.cjs",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "dependencies": {
+    "decode-uri-component-patched": "npm:decode-uri-component@0.5.0"
+  }
+}

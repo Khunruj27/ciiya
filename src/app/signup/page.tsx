@@ -10,6 +10,8 @@ import GoogleSignInButton from '@/components/google-sign-in-button'
 import { useI18n } from '@/components/i18n-provider'
 import { getAuthErrorMessage } from '@/lib/auth-error-message'
 
+const legalLinkClassName = 'inline-flex min-h-11 min-w-11 items-center justify-center align-middle font-semibold text-ink underline decoration-gold underline-offset-4 lg:pointer-fine:inline lg:pointer-fine:align-baseline'
+
 export default function SignupPage() {
   const router = useRouter()
   const { t, locale } = useI18n()
@@ -166,11 +168,11 @@ export default function SignupPage() {
 
             <p className="mt-4 text-center text-[11px] leading-5 text-muted">
               {locale === 'th' ? 'เมื่อสร้างบัญชี คุณยอมรับ' : 'By creating an account, you agree to the'}{' '}
-              <Link href="/terms?from=signup" className="font-semibold text-ink underline decoration-gold underline-offset-4">
+              <Link href="/terms?from=signup" className={legalLinkClassName}>
                 {locale === 'th' ? 'ข้อกำหนดการให้บริการ' : 'Terms of Service'}
               </Link>{' '}
               {locale === 'th' ? 'และรับทราบ' : 'and acknowledge the'}{' '}
-              <Link href="/privacy?from=signup" className="font-semibold text-ink underline decoration-gold underline-offset-4">
+              <Link href="/privacy?from=signup" className={legalLinkClassName}>
                 {locale === 'th' ? 'นโยบายความเป็นส่วนตัว' : 'Privacy Policy'}
               </Link>
             </p>
@@ -194,7 +196,7 @@ export default function SignupPage() {
 
               <Link
                 href="/login"
-                className="mt-2 inline-flex min-h-11 items-center text-[13px] font-semibold text-ink underline decoration-gold decoration-2 underline-offset-4"
+                className="mt-2 inline-flex min-h-11 min-w-11 items-center justify-center text-[13px] font-semibold text-ink underline decoration-gold decoration-2 underline-offset-4 lg:pointer-fine:min-w-0"
               >
                 {t.signup.signIn}
               </Link>

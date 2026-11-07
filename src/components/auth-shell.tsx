@@ -55,7 +55,7 @@ export default function AuthShell({
           </div>
           <footer className={styles.footer}>
             <span>Ciiya · {thai ? 'พื้นที่สำหรับทุกช่วงเวลาสำคัญ' : 'A space for every important moment'}</span>
-            <span className={signup ? `${styles.footerLinks} [&>a]:min-w-11 [&>a]:justify-center lg:pointer-fine:[&>a]:min-w-0` : styles.footerLinks}>
+            <span className={styles.footerLinks}>
               <Link href={`/support?from=${infoSource}`}>{thai ? 'ช่วยเหลือ' : 'Support'}</Link>
               <Link href={`/privacy?from=${infoSource}`}>{thai ? 'ความเป็นส่วนตัว' : 'Privacy'}</Link>
               <Link href={`/terms?from=${infoSource}`}>{thai ? 'ข้อกำหนด' : 'Terms'}</Link>

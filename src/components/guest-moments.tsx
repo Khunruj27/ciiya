@@ -105,7 +105,6 @@ export default function GuestMoments({ token, active, onCountChange }: Props) {
 
   useEffect(() => {
     if (!active || loadedRef.current) return
-    loadedRef.current = true
 
     const controller = new AbortController()
 
@@ -117,14 +116,17 @@ export default function GuestMoments({ token, active, onCountChange }: Props) {
           signal: controller.signal,
         })
         const data = await res.json()
+        if (controller.signal.aborted) return
         if (!res.ok || !data.success) throw new Error(data?.error || unableLoadRef.current)
 
         const nextMoments = Array.isArray(data.moments) ? data.moments : []
+        loadedRef.current = true
         setMoments(nextMoments)
         onCountChange?.(nextMoments.length)
         setLoadError('')
 
         window.requestAnimationFrame(() => {
+          if (controller.signal.aborted) return
           const targetId = window.location.hash.startsWith('#moment-')
             ? window.location.hash.slice(1)
             : ''
@@ -465,8 +467,8 @@ export default function GuestMoments({ token, active, onCountChange }: Props) {
             </button>
 
             {loading ? (
-              <div className="grid w-full grid-cols-4 gap-x-2 gap-y-4">
-                {[0, 1, 2, 3].map((item) => <div key={item} className="aspect-square w-full max-w-[220px] animate-pulse rounded-full bg-ground-sunken" />)}
+              <div className="grid w-full max-w-4xl grid-cols-4 gap-x-0 gap-y-4 sm:gap-x-2 sm:gap-y-7 lg:gap-x-1" aria-busy="true">
+                {[0, 1, 2, 3].map((item) => <div key={item} className="aspect-square w-full max-w-[96px] rounded-full bg-ground-sunken sm:max-w-[180px] lg:max-w-[220px]" />)}
               </div>
             ) : loadError ? (
               <div className="w-full rounded-panel border border-line bg-ground-sunken px-6 py-10 text-center">

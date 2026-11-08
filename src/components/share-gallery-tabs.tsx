@@ -1,10 +1,8 @@
 'use client'
 
-import { useEffect, useState, type ReactNode } from 'react'
-import dynamic from 'next/dynamic'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import GuestMoments from '@/components/guest-moments'
 import { useI18n } from '@/components/i18n-provider'
-
-const GuestMoments = dynamic(() => import('@/components/guest-moments'))
 
 type Props = {
   token: string
@@ -43,6 +41,8 @@ export default function ShareGalleryTabs({
   const [momentCount, setMomentCount] = useState(initialMomentCount)
   // Mount on first use, then preserve drafts/story state when changing tabs.
   const [momentsOpened, setMomentsOpened] = useState(activeTab === 'moments')
+  const tabsRef = useRef<HTMLDivElement>(null)
+  const navRef = useRef<HTMLElement>(null)
   const { t } = useI18n()
   const [galleryLikes, setGalleryLikes] = useState(initialGalleryLikes)
 
@@ -55,21 +55,40 @@ export default function ShareGalleryTabs({
     return () => window.removeEventListener('ciiya-photo-like', onLike)
   }, [])
 
+  function selectTab(tab: Tab) {
+    if (tab === activeTab) return
+
+    const tabs = tabsRef.current
+    const nav = navRef.current
+    if (tabs && nav) {
+      const top = tabs.getBoundingClientRect().top
+      const stickyTop = Number.parseFloat(window.getComputedStyle(nav).top)
+      // Keep the sticky bar in place when a long gallery gives way to a short panel.
+      if (top < stickyTop) {
+        window.scrollTo({ top: window.scrollY + top - stickyTop, behavior: 'instant' })
+      }
+    }
+
+    if (tab === 'moments') setMomentsOpened(true)
+    setActiveTab(tab)
+  }
+
   function tabClass(tab: Tab, extra = '') {
-    return `min-h-11 min-w-0 rounded-xl px-2 py-2.5 text-[12px] sm:text-[14px] font-medium transition focus-visible:outline-2 focus-visible:outline-gold ${extra} ${
+    return `min-h-11 min-w-0 rounded-xl px-2 py-2.5 text-[12px] sm:text-[14px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-gold ${extra} ${
       activeTab === tab ? 'bg-ink text-white' : 'text-muted hover:text-ink'
     }`
   }
 
   return (
-    <div className="space-y-5">
+    <div ref={tabsRef} className="min-h-[calc(100svh-1rem)] space-y-5">
       <nav
+        ref={navRef}
         className={`sticky top-2 z-40 grid w-full ${contact ? 'grid-cols-3' : 'grid-cols-2'} gap-1 rounded-2xl border border-line bg-surface/95 p-1.5 backdrop-blur-xl`}
         aria-label={t.share.ciiyaGallery}
       >
         <button
           type="button"
-          onClick={() => setActiveTab('gallery')}
+          onClick={() => selectTab('gallery')}
           aria-pressed={activeTab === 'gallery'}
           className={tabClass('gallery', 'flex shrink-0 items-center justify-center gap-2')}
         >
@@ -89,7 +108,7 @@ export default function ShareGalleryTabs({
 
         <button
           type="button"
-          onClick={() => { setMomentsOpened(true); setActiveTab('moments') }}
+          onClick={() => selectTab('moments')}
           aria-pressed={activeTab === 'moments'}
           className={tabClass('moments', 'flex shrink-0 items-center justify-center gap-2')}
         >
@@ -110,7 +129,7 @@ export default function ShareGalleryTabs({
         {contact ? (
           <button
             type="button"
-            onClick={() => setActiveTab('contact')}
+            onClick={() => selectTab('contact')}
             aria-pressed={activeTab === 'contact'}
             className={tabClass('contact', 'shrink-0 whitespace-nowrap')}
           >
